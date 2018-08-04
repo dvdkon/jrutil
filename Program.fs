@@ -1,9 +1,7 @@
-open JrUtil.JdfModel
-open JrUtil.JdfCsvParser
+open JrUtil.Jdf
 
 [<EntryPoint>]
 let main args =
-    printfn "Trying to parse file %s as Routes" args.[0]
-    let res = parseCsvFile<Route> args.[0]
-    printfn "Parsing success! %A" res
+    let batch = parseJdfBatchDir args.[0]
+    printfn "Parsing success!\n%A" batch
     0

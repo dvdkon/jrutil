@@ -10,8 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="src/JdfCsvParser.fs" />
-    <Compile Include="src/JdfModel.fs" />
+    <Compile Include="src/Jdf/JdfCsvParser.fs" />
+    <Compile Include="src/Jdf/JdfModel.fs" />
+    <Compile Include="src/Jdf/Jdf110.fs" />
+    <Compile Include="src/Jdf/Jdf.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

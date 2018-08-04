@@ -20,13 +20,35 @@ type CsvSpreadAttribute(len: int) =
     member this.Len = len
 
 [<AllowNullLiteral>]
-type CsvParserAttribute(parser: (string -> obj)) =
+type CsvValueAttribute(value: string) =
     inherit Attribute()
-    member this.Parser = parser
+    member this.Value = value
 
-let rec getColParser colType =
+let getUnionCsvCases unionType =
+    FSharpType.GetUnionCases(unionType)
+    |> Array.collect (fun c ->
+        c.GetCustomAttributes()
+        |> Array.filter (fun a -> a :? CsvValueAttribute)
+        |> Array.map (fun a -> a :?> CsvValueAttribute)
+        |> Array.map (fun a -> (c, a.Value)))
+
+let getUnionParser unionType =
+    let cases = getUnionCsvCases unionType
+    fun x ->
+        let cases =
+            cases
+            |> Array.filter (fun (c, v) -> v = x)
+            |> Array.map (fun (c, v) -> c)
+        if cases.Length <> 1
+        then raise (JdfCsvParseException
+                     (sprintf "No union case for value %s" x))
+        FSharpValue.MakeUnion(cases.[0], [||])
+
+let rec getColParser (colType: Type) =
     // Ifs are probably better than a match expression here
-    if colType = typeof<string> then box
+    let parseMethod = colType.GetMethod("CsvParse")
+    if parseMethod <> null then (fun x -> parseMethod.Invoke(null, [|x|]))
+    else if colType = typeof<string> then box
     else if colType = typeof<int> then int >> box
     else if colType = typeof<float> then float >> box
     else if colType = typeof<bool> then
@@ -39,8 +61,16 @@ let rec getColParser colType =
                                  (sprintf "Invalid value for bool: %s" x))
                   |> box
     else if colType = typeof<DateTime> then
-        fun x -> DateTime.ParseExact(x, "ddMMyyyy",
-                                     CultureInfo.InvariantCulture) |> box
+        fun x -> let (success, res) =
+                     DateTime.TryParseExact(
+                         x, [|"ddMMyyyy"; "HHmm"|],
+                         CultureInfo.InvariantCulture,
+                         DateTimeStyles.None)
+                 if not success
+                 then raise (JdfCsvParseException
+                              (sprintf "Invalid value for DateTime %s" x))
+                 else res |> box
+
     else if colType.IsGenericType
             && colType.GetGenericTypeDefinition() = typedefof<_ option> then
         let innerType = colType.GetGenericArguments().[0]
@@ -52,29 +82,25 @@ let rec getColParser colType =
                    then FSharpValue.MakeUnion(noneCase, [||])
                    else let innerVal = innerTypeParser x
                         FSharpValue.MakeUnion(someCase, [|innerVal|])))
+    else if FSharpType.IsUnion(colType) then getUnionParser colType
     else raise (JdfCsvParseException "Could not convert type from CSV")
 
 let getRowParser<'r> =
     let recordType = typeof<'r>
-    //assert FSharpType.IsRecord(recordType)
+    assert FSharpType.IsRecord(recordType)
     let fields = FSharpType.GetRecordFields(recordType)
     let spreadAttrs =
         [for f in fields -> f.GetCustomAttribute<CsvSpreadAttribute>()]
-    let parserAttrs =
-        [for f in fields -> f.GetCustomAttribute<CsvParserAttribute>()]
-    // A wrapper of getColParser that defers to parserAttrs if present
-    // and deals with spread fields
-    let getParserForField i =
-        match parserAttrs.[i] with
-        | null -> let colType = fields.[i].PropertyType
-                  if colType.IsArray
-                  then let innerType  = colType.GetElementType()
-                       getColParser innerType
-                  else getColParser colType
-        | pa -> pa.Parser
+    // A wrapper of getColParser that deals with spread fields
+    let getFieldParser (f: PropertyInfo) =
+        let colType = f.PropertyType
+        if colType.IsArray
+        then let innerType  = colType.GetElementType()
+             getColParser innerType
+        else getColParser colType
     let colParsers =
         fields
-        |> Array.mapi (fun i _ -> getParserForField i)
+        |> Array.map (fun f -> getFieldParser f)
     fun (cols: string array) ->
         let (_, _, props) =
             // This deals with the CsvSpread attribute. Sorry for the ugly code
@@ -97,7 +123,6 @@ let getRowParser<'r> =
         FSharpValue.MakeRecord(recordType, List.toArray props) |> unbox<'r>
 
 let parseCsv<'r> text =
-
     // The spec says "quotes inside text don't need to be doubled",
     // which is really confusing from an escaping standpoint
     // I take that to mean that there is really no quotation, and that
@@ -107,17 +132,18 @@ let parseCsv<'r> text =
     let lines = (new Regex(";\\r\\n")).Split(text)
     let colRegex = new Regex("\",\"")
     let rowParser = getRowParser<'r>
-    [for line in lines do if line <> "" then yield (
-        // Strip off leading and trailing quote
-        let strippedLine = line.Substring(1, line.Length - 2)
-        colRegex.Split(strippedLine) |> rowParser)]
+    lines
+    |> Array.filter (fun line -> line <> "")
+    |> Array.map (fun line ->
+            // Strip off leading and trailing quote
+            let strippedLine = line.Substring(1, line.Length - 2)
+            colRegex.Split(strippedLine) |> rowParser)
 
 
 let parseCsvFile<'r> inpath =
     // This is probably not ideal. However, the file should never be more
     // than a few megabytes in size, in which case this will be faster than
     // FSharp.Data's approach, which reads char by char
-    // "windows-1250" is returned from GetEncodings(), but doesn't seem to work
     let encoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)
     let text = File.ReadAllText(inpath, encoding)
     parseCsv<'r> text
