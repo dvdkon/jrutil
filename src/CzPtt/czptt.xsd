@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+  <!--
+    At first I tried to create an XML Schema (XSD) for the format,
+    but after getting to a state when the schema had a few hundred lines but
+    still wasn't complete, I decided to switch languages. This means that this
+    file will need to be compiled to XSD (by trang) before it can be used with
+    FSharp.Data. For convenience's sake, I decided to leave the generated file in
+    the git repo
+  -->
+  <!--
+    I used this wondeful book to learn the bits of RELAX NG that I needed to
+    know: http://www.kosek.cz/xml/schema/index.html
+  -->
+  <!--
+    This schema defines the CZPTTCISMessage XML object given to CIS JŘ per
+    official SŽDC documentation ("Popis DJR_CIS_v1_04.pdf"). It contains
+    only elements used in the docs sent to and publicly available from CIS JŘ
+  -->
+  <xs:simpleType name="company">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9]{4}"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:complexType name="TransportIdentifier">
+    <xs:sequence>
+      <xs:element ref="ObjectType"/>
+      <xs:element ref="Company"/>
+      <xs:element ref="Core"/>
+      <xs:element ref="Variant"/>
+      <xs:element ref="TimetableYear"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ObjectType">
+    <xs:simpleType>
+      <xs:restriction base="xs:token">
+        <xs:enumeration value="TR"/>
+        <xs:enumeration value="PA"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="Company" type="company"/>
+  <xs:element name="Core">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9A-Z*\-]{12}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="Variant">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9A-Z]{2}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="TimetableYear" type="xs:integer"/>
+  <xs:element name="CZPTTCISMessage">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="Identifiers"/>
+        <xs:element ref="CZPTTCreation"/>
+        <xs:element ref="CZPTTInformation"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="Identifiers">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element maxOccurs="unbounded" ref="PlannedTransportIdentifiers"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="PlannedTransportIdentifiers" type="TransportIdentifier"/>
+  <xs:element name="CZPTTCreation" type="xs:dateTime"/>
+  <xs:element name="CZPTTInformation">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="PlannedCalendar"/>
+        <xs:element maxOccurs="unbounded" ref="CZPTTLocation"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="PlannedCalendar">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="BitmapDays"/>
+        <xs:element ref="ValidityPeriod"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="BitmapDays">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[10]+"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="ValidityPeriod">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="StartDateTime"/>
+        <xs:element ref="EndDateTime"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="StartDateTime" type="xs:dateTime"/>
+  <xs:element name="EndDateTime" type="xs:dateTime"/>
+  <xs:element name="CZPTTLocation">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="CountryCodeISO"/>
+        <xs:element minOccurs="0" ref="LocationPrimaryCode"/>
+        <xs:element ref="PrimaryLocationName"/>
+        <xs:element minOccurs="0" ref="LocationSubsidiaryIdentification"/>
+        <xs:element ref="TimingAtLocation"/>
+        <xs:element ref="ResponsibleRU"/>
+        <xs:element ref="ResponsibleIM"/>
+        <xs:element minOccurs="0" ref="TrainType"/>
+        <xs:element minOccurs="0" ref="TrafficType"/>
+        <xs:element minOccurs="0" ref="CommercialTrafficType"/>
+        <xs:element minOccurs="0" ref="OperationalTrainNumber"/>
+        <xs:element minOccurs="0" maxOccurs="unbounded" ref="TrainActivity"/>
+      </xs:sequence>
+      <xs:attribute name="JourneyLocationTypeCode" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:token">
+            <xs:enumeration value="01"/>
+            <xs:enumeration value="02"/>
+            <xs:enumeration value="03"/>
+            <xs:enumeration value="04"/>
+            <xs:enumeration value="05"/>
+            <xs:enumeration value="06"/>
+            <xs:enumeration value="07"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="CountryCodeISO" type="xs:string"/>
+  <xs:element name="LocationPrimaryCode">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9]{5}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="PrimaryLocationName" type="xs:string"/>
+  <xs:element name="LocationSubsidiaryIdentification">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="LocationSubsidiaryCode"/>
+        <xs:element minOccurs="0" ref="AllocationCompany"/>
+        <xs:element minOccurs="0" ref="LocationSubsidiaryName"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="LocationSubsidiaryCode">
+    <xs:complexType>
+      <xs:simpleContent>
+        <xs:extension base="xs:string">
+          <xs:attribute name="LocationSubsidiaryTypeCode" use="required" type="xs:string"/>
+        </xs:extension>
+      </xs:simpleContent>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="AllocationCompany" type="company"/>
+  <xs:element name="LocationSubsidiaryName" type="xs:string"/>
+  <xs:element name="TimingAtLocation">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element minOccurs="0" ref="DwellTime"/>
+        <xs:element minOccurs="0" maxOccurs="unbounded" ref="Timing"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="DwellTime" type="xs:decimal"/>
+  <xs:element name="Timing">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="Time"/>
+        <xs:element ref="Offset"/>
+      </xs:sequence>
+      <xs:attribute name="TimingQualifierCode" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:token">
+            <xs:enumeration value="ALA"/>
+            <xs:enumeration value="ALD"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="Time" type="xs:time"/>
+  <xs:element name="Offset" type="xs:integer"/>
+  <xs:element name="ResponsibleRU" type="company"/>
+  <xs:element name="ResponsibleIM" type="company"/>
+  <xs:element name="TrainType">
+    <xs:simpleType>
+      <xs:restriction base="xs:token">
+        <xs:enumeration value="1"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="TrafficType">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9A-B]{2}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="CommercialTrafficType">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9A-B]{2,4}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="OperationalTrainNumber">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9]{5,6}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+  <xs:element name="TrainActivity">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element ref="TrainActivityType"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="TrainActivityType">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="[0-9A-Z]{4}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,88 @@
+# At first I tried to create an XML Schema (XSD) for the format,
+# but after getting to a state when the schema had a few hundred lines but
+# still wasn't complete, I decided to switch languages. This means that this
+# file will need to be compiled to XSD (by trang) before it can be used with
+# FSharp.Data. For convenience's sake, I decided to leave the generated file in
+# the git repo
+
+# I used this wondeful book to learn the bits of RELAX NG that I needed to
+# know: http://www.kosek.cz/xml/schema/index.html
+
+# This schema defines the CZPTTCISMessage XML object given to CIS JŘ per
+# official SŽDC documentation ("Popis DJR_CIS_v1_04.pdf"). It contains
+# only elements used in the docs sent to and publicly available from CIS JŘ
+
+company = xsd:string { pattern="[0-9]{4}" }
+	
+
+TransportIdentifier =
+	element ObjectType { "TR" | "PA" },
+	element Company { company },
+	element Core { xsd:string { pattern="[0-9A-Z*\-]{12}" } },
+	element Variant { xsd:string { pattern="[0-9A-Z]{2}" } },
+	element TimetableYear { xsd:integer }
+
+start = 
+	element CZPTTCISMessage {
+		element Identifiers {
+			# Always exactly two, with ObjectType TR and PA
+			element PlannedTransportIdentifiers {
+				TransportIdentifier
+			}+
+		},
+
+		element CZPTTCreation { xsd:dateTime },
+
+		element CZPTTInformation {
+			element PlannedCalendar {
+				element BitmapDays { xsd:string { pattern="[10]+" } },
+				element ValidityPeriod {
+					element StartDateTime { xsd:dateTime },
+					element EndDateTime { xsd:dateTime }
+				}
+			},
+
+			element CZPTTLocation {
+				attribute JourneyLocationTypeCode {
+					"01" | "02" | "03" | "04" | "05" | "06" | "07"
+				},
+
+				element CountryCodeISO { xsd:string },
+				element LocationPrimaryCode {
+					xsd:string { pattern="[0-9]{5}" }
+				}?,
+				element PrimaryLocationName { xsd:string },
+				element LocationSubsidiaryIdentification {
+					element LocationSubsidiaryCode {
+						attribute LocationSubsidiaryTypeCode { xsd:string },
+						xsd:string
+					},
+					element AllocationCompany { company }?,
+					element LocationSubsidiaryName { xsd:string }?
+				}?,
+				element TimingAtLocation {
+					element DwellTime { xsd:decimal }?,
+					element Timing {
+						attribute TimingQualifierCode { "ALA" | "ALD" },
+						element Time { xsd:time },
+						element Offset { xsd:integer }
+					}*
+				},
+				element ResponsibleRU { company },
+				element ResponsibleIM { company },
+				element TrainType { "1" }?,
+				element TrafficType { xsd:string { pattern="[0-9A-B]{2}" } }?,
+				element CommercialTrafficType {
+					xsd:string { pattern="[0-9A-B]{2,4}" }
+				}?,
+				element OperationalTrainNumber {
+					xsd:string { pattern="[0-9]{5,6}" }
+				}?,
+				element TrainActivity {
+					element TrainActivityType {
+						xsd:string { pattern="[0-9A-Z]{4}" }
+					}
+				}*
+			}+
+		}
+	}
