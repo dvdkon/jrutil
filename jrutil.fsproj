@@ -1,4 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+  This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+  (c) 2018 David Koňařík
+  -->
 
   <!-- This should't be necessary, but from what I gathered it's required
   for FSharp.Data for now -->

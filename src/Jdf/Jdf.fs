@@ -1,3 +1,6 @@
+// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// (c) 2018 David Koňařík
+
 module JrUtil.Jdf
 
 open JrUtil.JdfCsvParser
