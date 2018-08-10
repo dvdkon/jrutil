@@ -89,10 +89,11 @@ type TimePoint =
 
 type StopTime = {
     [<CsvFieldName("trip_id")>] tripId: string
-    // TODO: Proper GTFS time formatting with multiday trips
-    // Damned 12-hour time
-    [<CsvFieldName("arrival_time")>] arrivalTime: DateTime
-    [<CsvFieldName("departure_time")>] departureTime: DateTime
+    // These two fields use TimeSpan, because it represents them better than
+    // plain DateTime. For example, handling trips that cross day
+    // boundaries with DateTime would be awkward
+    [<CsvFieldName("arrival_time")>] arrivalTime: TimeSpan
+    [<CsvFieldName("departure_time")>] departureTime: TimeSpan
     [<CsvFieldName("stop_id")>] stopId: string
     [<CsvFieldName("stop_sequence")>] stopSequence: int
     [<CsvFieldName("stop_headsign")>] headsign: string option

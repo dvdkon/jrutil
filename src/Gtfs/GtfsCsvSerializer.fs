@@ -25,13 +25,21 @@ let rec getFormatter fieldType =
             match unbox x with
             | true -> "1"
             | false -> "0"
+    else if fieldType = typeof<DateTime> then
+        fun x ->
+            let dt: DateTime = unbox x
+            dt.ToString("yyyyMMdd")
+    else if fieldType = typeof<TimeSpan> then
+        fun x ->
+            let ts: TimeSpan = unbox x
+            ts.ToString(@"hh\:mm\:ss")
     else if fieldType.IsGenericType
             && fieldType.GetGenericTypeDefinition() = typedefof<_ option> then
         let innerType = fieldType.GetGenericArguments().[0]
         let innerFormatter = getFormatter innerType
         fun x ->
             let (_, fields) = FSharpValue.GetUnionFields(x, fieldType)
-            // I could test the case, but it's much easier to just
+            // I could test the union case, but it's much easier to just
             // test the field array length
             match fields.Length with
             | 0 -> ""
