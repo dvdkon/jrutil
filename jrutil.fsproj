@@ -18,6 +18,7 @@
     <Compile Include="src/Jdf/JdfCsvParser.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
+	<Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

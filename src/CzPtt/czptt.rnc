@@ -16,7 +16,7 @@
 # only elements used in the docs sent to and publicly available from CIS JŘ
 
 company = xsd:string { pattern="[0-9]{4}" }
-	
+
 
 TransportIdentifier =
 	element ObjectType { "TR" | "PA" },
@@ -25,7 +25,7 @@ TransportIdentifier =
 	element Variant { xsd:string { pattern="[0-9A-Z]{2}" } },
 	element TimetableYear { xsd:integer }
 
-start = 
+start =
 	element CZPTTCISMessage {
 		element Identifiers {
 			# Always exactly two, with ObjectType TR and PA
