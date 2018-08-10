@@ -4,10 +4,11 @@
 module JrUtil.JdfModel
 
 open System
-open JrUtil.JdfCsvParser
 open System.Text.RegularExpressions
-open System
 open System.Globalization
+
+open JrUtil.JdfCsvParser
+open JrUtil.Utils
 
 // This type is shared between all JDF versions, because, as far as I can tell,
 // it's the only thing that sometimes "loses options" (for example, JDF 1.10
@@ -18,42 +19,42 @@ open System.Globalization
 // At least some kind of order is kept by the version comments
 type Attribute =
     // Taken from JDF 1.11
-    | [<CsvValue("X")>] WeekdayService
-    | [<CsvValue("+")>] HolidaySundayService
+    | [<StrValue("X")>] WeekdayService
+    | [<StrValue("+")>] HolidaySundayService
     | DayOfWeekService of int
-    | [<CsvValue("R")>] ReservationAvailable
-    | [<CsvValue("#")>] OnlyWithReservation
-    | [<CsvValue("|")>] NotStopping
-    | [<CsvValue("<")>] TakesDiversion
-    | [<CsvValue("@")>] WheelchairAccessible
-    | [<CsvValue("%")>] FoodAvailable
-    | [<CsvValue("W")>] ToiletsAvailable
-    | [<CsvValue("w")>] WheelchairAccessibleToilets
-    | [<CsvValue("x")>] RequestStop
-    | [<CsvValue("~")>] CityTransportTransfer
-    | [<CsvValue("(")>] ExitOnly
-    | [<CsvValue(")")>] BoardingOnly
-    | [<CsvValue("$")>] BorderStopOnly
-    | [<CsvValue("{")>] PartlyWheelchairAccessible
-    | [<CsvValue("}")>] VisuallyImpairedAccessible
-    | [<CsvValue("[")>] BaggageTransport
-    | [<CsvValue("O")>] BicycleTransport
-    | [<CsvValue("v")>] RailwayTransfer
-    | [<CsvValue("§")>] TravelExclusion0
-    | [<CsvValue("A")>] TravelExclusion1
-    | [<CsvValue("B")>] TravelExclusion2
-    | [<CsvValue("C")>] TravelExclusion3
-    | [<CsvValue("T")>] CommisionServiceOnly
-    | [<CsvValue("!")>] ConditionalService
-    | [<CsvValue("t")>] AccessibilityTerminal // TODO: What is this?
-    | [<CsvValue("b")>] LineTransportTransfer
-    | [<CsvValue("U")>] MetroTransfer // I'm tempted to name this UBahnTransfer
-    | [<CsvValue("S")>] ShipTransfer
-    | [<CsvValue("J")>] AirportNearby
-    | [<CsvValue("P")>] ParkAndRideNearby
+    | [<StrValue("R")>] ReservationAvailable
+    | [<StrValue("#")>] OnlyWithReservation
+    | [<StrValue("|")>] NotStopping
+    | [<StrValue("<")>] TakesDiversion
+    | [<StrValue("@")>] WheelchairAccessible
+    | [<StrValue("%")>] FoodAvailable
+    | [<StrValue("W")>] ToiletsAvailable
+    | [<StrValue("w")>] WheelchairAccessibleToilets
+    | [<StrValue("x")>] RequestStop
+    | [<StrValue("~")>] CityTransportTransfer
+    | [<StrValue("(")>] ExitOnly
+    | [<StrValue(")")>] BoardingOnly
+    | [<StrValue("$")>] BorderStopOnly
+    | [<StrValue("{")>] PartlyWheelchairAccessible
+    | [<StrValue("}")>] VisuallyImpairedAccessible
+    | [<StrValue("[")>] BaggageTransport
+    | [<StrValue("O")>] BicycleTransport
+    | [<StrValue("v")>] RailwayTransfer
+    | [<StrValue("§")>] TravelExclusion0
+    | [<StrValue("A")>] TravelExclusion1
+    | [<StrValue("B")>] TravelExclusion2
+    | [<StrValue("C")>] TravelExclusion3
+    | [<StrValue("T")>] CommisionServiceOnly
+    | [<StrValue("!")>] ConditionalService
+    | [<StrValue("t")>] AccessibilityTerminal // TODO: What is this?
+    | [<StrValue("b")>] LineTransportTransfer
+    | [<StrValue("U")>] MetroTransfer // I'm tempted to name this UBahnTransfer
+    | [<StrValue("S")>] ShipTransfer
+    | [<StrValue("J")>] AirportNearby
+    | [<StrValue("P")>] ParkAndRideNearby
     // Missing from JDF 1.11, taken from JDF 1.10
-    | [<CsvValue("I")>] PartOfIntegratedTransport
-    | [<CsvValue("s")>] SelfServiceTicketTrain
+    | [<StrValue("I")>] PartOfIntegratedTransport
+    | [<StrValue("s")>] SelfServiceTicketTrain
 
     with
     static member DefaultParser = getUnionParser typeof<Attribute>
@@ -106,8 +107,8 @@ type AttributeRef = {
 }
 
 type CompanyType =
-    | [<CsvValue("1")>] Corporation
-    | [<CsvValue("2")>] NaturalPerson
+    | [<StrValue("1")>] Corporation
+    | [<StrValue("2")>] NaturalPerson
 
 type Agency = {
     id: int // IČO
@@ -126,21 +127,21 @@ type Agency = {
 }
 
 type RouteType =
-    | [<CsvValue("A")>] City
-    | [<CsvValue("B")>] CityAndAdjacent
-    | [<CsvValue("N")>] InternationalNoNational
-    | [<CsvValue("P")>] InternationalOrNational
-    | [<CsvValue("V")>] Regional
-    | [<CsvValue("Z")>] ExtraRegional // TODO: Better naming?
-    | [<CsvValue("D")>] LongDistance4
+    | [<StrValue("A")>] City
+    | [<StrValue("B")>] CityAndAdjacent
+    | [<StrValue("N")>] InternationalNoNational
+    | [<StrValue("P")>] InternationalOrNational
+    | [<StrValue("V")>] Regional
+    | [<StrValue("Z")>] ExtraRegional // TODO: Better naming?
+    | [<StrValue("D")>] LongDistance4
 
 type TransportMode =
-    | [<CsvValue("A")>] Bus
-    | [<CsvValue("E")>] Tram
-    | [<CsvValue("L")>] CableCar
-    | [<CsvValue("M")>] Metro
-    | [<CsvValue("P")>] Ferry
-    | [<CsvValue("T")>] Trolleybus
+    | [<StrValue("A")>] Bus
+    | [<StrValue("E")>] Tram
+    | [<StrValue("L")>] CableCar
+    | [<StrValue("M")>] Metro
+    | [<StrValue("P")>] Ferry
+    | [<StrValue("T")>] Trolleybus
 
 // Using GTFS terminology here to have at least some consistency
 type Route = {
@@ -207,11 +208,11 @@ type RouteStop = {
 type TripStopTime =
     // The annotations are here just because they look good
     // (and as documentation)
-    | [<CsvValue("|")>] Passing
+    | [<StrValue("|")>] Passing
     // This is kind of a silly sounding name
     // It means that the vehicle doesn't even pass the stop, because
     // it's routed differently
-    | [<CsvValue("<")>] NotPassing
+    | [<StrValue("<")>] NotPassing
     | Time of DateTime
 
     with

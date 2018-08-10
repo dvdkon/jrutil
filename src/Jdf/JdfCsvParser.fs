@@ -9,9 +9,9 @@ open System.Text
 open System
 open System.Reflection
 open Microsoft.FSharp.Reflection
-open System.Text
-open System.Text
 open System.Globalization
+
+open JrUtil.Utils
 
 exception JdfCsvParseException of msg: string with
     override this.Message = this.msg
@@ -21,32 +21,6 @@ exception JdfCsvParseException of msg: string with
 type CsvSpreadAttribute(len: int) =
     inherit Attribute()
     member this.Len = len
-
-[<AllowNullLiteral>]
-type CsvValueAttribute(value: string) =
-    inherit Attribute()
-    member this.Value = value
-
-let getUnionCsvCases unionType =
-    FSharpType.GetUnionCases(unionType)
-    |> Array.collect (fun c ->
-        c.GetCustomAttributes()
-        |> Array.filter (fun a -> a :? CsvValueAttribute)
-        |> Array.map (fun a -> a :?> CsvValueAttribute)
-        |> Array.map (fun a -> (c, a.Value)))
-
-let getUnionParser unionType =
-    let cases = getUnionCsvCases unionType
-    fun x ->
-        let cases =
-            cases
-            |> Array.filter (fun (c, v) -> v = x)
-            |> Array.map (fun (c, v) -> c)
-        if cases.Length <> 1
-        then raise (JdfCsvParseException
-                     (sprintf "No union case for value %s" x))
-        FSharpValue.MakeUnion(cases.[0], [||])
-
 let rec getColParser (colType: Type) =
     // Ifs are probably better than a match expression here
     let parseMethod = colType.GetMethod("CsvParse")

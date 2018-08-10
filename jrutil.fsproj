@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <!--
   This file is part of JrUtil and is licenced under the GNU GPLv3 or later
   (c) 2018 David Koňařík
@@ -14,15 +14,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="src/Utils.fs" />
     <Compile Include="src/Jdf/JdfCsvParser.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
-    <Compile Include="src/Jdf/Jdf110.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FSharp.Data" Version="3.0.0-beta3" />
+    <PackageReference Include="FSharp.Data" Version="3.0.0-beta4" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
   </ItemGroup>
 
