@@ -6,6 +6,7 @@ module JrUtil.Jdf
 open JrUtil.JdfCsvParser
 open JrUtil.JdfModel
 open System.IO
+open System
 
 let parseJdfBatchDir path =
     let parseFile name = parseCsvFile (Path.Combine(path, name))
@@ -30,3 +31,31 @@ let parseJdfBatchDir path =
         alternateRouteNames = parseFileOrEmpty "Altlinky.txt"
         reservationOptions = parseFileOrEmpty "Mistenky.txt"
     }
+
+let parseAttributes batch attributes =
+    attributes
+    |> Array.choose id
+    |> Set.ofArray
+    |> Set.map (fun attrNum ->
+        let attrRef =
+            batch.attributeRefs
+            |> Array.find (fun ar -> ar.attributeId = attrNum)
+        attrRef.value
+    )
+
+let stopZone batch (stop: Stop) =
+    // Will try to get a single zone name for a stop from routeStopslet zones
+    let zones =
+        batch.routeStops
+        |> Array.filter (fun rs -> rs.stopId = stop.id)
+        |> Array.map (fun rs -> rs.zone)
+        |> Array.choose id
+    if zones.Length > 0
+    then let zone = zones |> Array.head
+         let allSame =
+             zones
+             |> Array.fold (fun s z -> z = zone && s) true
+         if not allSame
+         then failwith "Incosistent zone information in JDF"
+         else Some zone
+    else None

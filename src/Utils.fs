@@ -34,3 +34,13 @@ let parseUnion<'u> str =
     // This doesn't cache the parser function, I just hope the JIT takes care
     // of that
     (getUnionParser typeof<'u>) str |> unbox<'u>
+
+
+let getUnionSerializer unionType =
+    let cases = getUnionStrCases unionType
+    fun x ->
+        let (case, fields) = FSharpValue.GetUnionFields(x, unionType)
+        let (_, caseStr) =
+            cases
+            |> Array.find (fun (ci, _) -> ci = case)
+        caseStr

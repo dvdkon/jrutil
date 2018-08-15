@@ -7,6 +7,8 @@ open System
 open System.Reflection
 open Microsoft.FSharp.Reflection
 
+open JrUtil.Utils
+
 [<AllowNullLiteral>]
 type CsvSpreadAttribute(headers: string array) =
     inherit Attribute()
@@ -18,21 +20,23 @@ type CsvFieldNameAttribute(name: string) =
     member this.Name = name
 
 let rec getFormatter fieldType =
-    if fieldType = typeof<string> then (fun x -> unbox x)
-    else if fieldType = typeof<int> then (fun x -> sprintf "%d" (unbox x))
+    if fieldType = typeof<string> then (fun x -> [| unbox x |])
+    else if fieldType = typeof<int> then (fun x -> [| sprintf "%d" (unbox x) |])
+    else if fieldType = typeof<decimal> then
+        (fun x -> [| sprintf "%M" (unbox x) |])
     else if fieldType = typeof<bool> then
         fun x ->
             match unbox x with
-            | true -> "1"
-            | false -> "0"
+            | true -> [| "1" |]
+            | false -> [| "0" |]
     else if fieldType = typeof<DateTime> then
         fun x ->
             let dt: DateTime = unbox x
-            dt.ToString("yyyyMMdd")
+            [| dt.ToString("yyyyMMdd") |]
     else if fieldType = typeof<TimeSpan> then
         fun x ->
             let ts: TimeSpan = unbox x
-            ts.ToString(@"hh\:mm\:ss")
+            [| ts.ToString(@"hh\:mm\:ss") |]
     else if fieldType.IsGenericType
             && fieldType.GetGenericTypeDefinition() = typedefof<_ option> then
         let innerType = fieldType.GetGenericArguments().[0]
@@ -42,11 +46,23 @@ let rec getFormatter fieldType =
             // I could test the union case, but it's much easier to just
             // test the field array length
             match fields.Length with
-            | 0 -> ""
+            | 0 -> [| "" |]
             | 1 -> innerFormatter (unbox fields.[0])
             // The typechecker won't accept assert :(
             | _ -> failwith "Impossible"
-    else sprintf "%A"
+    else if fieldType.IsArray then
+        let innerType = fieldType.GetElementType()
+        let innerFormatter = getFormatter innerType
+        fun x ->
+            let arr: Array = unbox x
+            let mutable resArr = Array.create arr.Length ([| "" |])
+            for i = 0 to arr.Length - 1 do
+                resArr.[i] <- innerFormatter (arr.GetValue(i))
+
+            Array.concat resArr
+    else if FSharpType.IsUnion(fieldType) then
+        fun x -> [| getUnionSerializer fieldType x |]
+    else (fun x -> [| sprintf "%A" x |])
 
 let getFieldColumnNames (field: PropertyInfo) =
     let spreadAttr = field.GetCustomAttribute<CsvSpreadAttribute>()
@@ -65,21 +81,15 @@ let getSerializer<'r> =
     assert FSharpType.IsRecord(typeof<'r>)
     let formatters =
         FSharpType.GetRecordFields(typeof<'r>)
-        |> Array.collect (fun f ->
-            let fieldType = f.PropertyType
-            let colNames = getFieldColumnNames f
-            if fieldType.IsArray
-            then let innerType = fieldType.GetElementType()
-                 let innerFormatter = getFormatter innerType
-                 colNames |> Array.map (fun _ -> innerFormatter)
-            else [| getFormatter fieldType |])
+        |> Array.map (fun f -> getFormatter f.PropertyType)
     fun (row: 'r) ->
         FSharpValue.GetRecordFields(row)
         |> Array.zip formatters
-        |> Array.map (fun (f, v) -> f v)
+        |> Array.collect (fun (f, v) -> f v)
         |> Array.map (fun c -> sprintf "\"%s\"" (c.Replace("\"","\"\"")))
         |> String.concat ","
 
 let serializeRows<'r> rows =
+    let header = getHeader<'r>
     let serializer = getSerializer<'r>
-    rows |> Seq.map serializer
+    header + "\n" + (rows |> Seq.map serializer |> String.concat "\n")

@@ -21,6 +21,8 @@
     <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
     <Compile Include="src/Gtfs/GtfsModel.fs" />
+    <Compile Include="src/Gtfs/Gtfs.fs" />
+    <Compile Include="src/Jdf/JdfToGtfs.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
