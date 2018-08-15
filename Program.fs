@@ -4,43 +4,24 @@
 open JrUtil
 open System
 open System.IO
+open DocoptNet
+
+let docstring = """
+jrutil, a tool for working with czech public transport data
+
+Usage: jrutil.exe jdf_to_gtfs <JDF_in_dir> <GTFS_out_dir>
+"""
 
 [<EntryPoint>]
 let main args =
-    //let batch = Jdf.parseJdfBatchDir args.[0]
-    //printfn "Parsing success!%A" batch
-    //let doc = CzPtt.parseFile args.[0]
-    //printfn "Parsing success!%A" doc
-
-    (*let feedInfo: GtfsModel.FeedInfo = {
-        publisherName = "JrUtil"
-        publisherUrl = "https://gitlab.com/dvdkon/jrutil"
-        lang = "cs"
-        startDate = Some (new DateTime())
-        endDate = None
-        version = Some "0.1"
-    }
-    printfn "Header: %s" GtfsCsvSerializer.getHeader<GtfsModel.FeedInfo>
-    printfn "CSV:\n%s" (GtfsCsvSerializer.serializeRows [|feedInfo|]
-                          |> String.concat "\n")*)
-
-    (*printfn "Parsing all JDF batches in %s\n" args.[0]
-    Directory.GetDirectories(args.[0])
-    |> Array.iter (fun d ->
-        let batchNum = d.Split("/") |> Array.tail
-        let versionFile = File.ReadAllText(Path.Combine(d, "VerzeJDF.txt"))
-        // The final version will of course be better ;)
-        if not (versionFile.Contains("1.11"))
-        then () //printfn "Skipping %s due to older version..." d
-        else // printfn "Parsing %s..." d
-             let batch = Jdf.parseJdfBatchDir d
-             if batch.routes |> Array.exists (fun r -> r.usesStopPosts)
-             then printfn "%s uses stop posts!" d
-             else ()
-    )*)
-
-    let batch = Jdf.parseJdfBatchDir args.[0]
-    let feed = JdfToGtfs.getGtfsFeed batch
-    Gtfs.gtfsFeedToFolder args.[1] feed
-
-    0
+    try
+        let args = Docopt().Apply(docstring, args)
+        if args.["jdf_to_gtfs"].IsTrue then
+            let jdf = Jdf.parseJdfBatchDir (unbox args.["<JDF_in_dir>"].Value)
+            let gtfs = JdfToGtfs.getGtfsFeed jdf
+            Gtfs.gtfsFeedToFolder (unbox args.["<GTFS_out_dir>"].Value) gtfs
+        0
+    with
+    | :? DocoptBaseException as e ->
+        printfn "%s" e.Message
+        1
