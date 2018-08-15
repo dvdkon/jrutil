@@ -84,7 +84,7 @@ type Stop = {
     nearbyTownId: string option
     country: string
     [<CsvSpread(6)>]
-    attributes: string array
+    attributes: int option array
 }
 
 type StopPost = {
@@ -133,7 +133,7 @@ type RouteType =
     | [<StrValue("P")>] InternationalOrNational
     | [<StrValue("V")>] Regional
     | [<StrValue("Z")>] ExtraRegional // TODO: Better naming?
-    | [<StrValue("D")>] LongDistance4
+    | [<StrValue("D")>] LongDistanceNational
 
 type TransportMode =
     | [<StrValue("A")>] Bus
@@ -145,7 +145,7 @@ type TransportMode =
 
 // Using GTFS terminology here to have at least some consistency
 type Route = {
-    id: int
+    id: string
     name: string
     agencyId: int
     routeType: RouteType
@@ -165,7 +165,7 @@ type Route = {
 }
 
 type RouteIntegration = {
-    routeId: int
+    routeId: string
     entryNum: int // Incremented per routeId
     transportSystemId: int
     routeName: string
@@ -175,10 +175,10 @@ type RouteIntegration = {
 }
 
 type Trip = {
-    routeId: int
+    routeId: string
     id: int
     [<CsvSpread(10)>]
-    attributes: string array
+    attributes: int option array
     tripGroupId: int option
     routeDistinction: int // forms a 2-field foreign key with routeId
 }
@@ -192,7 +192,7 @@ type TripGroup = {
 }
 
 type RouteStop = {
-    routeId: int
+    routeId: string
     // The stop's ID within this route
     // I'm not sure what this is or how it's used
     // TBD probably by analysis of existing files
@@ -201,7 +201,7 @@ type RouteStop = {
     stopId: int
     approximateTime: int option // Minutes from route start
     [<CsvSpread(3)>]
-    attributes: string array
+    attributes: int option array
     routeDistinction: int
 }
 
@@ -224,35 +224,45 @@ type TripStopTime =
                                    CultureInfo.InvariantCulture) |> Time
 
 type TripStop = {
-    routeId: int
+    routeId: string
     tripId: int
     routeStopId: int
     stopId: int
     stopPostId: int option
     stopPostNum: int option
     [<CsvSpread(3)>]
-    attributes: string array
-    kilometer: float option
+    attributes: int option array
+    kilometer: decimal option
     arrivalTime: TripStopTime option
     departureTime: TripStopTime option
     minArrivalTime: TripStopTime option
-    maxArrivalTime: TripStopTime option
+    maxDepartureTime: TripStopTime option
     routeDistinction: int
 }
 
 type RouteInfo = {
-    routeId: int
+    routeId: string
     id: int
     text: string
     routeDistinction: int
 }
 
+type RouteTimeType =
+    | [<StrValue("1")>] Service
+    | [<StrValue("2")>] ServiceAlso
+    | [<StrValue("3")>] ServiceOnly
+    | [<StrValue("4")>] NoService
+    | [<StrValue("5")>] ServiceOddWeeks
+    | [<StrValue("6")>] ServiceEvenWeeks
+    | [<StrValue("7")>] ServiceOddWeeksFromTo
+    | [<StrValue("8")>] ServiceEvenWeeksFromTo
+
 type RouteTime = {
-    routeId: int
+    routeId: string
     tripId: int
     id: int
     designation: string // TODO: What is this?
-    timeType: string option
+    timeType: RouteTimeType option
     dateFrom: DateTime option
     dateTo: DateTime option
     note: string option
@@ -261,7 +271,7 @@ type RouteTime = {
 
 type Transfer = {
     transferType: string
-    routeId: int
+    routeId: string
     tripId: int
     routeStopId: int
     // All points to global register
@@ -276,11 +286,11 @@ type Transfer = {
 }
 
 type AgencyAlternation = {
-    routeId: int
+    routeId: string
     tripId: int
     agencyId: int
     [<CsvSpread(6)>]
-    attributes: string array
+    attributes: int option array
     timeType: string option
     reserved1: string option
     dateFrom: DateTime option
@@ -290,14 +300,14 @@ type AgencyAlternation = {
 }
 
 type AlternateRouteName = {
-    routeId: int
+    routeId: string
     altRouteNum: int
     country: string
     routeDistinction: int
 }
 
 type ReservationOptions = {
-    routeId: int
+    routeId: string
     tripId: int
     note: string
     routeDistinction: int

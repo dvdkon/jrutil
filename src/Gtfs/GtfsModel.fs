@@ -6,10 +6,15 @@
 // Fields or enumeration variants that are introduced by non-standard
 // extensions are marked with "Extension:" comments and documented here.
 
+// List of standard extensions:
+// Additional Route Types
+// Station platforms
+
 module JrUtil.GtfsModel
 
 open System
 open JrUtil.GtfsCsvSerializer
+open JrUtil.Utils
 
 type Agency = {
     [<CsvFieldName("agency_id")>] id: string option
@@ -23,9 +28,9 @@ type Agency = {
 }
 
 type LocationType =
-    | Stop
-    | Station
-    | StationEntrance
+    | [<StrValue("0")>] Stop
+    | [<StrValue("1")>] Station
+    | [<StrValue("2")>] StationEntrance
 
 type Stop = {
     [<CsvFieldName("stop_id")>] id: string
@@ -60,8 +65,9 @@ type Route = {
 }
 
 type BicycleCapacity =
-    | OneOrMore
-    | None
+    | [<StrValue("0")>] NoInformation
+    | [<StrValue("1")>] OneOrMore
+    | [<StrValue("2")>] None
 
 type Trip = {
     [<CsvFieldName("route_id")>] routeId: string
@@ -74,32 +80,32 @@ type Trip = {
     [<CsvFieldName("shape_id")>] shapeId: string option
     [<CsvFieldName("wheelchair_accessible")>]
         wheelchairAccessible: string option
-    [<CsvFieldName("bikes_allowed")>] bkiesAllowed: BicycleCapacity option
+    [<CsvFieldName("bikes_allowed")>] bikesAllowed: BicycleCapacity option
 }
 
 type ServiceType =
-    | RegularlyScheduled
-    | NoService
-    | PhoneBefore
-    | CoordinationWithDriver
+    | [<StrValue("0")>] RegularlyScheduled
+    | [<StrValue("1")>] NoService
+    | [<StrValue("2")>] PhoneBefore
+    | [<StrValue("3")>] CoordinationWithDriver
 
 type TimePoint =
-    | Exact
-    | Approximate
+    | [<StrValue("0")>] Approximate
+    | [<StrValue("1")>] Exact
 
 type StopTime = {
     [<CsvFieldName("trip_id")>] tripId: string
     // These two fields use TimeSpan, because it represents them better than
     // plain DateTime. For example, handling trips that cross day
     // boundaries with DateTime would be awkward
-    [<CsvFieldName("arrival_time")>] arrivalTime: TimeSpan
-    [<CsvFieldName("departure_time")>] departureTime: TimeSpan
+    [<CsvFieldName("arrival_time")>] arrivalTime: TimeSpan option
+    [<CsvFieldName("departure_time")>] departureTime: TimeSpan option
     [<CsvFieldName("stop_id")>] stopId: string
     [<CsvFieldName("stop_sequence")>] stopSequence: int
     [<CsvFieldName("stop_headsign")>] headsign: string option
     [<CsvFieldName("pickup_type")>] pickupType: ServiceType option
     [<CsvFieldName("drop_off_type")>] dropoffType: ServiceType option
-    [<CsvFieldName("shape_dist_travelled")>] shapeDistTravelled: decimal option
+    [<CsvFieldName("shape_dist_traveled")>] shapeDistTraveled: decimal option
     [<CsvFieldName("timepoint")>] timepoint: TimePoint option
 }
 
@@ -114,8 +120,8 @@ type CalendarEntry = {
 }
 
 type ExceptionType =
-    | ServiceAdded
-    | ServiceRemoved
+    | [<StrValue("1")>] ServiceAdded
+    | [<StrValue("2")>] ServiceRemoved
 
 type CalendarException = {
     [<CsvFieldName("service_id")>] id: string
@@ -143,4 +149,5 @@ type GtfsFeed = {
     stopTimes: StopTime array
     calendar: CalendarEntry array
     calendarExceptions: CalendarException array
+    feedInfo: FeedInfo option
 }
