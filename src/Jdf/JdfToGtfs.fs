@@ -7,7 +7,16 @@ open JrUtil
 open System
 open System.Text.RegularExpressions
 
-// Information that is lost in the conversion: TBD
+// Information that is lost in the conversion:
+// Textual notes about routes
+// "Označení časového kódu" - attributes stored in RouteTime
+// Details of accessibility attributes
+// Transfer attributes
+// "Stop exclusivity" attributes (can't go A->C, or C->B, but B->C is fine)
+// StopPosts
+// TripGroups
+// And probably even more things. These are just the ones that are likely
+// to become a problem.
 
 let jdfAgencyId id idDistinction =
     sprintf "JDFA-%d-%d" id idDistinction

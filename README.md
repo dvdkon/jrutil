@@ -3,7 +3,7 @@
 jrutil is a library and command-line utility for working with Czech (and
 Slovak) public transport data, such as:
 
-- scheduled timetables (JDF->GTFS, more to come)
+- scheduled timetables (JDF to GTFS, more to come)
 - real-time timetable changes (TODO)
 - vehicle positions (TODO)
 
