@@ -15,13 +15,15 @@ let gtfsFeedToFolder path (feed: GtfsFeed) =
     let serializeTo name obj =
         let filePath = Path.Combine(path, name)
         File.WriteAllText(filePath, serializeRows obj)
+    let serializeToOpt name obj =
+        obj |> Option.iter (fun o -> serializeTo name o)
     serializeTo "agency.txt" feed.agencies
     serializeTo "stops.txt" feed.stops
     serializeTo "routes.txt" feed.routes
     serializeTo "trips.txt" feed.trips
     serializeTo "stop_times.txt" feed.stopTimes
-    serializeTo "calendar.txt" feed.calendar
-    serializeTo "calendar_dates.txt" feed.calendarExceptions
+    serializeToOpt "calendar.txt" feed.calendar
+    serializeToOpt "calendar_dates.txt" feed.calendarExceptions
     match feed.feedInfo with
     | Some fi -> serializeTo "feed_info.txt" [fi]
     | _ -> ()

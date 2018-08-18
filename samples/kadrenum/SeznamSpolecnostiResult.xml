@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <SeznamSpolecnostiResponse xmlns="http://provoz.szdc.cz/kadr">
+      <SeznamSpolecnostiResult ID="1" Nazev="string" Parametry="string" Popis="string">
+        <Spolecnost ID="1" EvCislo="string" EvCisloEU="string" ObchodNazev="string" ZkrObchodNazev="string" AdresaSidlo="string" MestoSidlo="string" UliceSidlo="string" PscSidlo="string" IC="string" DIC="string" StatSidloID="1" StatRegistraceID="1" TypSpolecnostiID="1" WWW="string" Jmeno="string" Adresa="string" Email="string" Telefon="string" Fax="string" Poznamka="string" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01">
+          <Licence CisloLicence="string" VerejnaDopr="true" NeverejnaDopr="true" PrapravaOsob="true" PrapravaVeci="true" Nostalgie="true" ZkouskyVozidel="true" DrahaCelostatni="true" DrahaRegionalni="true" Eurolicence="true" />
+          <Pobocka ID="1" InterniCislo="string" Nazev="string" Mesto="string" Ulice="string" Psc="string" StatID="1" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01" />
+          <Pobocka ID="1" InterniCislo="string" Nazev="string" Mesto="string" Ulice="string" Psc="string" StatID="1" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01" />
+        </Spolecnost>
+        <Spolecnost ID="1" EvCislo="string" EvCisloEU="string" ObchodNazev="string" ZkrObchodNazev="string" AdresaSidlo="string" MestoSidlo="string" UliceSidlo="string" PscSidlo="string" IC="string" DIC="string" StatSidloID="1" StatRegistraceID="1" TypSpolecnostiID="1" Jmeno="string" Adresa="string" Poznamka="string" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01">
+          <Licence CisloLicence="string" VerejnaDopr="true" NeverejnaDopr="true" PrapravaOsob="true" PrapravaVeci="true" Nostalgie="true" ZkouskyVozidel="true" DrahaCelostatni="true" DrahaRegionalni="true" Eurolicence="true" />
+          <Pobocka ID="1" InterniCislo="string" Nazev="string" Mesto="string" Ulice="string" Psc="string" StatID="1" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01" />
+          <Pobocka ID="1" InterniCislo="string" Nazev="string" Mesto="string" Ulice="string" Psc="string" StatID="1" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01" />
+        </Spolecnost>
+      </SeznamSpolecnostiResult>
+    </SeznamSpolecnostiResponse>
+  </soap:Body>
+</soap:Envelope>

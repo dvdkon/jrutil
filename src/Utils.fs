@@ -44,3 +44,12 @@ let getUnionSerializer unionType =
             cases
             |> Array.find (fun (ci, _) -> ci = case)
         caseStr
+
+
+
+let rec dateRange (startDate: DateTime) (endDate: DateTime)  =
+    // Create a list of DateTime objects containing all days between
+    // startDate and endDate *inclusive*
+    if startDate <= endDate
+    then startDate :: (dateRange (startDate.AddDays(1.0)) endDate)
+    else []

@@ -107,6 +107,8 @@ let getGtfsStops: JdfModel.JdfBatch -> GtfsModel.Stop array = fun jdfBatch ->
             then Some 1
             else Some 0
 
+        platformCode = None
+
         // TODO: Think of the best way to convey other JDF attributes
         // A column of 0/1 for each or a "set of strings" column?
     })
@@ -184,14 +186,6 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
     )
 
 
-let rec dateRange (startDate: DateTime) (endDate: DateTime)  =
-    // Create a list of DateTime objects containing all days between
-    // startDate and endDate *inclusive* (TODO: Is this the right
-    // thing to do with respect to JDF?)
-    if startDate <= endDate
-    then startDate :: (dateRange (startDate.AddDays(1.0)) endDate)
-    else []
-
 let getGtfsCalendarExceptions:
         JdfModel.JdfBatch -> GtfsModel.CalendarException array =
     let jdfDateRange (startDate: DateTime option) endDate =
@@ -200,7 +194,7 @@ let getGtfsCalendarExceptions:
             match endDate with
             | Some ed -> ed
             | None -> startDate.Value
-        dateRange startDate.Value endDate
+        Utils.dateRange startDate.Value endDate
 
     let designationNumRegex = new Regex(@"\d\d")
     fun jdfBatch ->
@@ -267,7 +261,7 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
             bikesAllowed =
                 Some (if attrs |> Set.contains JdfModel.BicycleTransport
                       then GtfsModel.OneOrMore
-                      else GtfsModel.None)
+                      else GtfsModel.NoBicycles)
         })
     trips
 
@@ -411,8 +405,8 @@ let getGtfsFeed (jdfBatch: JdfModel.JdfBatch) =
         routes = getGtfsRoutes jdfBatch
         trips = getGtfsTrips jdfBatch
         stopTimes = getGtfsStopTimes jdfBatch
-        calendar = getGtfsCalendar jdfBatch
-        calendarExceptions = getGtfsCalendarExceptions jdfBatch
+        calendar = getGtfsCalendar jdfBatch |> Some
+        calendarExceptions = getGtfsCalendarExceptions jdfBatch |> Some
         feedInfo = None
     }
     feed

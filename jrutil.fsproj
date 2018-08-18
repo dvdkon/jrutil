@@ -18,11 +18,12 @@
     <Compile Include="src/Jdf/JdfCsvParser.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
-    <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
     <Compile Include="src/Gtfs/GtfsModel.fs" />
     <Compile Include="src/Gtfs/Gtfs.fs" />
     <Compile Include="src/Jdf/JdfToGtfs.fs" />
+    <Compile Include="src/CzPtt/KadrEnumWs.fs" />
+    <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

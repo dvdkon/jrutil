@@ -1,21 +1,28 @@
-# jrutil
+# JrUtil
 
-jrutil is a library and command-line utility for working with Czech (and
+jrUtil is a library and command-line utility for working with Czech (and
 Slovak) public transport data, such as:
 
-- scheduled timetables (JDF to GTFS, more to come)
+- scheduled timetables (JDF to GTFS, CZPTTCIS to GTFS, more to come)
 - real-time timetable changes (TODO)
 - vehicle positions (TODO)
 
 # Usage:
 
-Currently the only implemented function is conversion of JDF timetables (found
-on [ftp.cisjr.cz](ftp://ftp.cisjr.cz/)) to GTFS. It takes a directory of JDF
-files and creates a directory representing a GTFS feed.
+- Conversion of JDF timetables (found on [ftp.cisjr.cz](ftp://ftp.cisjr.cz/)) to
+  GTFS. JrUtil takes a directory of JDF files and creates a directory representing a
+  GTFS feed.
 
-Usage within the repo:
+  Usage within the repo:
 
 	dotnet run -- jdf_to_gtfs <JDF dir> <GTFS out dir>
+
+- Conversion of CZPTTCISMessage XML files (found on
+  [ftp.cisjr.cz](ftp://ftp.cisjr.cz/draha/celostatni/szdc)) to GTFS.
+
+  Usage within the repo:
+
+	dotnet run -- czptt_to_gtfs <XML input file> <GTFS out dir>
 
 # Installation:
 

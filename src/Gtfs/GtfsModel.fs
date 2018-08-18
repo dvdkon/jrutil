@@ -3,8 +3,8 @@
 
 // This file contains records that model a variant of GTFS which contains
 // most of the standard GTFS fields and numerous extensions
-// Fields or enumeration variants that are introduced by non-standard
-// extensions are marked with "Extension:" comments and documented here.
+// Fields or enumeration variants that are introduced by extensions are marked
+// with "Extension:" comments and documented there.
 
 // List of standard extensions:
 // Additional Route Types
@@ -48,6 +48,8 @@ type Stop = {
     // too complex for a simple one. Maybe with a custom parser
     // one day (it'd need to know the value of locationType)
     [<CsvFieldName("wheelchair_boarding")>] wheelchairBoarding: int option
+    // Extension: "Station platforms" Google Transit extension
+    [<CsvFieldName("platform_code")>] platformCode: string option
 }
 
 type Route = {
@@ -67,7 +69,7 @@ type Route = {
 type BicycleCapacity =
     | [<StrValue("0")>] NoInformation
     | [<StrValue("1")>] OneOrMore
-    | [<StrValue("2")>] None
+    | [<StrValue("2")>] NoBicycles
 
 type Trip = {
     [<CsvFieldName("route_id")>] routeId: string
@@ -147,7 +149,7 @@ type GtfsFeed = {
     routes: Route array
     trips: Trip array
     stopTimes: StopTime array
-    calendar: CalendarEntry array
-    calendarExceptions: CalendarException array
+    calendar: CalendarEntry array option
+    calendarExceptions: CalendarException array option
     feedInfo: FeedInfo option
 }
