@@ -21,6 +21,7 @@ exception JdfCsvParseException of msg: string with
 type CsvSpreadAttribute(len: int) =
     inherit Attribute()
     member this.Len = len
+
 let rec getColParser (colType: Type) =
     // Ifs are probably better than a match expression here
     let parseMethod = colType.GetMethod("CsvParse")
@@ -51,15 +52,18 @@ let rec getColParser (colType: Type) =
 
     else if colType.IsGenericType
             && colType.GetGenericTypeDefinition() = typedefof<_ option> then
-        let innerType = colType.GetGenericArguments().[0]
-        let innerTypeParser = getColParser innerType
         let optionCases = FSharpType.GetUnionCases(colType)
         let someCase = optionCases |> Array.find (fun c -> c.Name = "Some")
         let noneCase = optionCases |> Array.find (fun c -> c.Name = "None")
+        let someCtor = FSharpValue.PreComputeUnionConstructor(someCase)
+        let noneCtor = FSharpValue.PreComputeUnionConstructor(noneCase)
+
+        let innerType = colType.GetGenericArguments().[0]
+        let innerTypeParser = getColParser innerType
         (fun x -> (if x = ""
-                   then FSharpValue.MakeUnion(noneCase, [||])
+                   then noneCtor [||]
                    else let innerVal = innerTypeParser x
-                        FSharpValue.MakeUnion(someCase, [|innerVal|])))
+                        someCtor [|innerVal|]))
     else if FSharpType.IsUnion(colType) then getUnionParser colType
     else raise (JdfCsvParseException "Could not convert type from CSV")
 
@@ -89,6 +93,8 @@ let getRowParser<'r> =
     let colParsers =
         fields
         |> Array.map (fun f -> getFieldParser f)
+
+    let recordConstructor = FSharpValue.PreComputeRecordConstructor(recordType)
     fun (cols: string array) ->
         let (_, _, props) =
             // This deals with the CsvSpread attribute. Sorry for the ugly code
@@ -108,30 +114,33 @@ let getRowParser<'r> =
                          l @ [a])
                 )  (0, 0, [])
 
-        FSharpValue.MakeRecord(recordType, List.toArray props) |> unbox<'r>
+        recordConstructor(List.toArray props) |> unbox<'r>
 
-let parseCsv<'r> text =
+let getCsvParser<'r> =
     // The spec says "quotes inside text don't need to be doubled",
     // which is really confusing from an escaping standpoint
     // I take that to mean that there is really no quotation, and that
     // "," itself is the field separator (excluding the start (") and
     // the end (";)) and that it's unescapable
     // This, however, means that this CSV-esque format can be parsed by regex!
-    let lines = (new Regex(";\\r\\n")).Split(text)
-    let colRegex = new Regex("\",\"")
     let rowParser = getRowParser<'r>
-    lines
-    |> Array.filter (fun line -> line <> "")
-    |> Array.map (fun line ->
-            // Strip off leading and trailing quote
-            let strippedLine = line.Substring(1, line.Length - 2)
-            colRegex.Split(strippedLine) |> rowParser)
+    fun text ->
+        let lines = (new Regex(";\\r\\n")).Split(text)
+        let colRegex = new Regex("\",\"")
+        lines
+        |> Array.filter (fun line -> line <> "")
+        |> Array.map (fun line ->
+                // Strip off leading and trailing quote
+                let strippedLine = line.Substring(1, line.Length - 2)
+                colRegex.Split(strippedLine) |> rowParser)
 
 
-let parseCsvFile<'r> inpath =
+let getCsvFileParser<'r> =
     // This is probably not ideal. However, the file should never be more
     // than a few megabytes in size, in which case this will be faster than
     // FSharp.Data's approach, which reads char by char
-    let encoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)
-    let text = File.ReadAllText(inpath, encoding)
-    parseCsv<'r> text
+    let parser = getCsvParser<'r>
+    fun inpath ->
+        let encoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)
+        let text = File.ReadAllText(inpath, encoding)
+        parser text

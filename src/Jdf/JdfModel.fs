@@ -10,6 +10,10 @@ open System.Globalization
 open JrUtil.JdfCsvParser
 open JrUtil.Utils
 
+// A bit of trickery to deal with F#'s lack of support for mutually recursive
+// type and let binding
+let mutable attributeDefaultParser: (string -> obj) option = None
+
 // This type is shared between all JDF versions, because, as far as I can tell,
 // it's the only thing that sometimes "loses options" (for example, JDF 1.10
 // has "s" for "self-service trains", but 1.11 omits it completely)
@@ -57,11 +61,14 @@ type Attribute =
     | [<StrValue("s")>] SelfServiceTicketTrain
 
     with
-    static member DefaultParser = getUnionParser typeof<Attribute>
     static member CsvParse(str) =
         if Regex.IsMatch(str, @"^\d+$")
         then DayOfWeekService (int str) |> box
-        else Attribute.DefaultParser str
+        else match attributeDefaultParser with
+             | Some dp -> dp str
+             | None -> let dp = getUnionParser typeof<Attribute>
+                       attributeDefaultParser <- Some (dp)
+                       dp str
 
 // TODO: .NET reflection docs (not the F#-specific ones) say, that field order
 // isn't guaranteed by reflection. Maybe these types' fields will need some

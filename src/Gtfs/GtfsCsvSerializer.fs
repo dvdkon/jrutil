@@ -19,6 +19,11 @@ type CsvFieldNameAttribute(name: string) =
     inherit Attribute()
     member this.Name = name
 
+let optionSomeCase =
+    FSharpType.GetUnionCases(typedefof<_ option>)
+    |> Array.find (fun uc -> uc.Name = "Some")
+let optionCaseGetter = FSharpValue.PreComputeUnionTagReader(typedefof<_ option>)
+
 let rec getFormatter fieldType =
     if fieldType = typeof<string> then (fun x -> [| unbox x |])
     else if fieldType = typeof<int> then (fun x -> [| sprintf "%d" (unbox x) |])
@@ -42,14 +47,10 @@ let rec getFormatter fieldType =
         let innerType = fieldType.GetGenericArguments().[0]
         let innerFormatter = getFormatter innerType
         fun x ->
-            let (_, fields) = FSharpValue.GetUnionFields(x, fieldType)
-            // I could test the union case, but it's much easier to just
-            // test the field array length
-            match fields.Length with
-            | 0 -> [| "" |]
-            | 1 -> innerFormatter (unbox fields.[0])
-            // The typechecker won't accept assert :(
-            | _ -> failwith "Impossible"
+            let case = optionCaseGetter x
+            if case = optionSomeCase.Tag
+            then innerFormatter (x.GetType().GetProperty("Value").GetValue(x))
+            else [| |]
     else if fieldType.IsArray then
         let innerType = fieldType.GetElementType()
         let innerFormatter = getFormatter innerType
@@ -61,7 +62,8 @@ let rec getFormatter fieldType =
 
             Array.concat resArr
     else if FSharpType.IsUnion(fieldType) then
-        fun x -> [| getUnionSerializer fieldType x |]
+        let serializer = getUnionSerializer fieldType
+        fun x -> [| serializer x |]
     else (fun x -> [| sprintf "%A" x |])
 
 let getFieldColumnNames (field: PropertyInfo) =
@@ -82,14 +84,17 @@ let getSerializer<'r> =
     let formatters =
         FSharpType.GetRecordFields(typeof<'r>)
         |> Array.map (fun f -> getFormatter f.PropertyType)
+    let fieldGetter = FSharpValue.PreComputeRecordReader(typeof<'r>)
+
     fun (row: 'r) ->
-        FSharpValue.GetRecordFields(row)
+        fieldGetter(row)
         |> Array.zip formatters
         |> Array.collect (fun (f, v) -> f v)
         |> Array.map (fun c -> sprintf "\"%s\"" (c.Replace("\"","\"\"")))
         |> String.concat ","
 
-let serializeRows<'r> rows =
+let getRowsSerializer<'r> =
     let header = getHeader<'r>
     let serializer = getSerializer<'r>
-    header + "\n" + (rows |> Seq.map serializer |> String.concat "\n")
+    fun rows ->
+        header + "\n" + (rows |> Seq.map serializer |> String.concat "\n")

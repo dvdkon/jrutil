@@ -20,15 +20,15 @@ let getUnionStrCases unionType =
         |> Array.map (fun a -> (c, a.Value)))
 
 let getUnionParser unionType =
-    let cases = getUnionStrCases unionType
+    let unionConstructors =
+        getUnionStrCases unionType
+        |> Array.map
+            (fun (c, a) -> (a, FSharpValue.PreComputeUnionConstructor(c)))
+        |> Map
     fun x ->
-        let cases =
-            cases
-            |> Array.filter (fun (c, v) -> v = x)
-            |> Array.map (fun (c, v) -> c)
-        if cases.Length <> 1
-        then failwithf "No union case for value \"%s\"" x
-        FSharpValue.MakeUnion(cases.[0], [||])
+        match unionConstructors |> Map.tryFind x with
+        | Some c -> c [| |]
+        | None -> failwithf "No union case for value \"%s\"" x
 
 let parseUnion<'u> str =
     // This doesn't cache the parser function, I just hope the JIT takes care
@@ -37,12 +37,13 @@ let parseUnion<'u> str =
 
 
 let getUnionSerializer unionType =
-    let cases = getUnionStrCases unionType
+    let cases =
+        getUnionStrCases unionType
+        |> Array.map (fun (c, a) -> (c.Tag, a))
+    let caseTagGetter = FSharpValue.PreComputeUnionTagReader unionType
     fun x ->
-        let (case, fields) = FSharpValue.GetUnionFields(x, unionType)
-        let (_, caseStr) =
-            cases
-            |> Array.find (fun (ci, _) -> ci = case)
+        let caseTag = caseTagGetter x
+        let (_, caseStr) = cases |> Array.find (fun (ci, _) -> ci = caseTag)
         caseStr
 
 

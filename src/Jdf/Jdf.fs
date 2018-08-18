@@ -8,29 +8,53 @@ open JrUtil.JdfModel
 open System.IO
 open System
 
-let parseJdfBatchDir path =
-    let parseFile name = parseCsvFile (Path.Combine(path, name))
-    let parseFileOrEmpty name = let p = Path.Combine(path, name)
-                                if File.Exists(p) then parseCsvFile p else [||]
-    {
-        version = (parseFile "VerzeJDF.txt").[0]
-        stops = parseFile "Zastavky.txt"
-        stopPosts = parseFileOrEmpty "Oznacniky.txt"
-        agencies = parseFile "Dopravci.txt"
-        routes = parseFile "Linky.txt"
-        routeIntegrations = parseFileOrEmpty "LinExt.txt"
-        routeStops = parseFile "Zaslinky.txt"
-        trips = parseFile "Spoje.txt"
-        tripGroups = parseFileOrEmpty "SpojSkup.txt"
-        tripStops = parseFile "Zasspoje.txt"
-        routeInfo = parseFileOrEmpty "Udaje.txt"
-        attributeRefs = parseFile "Pevnykod.txt"
-        routeTimes = parseFile "Caskody.txt"
-        transfers = parseFileOrEmpty "Navaznosti.txt"
-        agencyAlternations = parseFileOrEmpty "Altdop.txt"
-        alternateRouteNames = parseFileOrEmpty "Altlinky.txt"
-        reservationOptions = parseFileOrEmpty "Mistenky.txt"
-    }
+let jdfBatchDirParser () =
+    let fileParser name =
+        let parser = getCsvFileParser
+        fun path -> parser (Path.Combine(path, name))
+    let fileParserOrEmpty name =
+        let parser = getCsvFileParser
+        fun path ->
+            let p = Path.Combine(path, name)
+            if File.Exists(p) then parser p else [||]
+
+    let versionParser = fileParser "VerzeJDF.txt"
+    let stopsParser = fileParser "Zastavky.txt"
+    let stopPostsParser = fileParserOrEmpty "Oznacniky.txt"
+    let agenciesParser = fileParser "Dopravci.txt"
+    let routesParser = fileParser "Linky.txt"
+    let routeIntegrationParser = fileParserOrEmpty "LinExt.txt"
+    let routeStopsParser = fileParser "Zaslinky.txt"
+    let tripsParser = fileParser "Spoje.txt"
+    let tripGroupsParser = fileParserOrEmpty "SpojSkup.txt"
+    let tripStopsParser = fileParser "Zasspoje.txt"
+    let routeInfoParser = fileParserOrEmpty "Udaje.txt"
+    let attributeRefsParser = fileParser "Pevnykod.txt"
+    let routeTimesParser = fileParser "Caskody.txt"
+    let transfersParser = fileParserOrEmpty "Navaznosti.txt"
+    let agencyAlternationsParser = fileParserOrEmpty "Altdop.txt"
+    let alternateRouteNamesParser = fileParserOrEmpty "Altlinky.txt"
+    let reservationOptionsParser = fileParserOrEmpty "Mistenky.txt"
+    fun path ->
+        {
+            version = (versionParser path).[0]
+            stops = stopsParser path
+            stopPosts = stopPostsParser path
+            agencies = agenciesParser path
+            routes = routesParser path
+            routeIntegrations = routeIntegrationParser path
+            routeStops = routeStopsParser path
+            trips = tripsParser path
+            tripGroups = tripGroupsParser path
+            tripStops = tripStopsParser path
+            routeInfo = routeInfoParser path
+            attributeRefs = attributeRefsParser path
+            routeTimes = routeTimesParser path
+            transfers = transfersParser path
+            agencyAlternations = agencyAlternationsParser path
+            alternateRouteNames = alternateRouteNamesParser path
+            reservationOptions = reservationOptionsParser path
+        }
 
 let parseAttributes batch attributes =
     attributes
