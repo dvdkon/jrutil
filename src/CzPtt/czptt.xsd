@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
   <!--
+    This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+    (c) 2018 David Koňařík
+  -->
+  <!--
     At first I tried to create an XML Schema (XSD) for the format,
     but after getting to a state when the schema had a few hundred lines but
     still wasn't complete, I decided to switch languages. This means that this
@@ -100,7 +104,7 @@
     <xs:complexType>
       <xs:sequence>
         <xs:element ref="StartDateTime"/>
-        <xs:element ref="EndDateTime"/>
+        <xs:element minOccurs="0" ref="EndDateTime"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>

@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <grammar xmlns="http://relaxng.org/ns/structure/1.0" datatypeLibrary="http://www.w3.org/2001/XMLSchema-datatypes">
   <!--
+    This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+    (c) 2018 David Koňařík
+  -->
+  <!--
     At first I tried to create an XML Schema (XSD) for the format,
     but after getting to a state when the schema had a few hundred lines but
     still wasn't complete, I decided to switch languages. This means that this
@@ -70,9 +74,11 @@
             <element name="StartDateTime">
               <data type="dateTime"/>
             </element>
-            <element name="EndDateTime">
-              <data type="dateTime"/>
-            </element>
+            <optional>
+              <element name="EndDateTime">
+                <data type="dateTime"/>
+              </element>
+            </optional>
           </element>
         </element>
         <oneOrMore>

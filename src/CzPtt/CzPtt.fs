@@ -251,7 +251,7 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     let cal = info.PlannedCalendar
     let fromDate = cal.ValidityPeriod.StartDateTime
     let toDate = cal.ValidityPeriod.EndDateTime
-    let days = dateRange fromDate toDate
+    let days = dateRange fromDate (toDate |> Option.defaultValue fromDate)
     assert (days.Length = cal.BitmapDays.Length)
     days
     |> List.mapi (fun i date ->
@@ -276,7 +276,7 @@ let gtfsFeedInfo (czptt: CzPttXml.CzpttcisMessage) =
         publisherUrl = "https://gitlab.com/dvdkon/jrutil"
         lang = "cs"
         startDate = Some fromDate
-        endDate = Some toDate
+        endDate = toDate |> Option.defaultValue fromDate |> Some
         version = None
     }
     feedInfo
