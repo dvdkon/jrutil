@@ -20,18 +20,26 @@ let makeSoapRequest endpoint body =
         body=TextRequest body
     )
 
+let mutable companyListCache: CompanyListXml.Envelope option = None
+
 let requestCompanyList () =
-    let body =
-        """<?xml version="1.0" encoding="utf-8"?>
-        <soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                       xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                       xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-            <soap:Body>
-                <SeznamSpolecnosti xmlns="http://provoz.szdc.cz/kadr">
-                    <jenAktualnePlatne>true</jenAktualnePlatne>
-                </SeznamSpolecnosti>
-            </soap:Body>
-        </soap:Envelope>
-        """
-    let strResp = makeSoapRequest "SeznamSpolecnosti" body
-    CompanyListXml.Parse(strResp)
+    match companyListCache with
+    | Some cl -> cl
+    | None ->
+        let body =
+            """<?xml version="1.0" encoding="utf-8"?>
+            <soap:Envelope
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                    xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+                <soap:Body>
+                    <SeznamSpolecnosti xmlns="http://provoz.szdc.cz/kadr">
+                        <jenAktualnePlatne>true</jenAktualnePlatne>
+                    </SeznamSpolecnosti>
+                </soap:Body>
+            </soap:Envelope>
+            """
+        let strResp = makeSoapRequest "SeznamSpolecnosti" body
+        let cl = CompanyListXml.Parse(strResp)
+        companyListCache <- Some cl
+        cl
