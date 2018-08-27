@@ -15,15 +15,19 @@
 
   <ItemGroup>
     <Compile Include="src/Utils.fs" />
-    <Compile Include="src/Jdf/JdfCsvParser.fs" />
+    <Compile Include="src/CsvParser.fs" />
+    <Compile Include="src/Jdf/JdfParser.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
+    <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
     <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
+    <Compile Include="src/Gtfs/GtfsParser.fs" />
     <Compile Include="src/Gtfs/GtfsModel.fs" />
     <Compile Include="src/Gtfs/Gtfs.fs" />
     <Compile Include="src/Jdf/JdfToGtfs.fs" />
     <Compile Include="src/CzPtt/KadrEnumWs.fs" />
     <Compile Include="src/CzPtt/CzPtt.fs" />
+    <Compile Include="src/Gtfs/GtfsMerge.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -35,14 +35,18 @@ let trafficTypes =
 
 let commercialTrafficTypes =
     Map [
+        // Some of these do not have "trademarkish" non-translateable names in
+        // the official docs ("Fast train" for "R"). These are almost never
+        // written like that anywhere, so the abbreviation is used for the
+        // "long name" as well.
         ("50", ("EuroCity", "EC"));
         ("63", ("Intercity", "IC"));
         ("69", ("Express", "Ex"));
         ("70", ("Euro Night", "EN"));
-        ("84", ("Regional", "Os"));
+        ("84", ("Os", "Os"));
         ("94", ("SuperCity", "SC"));
-        ("122", ("Rapid", "Sp"));
-        ("157", ("Fast train", "R"));
+        ("122", ("Sp", "Sp"));
+        ("157", ("R", "R"));
         ("209", ("RailJet", "rj"));
         ("9000", ("Rex", "Rx"));
         ("9001", ("Trilex-expres", "TLX"));
@@ -65,9 +69,11 @@ let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
     | Some ctt ->
         match ctt with
         | "EC" | "IC" | "LE" | "RJ" | "AEx" -> "102" // Long Distance Trains
-        | "Ex" | "Rx" | "rj" | "TLX" | "TL" | "R" -> "103" // Inter Regional Rail
+        | "EN" -> "105" // Sleeper Rail
+        | "Ex" | "Rx" | "rj" | "TLX" | "TL"
+        | "R" | "SC" -> "103" // Inter Regional Rail
         | "Os" | "Sp" -> "106" // Regional Rail
-        | _ -> failwith "Invalid data"
+        | _ -> failwithf "Invalid state: %s" ctt
     | None ->
         match ttAbbr with
         | Some tt ->
@@ -80,7 +86,7 @@ let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
             | "Os" | "Sp" -> "106" // Regional Rail
             | "R" -> "103" // Inter Regional Rail
             | "Ex" -> "102" // Long Distance Rail
-            | _ -> failwith "Invalid data"
+            | _ -> failwith "Invalid state"
         | None -> "100" // Railway
 
 let getIdentifierByType (czptt: CzPttXml.CzpttcisMessage) idt =
@@ -116,11 +122,11 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
         |> List.choose id
         |> String.concat " "
 
+    let trainIdentifier = getIdentifierByType czptt "TR"
+
     let route: Route = {
         id = gtfsRouteId czptt
-        // Unfortunately, it seems there's not nearly enough data on the railway
-        // agencies in this dataset to create a GTFS agency.txt file
-        agencyId = None
+        agencyId = Some trainIdentifier.Company
         shortName = Some name
         longName = None
         desc = None
@@ -138,9 +144,14 @@ let gtfsStopId (loc: CzPttXml.CzpttLocation) =
     |> Option.defaultValue loc.PrimaryLocationName
 
 let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
+    // This is kind of a heuristic, since the conversion code uses .Value on
+    // optional elements, this isn't perfect. Unfortunately, location elements
+    // don't quite conform to the spec (as far as I can see) and also fall into
+    // two categories - "full" (usable for GTFS converion) and "partial"
+    // (not meant for end-user outputs, hopefully)
     match loc.LocationSubsidiaryIdentification with
     | Some lsi -> lsi.LocationSubsidiaryCode.LocationSubsidiaryTypeCode = "1"
-    | None -> true
+    | None -> loc.TimingAtLocation.IsSome
 
 let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
@@ -223,7 +234,7 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
         if not <| isValidGtfsStop loc then None
         else
             let findTime name =
-                loc.TimingAtLocation.Timings
+                loc.TimingAtLocation.Value.Timings
                 |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
                 |> Option.map timingToTimeSpan
 

@@ -8,16 +8,7 @@ open System.Reflection
 open Microsoft.FSharp.Reflection
 
 open JrUtil.Utils
-
-[<AllowNullLiteral>]
-type CsvSpreadAttribute(headers: string array) =
-    inherit Attribute()
-    member this.Headers = headers
-
-[<AllowNullLiteral>]
-type CsvFieldNameAttribute(name: string) =
-    inherit Attribute()
-    member this.Name = name
+open JrUtil.GtfsModelMeta
 
 let optionSomeCase =
     FSharpType.GetUnionCases(typedefof<_ option>)
@@ -41,7 +32,9 @@ let rec getFormatter fieldType =
     else if fieldType = typeof<TimeSpan> then
         fun x ->
             let ts: TimeSpan = unbox x
-            [| ts.ToString(@"hh\:mm\:ss") |]
+            [| sprintf "%02d:%02d:%02d" (int ts.TotalHours)
+                                        ts.Minutes
+                                        ts.Seconds |]
     else if fieldType.IsGenericType
             && fieldType.GetGenericTypeDefinition() = typedefof<_ option> then
         let innerType = fieldType.GetGenericArguments().[0]
@@ -50,7 +43,7 @@ let rec getFormatter fieldType =
             let case = optionCaseGetter x
             if case = optionSomeCase.Tag
             then innerFormatter (x.GetType().GetProperty("Value").GetValue(x))
-            else [| |]
+            else [| "" |]
     else if fieldType.IsArray then
         let innerType = fieldType.GetElementType()
         let innerFormatter = getFormatter innerType
@@ -65,19 +58,6 @@ let rec getFormatter fieldType =
         let serializer = getUnionSerializer fieldType
         fun x -> [| serializer x |]
     else (fun x -> [| sprintf "%A" x |])
-
-let getFieldColumnNames (field: PropertyInfo) =
-    let spreadAttr = field.GetCustomAttribute<CsvSpreadAttribute>()
-    let nameAttr = field.GetCustomAttribute<CsvFieldNameAttribute>()
-    assert ((spreadAttr = null) <> (nameAttr = null))
-    if spreadAttr <> null then spreadAttr.Headers
-    else [| nameAttr.Name |]
-
-let getHeader<'r> =
-    assert FSharpType.IsRecord(typeof<'r>)
-    FSharpType.GetRecordFields(typeof<'r>)
-    |> Array.collect getFieldColumnNames
-    |> String.concat ","
 
 let getSerializer<'r> =
     assert FSharpType.IsRecord(typeof<'r>)
@@ -94,7 +74,7 @@ let getSerializer<'r> =
         |> String.concat ","
 
 let getRowsSerializer<'r> =
-    let header = getHeader<'r>
+    let header = getHeader<'r> |> String.concat ","
     let serializer = getSerializer<'r>
     fun rows ->
         header + "\n" + (rows |> Seq.map serializer |> String.concat "\n")

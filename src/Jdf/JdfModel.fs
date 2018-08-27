@@ -7,7 +7,7 @@ open System
 open System.Text.RegularExpressions
 open System.Globalization
 
-open JrUtil.JdfCsvParser
+open JrUtil.CsvParser
 open JrUtil.Utils
 
 // A bit of trickery to deal with F#'s lack of support for mutually recursive

@@ -61,7 +61,14 @@ let convertToGtfsAgency: JdfModel.Agency -> GtfsModel.Agency = fun jdfAgency ->
         // between two fields, so we just concatenate them
         id = Some (jdfAgencyId jdfAgency.id jdfAgency.idDistinction)
         name = jdfAgency.name
-        url = jdfAgency.website |> Option.defaultValue ""
+        url =
+            jdfAgency.website
+            |> Option.map (fun url ->
+                if not <| Regex.IsMatch(url, @"https?://")
+                then "http://" + url
+                else url
+            )
+            |> Option.defaultValue ""
         // This will have to be adjusted for slovak datasets
         timezone = "Europe/Prague"
         lang = Some "cs"
@@ -183,6 +190,8 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
             }
             calendarEntry
         )
+        |> Array.filter (fun ce ->
+            ce.weekdayService <> [|for i in [1..7] -> false|])
     )
 
 
@@ -232,8 +241,14 @@ let getGtfsCalendarExceptions:
                 // include
             else [] // Should be dealt with in another function
         )
-        |> List.concat
-        |> List.toArray
+        |> Seq.concat
+        |> Seq.groupBy (fun ce -> (ce.id, ce.date))
+        // Take only one exception per date
+        // The JDF spec doesn't specify any priority for these entries,
+        // but real data may need at least some ordering (for example,
+        // single-day excpetions have a higher priority than multi-day ones)
+        |> Seq.map (fun (_, cexcs) -> cexcs |> Seq.last)
+        |> Seq.toArray
 
 
 let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
@@ -299,6 +314,7 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
              then Array.rev
              else id) jdfTripStops
 
+        let mutable lastTimeDT = None
         let mutable dayTimeSpan = new TimeSpan()
 
         jdfTripStops
@@ -316,33 +332,25 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
                         | _ -> failwith "Invalid data"
                     )
 
-                let depTimeDT = tripStopTimeExtract jdfTripStop.departureTime
-                let arrTimeDT = tripStopTimeExtract jdfTripStop.arrivalTime
-
-                jdfTripStops
-                |> Array.take i
-                |> Array.tryPick (fun ts ->
-                    match ts.departureTime with
-                    | Some (JdfModel.Time depTime) -> Some depTime
-                    | _ -> None
-                )
-                |> Option.iter (fun prevTime ->
-                    if match (arrTimeDT, depTimeDT) with
-                       | (Some dt, _) -> prevTime > dt
-                       | (_, Some dt) -> prevTime > dt
-                       | _ -> false
-                    then dayTimeSpan <- dayTimeSpan + (new TimeSpan(24, 0, 0))
-                )
-
-                let depTime =
-                    depTimeDT
-                    |> Option.map
-                        (fun dt -> dateTimeToTimeSpan dt + dayTimeSpan)
+                let adjustTime dtOpt =
+                    dtOpt |> Option.map (fun dt ->
+                        match lastTimeDT with
+                        | Some lt ->
+                            if lt > dt
+                            then dayTimeSpan <- dayTimeSpan
+                                              + (new TimeSpan(24, 0, 0))
+                        | None -> ()
+                        lastTimeDT <- Some dt
+                        let ts = dateTimeToTimeSpan dt
+                        ts + dayTimeSpan
+                    )
 
                 let arrTime =
-                    arrTimeDT
-                    |> Option.map
-                        (fun dt -> dateTimeToTimeSpan dt + dayTimeSpan)
+                    tripStopTimeExtract jdfTripStop.arrivalTime
+                    |> adjustTime
+                let depTime =
+                    tripStopTimeExtract jdfTripStop.departureTime
+                    |> adjustTime
 
                 let jdfStop =
                     jdfBatch.stops

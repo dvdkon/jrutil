@@ -70,9 +70,9 @@ start =
 						element Time { xsd:time },
 						element Offset { xsd:integer }
 					}*
-				},
-				element ResponsibleRU { company },
-				element ResponsibleIM { company },
+				}?,
+				element ResponsibleRU { company }?,
+				element ResponsibleIM { company }?,
 				element TrainType { "1" }?,
 				element TrafficType { xsd:string { pattern="[0-9A-B]{2}" } }?,
 				element CommercialTrafficType {

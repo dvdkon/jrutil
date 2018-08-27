@@ -3,9 +3,11 @@
 
 module JrUtil.Gtfs
 
+open System.IO
+
 open JrUtil.GtfsCsvSerializer
 open JrUtil.GtfsModel
-open System.IO
+open JrUtil.GtfsParser
 
 
 let gtfsFeedToFolder () =
@@ -39,3 +41,39 @@ let gtfsFeedToFolder () =
         match feed.feedInfo with
         | Some fi -> serializeTo "feed_info.txt" feedInfoSerializer [fi]
         | _ -> ()
+
+let gtfsParseFolder () =
+    // In Python, I'd make a dictionary of file name -> type
+    // I think this is the best I can do without reflection.
+    let fileParser name =
+        let parser = getGtfsFileParser
+        fun path -> parser (Path.Combine(path, name))
+    let fileParserOpt name =
+        let parser = getGtfsFileParser
+        fun path ->
+            let p = Path.Combine(path, name)
+            if File.Exists(p) then Some <| parser p else None
+
+    let agenciesParser = fileParser "agency.txt"
+    let stopsParser = fileParser "stops.txt"
+    let routesParser = fileParser "routes.txt"
+    let tripsParser = fileParser "trips.txt"
+    let stopTimesParser = fileParser "stop_times.txt"
+    let calendarParser = fileParserOpt "calendar.txt"
+    let calendarExceptionsParser = fileParserOpt "calendar_dates.txt"
+    let feedInfoParser = fileParserOpt "feedinfo.txt"
+
+    fun path ->
+        let feed: GtfsFeed = {
+            agencies = agenciesParser path
+            stops = stopsParser path
+            routes = routesParser path
+            trips = tripsParser path
+            stopTimes = stopTimesParser path
+            calendar = calendarParser path
+            calendarExceptions = calendarExceptionsParser path
+            feedInfo =
+                feedInfoParser path
+                |> Option.map (fun fi -> fi.[0])
+        }
+        feed

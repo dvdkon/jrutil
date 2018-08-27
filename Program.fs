@@ -2,10 +2,9 @@
 // (c) 2018 David Koňařík
 
 open JrUtil
-open System
 open System.IO
 open DocoptNet
-open JrUtil
+open DocoptNet
 
 let docstring = """
 jrutil, a tool for working with czech public transport data
@@ -13,23 +12,29 @@ jrutil, a tool for working with czech public transport data
 Usage:
     jrutil.exe jdf_to_gtfs <JDF_in_dir> <GTFS_out_dir>
     jrutil.exe czptt_to_gtfs <CzPtt_in_file> <GTFS_out_dir>
+    jrutil.exe merge_gtfs <GTFS_out_dir> <GTFS_in_dir>...
 
 Passing - to an input path parameter will make jrutil read input filenames
 from stdin. Each result will be output into a sequentially numbered
 directory.
 """
 
+// merge_gtfs' argument order being opposite of other commands' is not
+// intentional, it's necessary to work around a "bug" in docopt.net
+
+let stdinLinesSeq () =
+    Seq.initInfinite (fun i -> stdin.ReadLine())
+    |> Seq.takeWhile (fun l -> l <> null)
+
 let inOutFiles inpath outpath =
     if inpath = "-" then
-        Seq.initInfinite (fun i ->
-            (stdin.ReadLine(), Path.Combine(outpath, string i)))
-        |> Seq.takeWhile (fun (i, o) -> i <> null)
+        stdinLinesSeq ()
+        |> Seq.mapi (fun i l -> (l, Path.Combine(outpath, string i)))
     else
         seq [(inpath, outpath)]
 
 [<EntryPoint>]
 let main args =
-    printfn "JrUtil started!"
     try
         let args = Docopt().Apply(docstring, args)
         if args.["jdf_to_gtfs"].IsTrue then
@@ -47,10 +52,33 @@ let main args =
             inOutFiles (unbox args.["<CzPtt_in_file>"].Value)
                        (unbox args.["<GTFS_out_dir>"].Value)
             |> Seq.iter (fun (inPath, out) ->
+                printfn "Processing %s" inPath
                 let czptt = CzPtt.parseFile inPath
                 let gtfs = CzPtt.gtfsFeed czptt
                 gtfsSer out gtfs
             )
+        if args.["merge_gtfs"].IsTrue then
+            let infiles =
+                args.["<GTFS_in_dir>"].AsList
+                |> Seq.cast<ValueObject>
+                |> Seq.map (fun vo -> unbox vo.Value)
+            let infiles =
+                if infiles |> Seq.tryHead = Some "-"
+                then stdinLinesSeq()
+                else infiles
+
+            let feedParser = Gtfs.gtfsParseFolder ()
+            let mergedFeed = new GtfsMerge.MergedFeed()
+            infiles
+            |> Seq.iter (fun inpath ->
+                printfn "Processing %s" inpath
+                let feed = feedParser inpath
+                mergedFeed.InsertFeed feed
+            )
+            let feedSerializer = Gtfs.gtfsFeedToFolder ()
+            let outPath = (unbox args.["<GTFS_out_dir>"].Value)
+            feedSerializer outPath (mergedFeed.ToGtfsFeed())
+            ()
         0
     with
     | :? DocoptBaseException as e ->

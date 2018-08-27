@@ -13,8 +13,9 @@
 module JrUtil.GtfsModel
 
 open System
-open JrUtil.GtfsCsvSerializer
+
 open JrUtil.Utils
+open JrUtil.GtfsModelMeta
 
 type Agency = {
     [<CsvFieldName("agency_id")>] id: string option

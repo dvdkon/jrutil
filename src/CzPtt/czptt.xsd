@@ -117,9 +117,9 @@
         <xs:element minOccurs="0" ref="LocationPrimaryCode"/>
         <xs:element ref="PrimaryLocationName"/>
         <xs:element minOccurs="0" ref="LocationSubsidiaryIdentification"/>
-        <xs:element ref="TimingAtLocation"/>
-        <xs:element ref="ResponsibleRU"/>
-        <xs:element ref="ResponsibleIM"/>
+        <xs:element minOccurs="0" ref="TimingAtLocation"/>
+        <xs:element minOccurs="0" ref="ResponsibleRU"/>
+        <xs:element minOccurs="0" ref="ResponsibleIM"/>
         <xs:element minOccurs="0" ref="TrainType"/>
         <xs:element minOccurs="0" ref="TrafficType"/>
         <xs:element minOccurs="0" ref="CommercialTrafficType"/>

@@ -3,17 +3,17 @@
 
 module JrUtil.Jdf
 
-open JrUtil.JdfCsvParser
+open JrUtil.JdfParser
 open JrUtil.JdfModel
 open System.IO
 open System
 
 let jdfBatchDirParser () =
     let fileParser name =
-        let parser = getCsvFileParser
+        let parser = getJdfFileParser
         fun path -> parser (Path.Combine(path, name))
     let fileParserOrEmpty name =
-        let parser = getCsvFileParser
+        let parser = getJdfFileParser
         fun path ->
             let p = Path.Combine(path, name)
             if File.Exists(p) then parser p else [||]
