@@ -15,9 +15,14 @@
 
   <ItemGroup>
     <Compile Include="src/Utils.fs" />
+    <Compile Include="src/AutoCopy.fs" />
     <Compile Include="src/CsvParser.fs" />
     <Compile Include="src/Jdf/JdfParser.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
+    <Compile Include="src/Jdf/Jdf110Model.fs" />
+    <Compile Include="src/Jdf/Jdf110To111.fs" />
+    <Compile Include="src/Jdf/Jdf109Model.fs" />
+    <Compile Include="src/Jdf/Jdf109To110.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
     <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
     <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />

@@ -54,3 +54,5 @@ let rec dateRange (startDate: DateTime) (endDate: DateTime)  =
     if startDate <= endDate
     then startDate :: (dateRange (startDate.AddDays(1.0)) endDate)
     else []
+
+let constant x _ = x

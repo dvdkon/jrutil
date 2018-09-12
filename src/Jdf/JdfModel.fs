@@ -15,8 +15,9 @@ open JrUtil.Utils
 let mutable attributeDefaultParser: (string -> obj) option = None
 
 // This type is shared between all JDF versions, because, as far as I can tell,
-// it's the only thing that sometimes "loses options" (for example, JDF 1.10
-// has "s" for "self-service trains", but 1.11 omits it completely)
+// it's the only thing (this and RouteType, anyway) that sometimes "loses
+// options" (for example, JDF 1.10 has "s" for "self-service trains", but 1.11
+// omits it completely)
 // This makes it sort of a mess by being a merger of multiple format versions.
 // This also means that this library will accept "hybrid" JDF files
 // (e.g. JDF 1.11 file with "s" attribute)
@@ -133,12 +134,16 @@ type Agency = {
     idDistinction: int // forms a 2-field primary key with id
 }
 
+// This union doesn't quite fit JDF 1.8, but there's really no way to make it
+// fit and the misatches are only minor.
 type RouteType =
     | [<StrValue("A")>] City
     | [<StrValue("B")>] CityAndAdjacent
+    | [<StrValue("M")>] International // From JDF 1.8
     | [<StrValue("N")>] InternationalNoNational
     | [<StrValue("P")>] InternationalOrNational
     | [<StrValue("V")>] Regional
+    | [<StrValue("W")>] ExtraDistrict // From JDF 1.8
     | [<StrValue("Z")>] ExtraRegional // TODO: Better naming?
     | [<StrValue("D")>] LongDistanceNational
 

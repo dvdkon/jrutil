@@ -34,8 +34,10 @@ let getGtfsRouteType (jdfRoute: JdfModel.Route) =
     match (jdfRoute.transportMode, jdfRoute.routeType) with
     | (JdfModel.Bus, JdfModel.City)
     | (JdfModel.Bus, JdfModel.CityAndAdjacent) -> "704" // Local bus
+    | (JdfModel.Bus, JdfModel.International)
     | (JdfModel.Bus, JdfModel.InternationalNoNational) // International coach
     | (JdfModel.Bus, JdfModel.InternationalOrNational) -> "201"
+    | (JdfModel.Bus, JdfModel.ExtraDistrict)
     | (JdfModel.Bus, JdfModel.Regional) -> "701" // Regional bus
     | (JdfModel.Bus, JdfModel.ExtraRegional)
     | (JdfModel.Bus, JdfModel.LongDistanceNational) -> "202" // National coach

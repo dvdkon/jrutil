@@ -4,7 +4,6 @@
 open JrUtil
 open System.IO
 open DocoptNet
-open DocoptNet
 
 let docstring = """
 jrutil, a tool for working with czech public transport data
@@ -13,6 +12,7 @@ Usage:
     jrutil.exe jdf_to_gtfs <JDF_in_dir> <GTFS_out_dir>
     jrutil.exe czptt_to_gtfs <CzPtt_in_file> <GTFS_out_dir>
     jrutil.exe merge_gtfs <GTFS_out_dir> <GTFS_in_dir>...
+    jrutil.exe act
 
 Passing - to an input path parameter will make jrutil read input filenames
 from stdin. Each result will be output into a sequentially numbered
@@ -34,7 +34,7 @@ let inOutFiles inpath outpath =
         seq [(inpath, outpath)]
 
 [<EntryPoint>]
-let main args =
+let main (args: string array) =
     try
         let args = Docopt().Apply(docstring, args)
         if args.["jdf_to_gtfs"].IsTrue then
@@ -43,6 +43,7 @@ let main args =
             inOutFiles (unbox args.["<JDF_in_dir>"].Value)
                        (unbox args.["<GTFS_out_dir>"].Value)
             |> Seq.iter (fun (inPath, out) ->
+                printfn "%s" inPath
                 let jdf = jdfPar inPath
                 let gtfs = JdfToGtfs.getGtfsFeed jdf
                 gtfsSer out gtfs
@@ -78,6 +79,7 @@ let main args =
             let feedSerializer = Gtfs.gtfsFeedToFolder ()
             let outPath = (unbox args.["<GTFS_out_dir>"].Value)
             feedSerializer outPath (mergedFeed.ToGtfsFeed())
+        if args.["act"].IsTrue then
             ()
         0
     with
