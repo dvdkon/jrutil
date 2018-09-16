@@ -12,7 +12,6 @@ Usage:
     jrutil.exe jdf_to_gtfs <JDF_in_dir> <GTFS_out_dir>
     jrutil.exe czptt_to_gtfs <CzPtt_in_file> <GTFS_out_dir>
     jrutil.exe merge_gtfs <GTFS_out_dir> <GTFS_in_dir>...
-    jrutil.exe act
 
 Passing - to an input path parameter will make jrutil read input filenames
 from stdin. Each result will be output into a sequentially numbered
@@ -79,8 +78,6 @@ let main (args: string array) =
             let feedSerializer = Gtfs.gtfsFeedToFolder ()
             let outPath = (unbox args.["<GTFS_out_dir>"].Value)
             feedSerializer outPath (mergedFeed.ToGtfsFeed())
-        if args.["act"].IsTrue then
-            ()
         0
     with
     | :? DocoptBaseException as e ->
