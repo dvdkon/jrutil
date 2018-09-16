@@ -4,10 +4,6 @@
   (c) 2018 David Koňařík
   -->
 
-  <!-- This should't be necessary, but from what I gathered it's required
-  for FSharp.Data for now -->
-  <Import Project="fsc.props" />
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.1</TargetFramework>
