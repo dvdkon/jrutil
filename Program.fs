@@ -41,21 +41,27 @@ let main (args: string array) =
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
             inOutFiles (unbox args.["<JDF_in_dir>"].Value)
                        (unbox args.["<GTFS_out_dir>"].Value)
-            |> Seq.iter (fun (inPath, out) ->
-                printfn "%s" inPath
-                let jdf = jdfPar inPath
-                let gtfs = JdfToGtfs.getGtfsFeed jdf
-                gtfsSer out gtfs
+            |> Seq.iter (fun (inpath, out) ->
+                printfn "Processing %s" inpath
+                try
+                    let jdf = jdfPar inpath
+                    let gtfs = JdfToGtfs.getGtfsFeed jdf
+                    gtfsSer out gtfs
+                with
+                    | e -> printfn "Error while processing %s:\n%A" inpath e
             )
         if args.["czptt_to_gtfs"].IsTrue then
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
             inOutFiles (unbox args.["<CzPtt_in_file>"].Value)
                        (unbox args.["<GTFS_out_dir>"].Value)
-            |> Seq.iter (fun (inPath, out) ->
-                printfn "Processing %s" inPath
-                let czptt = CzPtt.parseFile inPath
-                let gtfs = CzPtt.gtfsFeed czptt
-                gtfsSer out gtfs
+            |> Seq.iter (fun (inpath, out) ->
+                printfn "Processing %s" inpath
+                try
+                    let czptt = CzPtt.parseFile inpath
+                    let gtfs = CzPtt.gtfsFeed czptt
+                    gtfsSer out gtfs
+                with
+                    | e -> printfn "Error while processing %s:\n%A" inpath e
             )
         if args.["merge_gtfs"].IsTrue then
             let infiles =
@@ -72,8 +78,11 @@ let main (args: string array) =
             infiles
             |> Seq.iter (fun inpath ->
                 printfn "Processing %s" inpath
-                let feed = feedParser inpath
-                mergedFeed.InsertFeed feed
+                try
+                    let feed = feedParser inpath
+                    mergedFeed.InsertFeed feed
+                with
+                    | e -> printfn "Error while processing %s:\n%A" inpath e
             )
             let feedSerializer = Gtfs.gtfsFeedToFolder ()
             let outPath = (unbox args.["<GTFS_out_dir>"].Value)
