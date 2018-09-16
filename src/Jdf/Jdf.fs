@@ -24,19 +24,18 @@ let parseAttributes batch attributes =
 
 let stopZone batch (stop: Stop) =
     // Will try to get a single zone name for a stop from routeStopslet zones
+    // TODO: Unfortunately, Czech transport systems sometimes have both
+    // multiple zones for a single stop and the applicable zone varies from
+    // route to route. Expressing this properly would require an extension to
+    // GTFS. This isn't realised yet, so this function just concatenates the
+    // names of zones into a string and uses that as a zone.
     let zones =
         batch.routeStops
         |> Array.filter (fun rs -> rs.stopId = stop.id)
         |> Array.map (fun rs -> rs.zone)
         |> Array.choose id
     if zones.Length > 0
-    then let zone = zones |> Array.head
-         let allSame =
-             zones
-             |> Array.fold (fun s z -> z = zone && s) true
-         if not allSame
-         then failwith "Incosistent zone information in JDF"
-         else Some zone
+    then Some <| String.concat "," zones
     else None
 
 let jdfBatchDirVersion path =
