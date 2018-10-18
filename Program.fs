@@ -12,10 +12,11 @@ jrutil, a tool for working with czech public transport data
 Usage:
     jrutil.exe jdf_to_gtfs <JDF_in_dir> <GTFS_out_dir>
     jrutil.exe czptt_to_gtfs <CzPtt_in_file> <GTFS_out_dir>
-    jrutil.exe merge_gtfs --db-connstr=CONNSTR <GTFS_out_dir> <GTFS_in_dir>...
+    jrutil.exe merge_gtfs --db-connstr=CONNSTR [--no-check-stop-type] <GTFS_out_dir> <GTFS_in_dir>...
 
 Options
     --db-connstr=CONNSTR
+    --no-check-stop-type
 
 Passing - to an input path parameter will make jrutil read input filenames
 from stdin. Each result will be output into a sequentially numbered
@@ -69,6 +70,7 @@ let main (args: string array) =
             )
         if args.["merge_gtfs"].IsTrue then
             let dbConnStr = args.["--db-connstr"].Value |> unbox
+            let checkStopType = not args.["--no-check-stop-type"].IsTrue
 
             use dbConn = getPostgresqlConnection dbConnStr
             dbConn.Open()
@@ -84,7 +86,7 @@ let main (args: string array) =
 
             let feedParser = Gtfs.gtfsParseFolder ()
 
-            let mergedFeed = new GtfsMerge.MergedFeed(dbConn)
+            let mergedFeed = new GtfsMerge.MergedFeed(dbConn, checkStopType)
             mergedFeed.CreateTables()
 
             // TODO: Async

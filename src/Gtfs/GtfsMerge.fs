@@ -12,7 +12,9 @@ open System.Text.RegularExpressions
 
 type IdMap = Map<string, string>
 
-type MergedFeed(conn: DbConnection) =
+type MergedFeed(conn: DbConnection, ?checkStopType: bool) =
+    let checkStopType = defaultArg checkStopType true
+
     let mutable feedNum = 0
 
     let newId oldId =
@@ -79,23 +81,28 @@ type MergedFeed(conn: DbConnection) =
 
         // TODO: PG fulltext search
         // TODO: Indexed function?
-        let sql =
-            """
-            SELECT id FROM stops AS s
-            WHERE name = @n
-                AND (EXISTS (
-                    SELECT * FROM "stopTimes" AS st
-                        INNER JOIN trips AS t ON (t.id = st."tripId")
-                        INNER JOIN routes AS r ON (r.id = t."routeId")
-                    WHERE st."stopId" = s.id
-                        AND (r."routeType" = '2'
-                            OR r."routeType" LIKE '1__')
-                )) = @rs
-            """
-
         let mergeId =
+            if checkStopType then
+                let sql =
+                    """
+                    SELECT id FROM stops AS s
+                    WHERE name = @n
+                        AND (EXISTS (
+                            SELECT * FROM "stopTimes" AS st
+                                INNER JOIN trips AS t ON (t.id = st."tripId")
+                                INNER JOIN routes AS r ON (r.id = t."routeId")
+                            WHERE st."stopId" = s.id
+                                AND (r."routeType" = '2'
+                                    OR r."routeType" LIKE '1__')
+                        )) = @rs
+                    """
                 sqlQuery conn sql
                     ["n", box stop.name; "rs", box isRailwayStation]
+            else
+                let sql = "SELECT id FROM stops WHERE name = @n"
+                sqlQuery conn sql
+                    ["n", box stop.name]
+
 
         match mergeId |> Seq.toList with
         | [] ->
