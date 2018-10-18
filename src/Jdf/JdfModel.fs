@@ -8,7 +8,7 @@ open System.Text.RegularExpressions
 open System.Globalization
 
 open JrUtil.CsvParser
-open JrUtil.Utils
+open JrUtil.UnionCodec
 
 // A bit of trickery to deal with F#'s lack of support for mutually recursive
 // type and let binding

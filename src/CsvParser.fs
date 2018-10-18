@@ -5,10 +5,12 @@ module JrUtil.CsvParser
 
 open System
 
-open JrUtil.Utils
 open System.Globalization
-open Microsoft.FSharp.Reflection
 open System.Reflection
+open Microsoft.FSharp.Reflection
+
+open JrUtil.ReflectionUtils
+open JrUtil.UnionCodec
 
 exception CsvParseException of msg: string with
     override this.Message = this.msg
@@ -47,14 +49,8 @@ let rec colParserForBase colParserFor (colType: Type) =
                   | _ -> raise (CsvParseException
                                  (sprintf "Invalid value for bool: %s" x))
                   |> box
-    else if colType.IsGenericType
-            && colType.GetGenericTypeDefinition() = typedefof<_ option> then
-        let optionCases = FSharpType.GetUnionCases(colType)
-        let someCase = optionCases |> Array.find (fun c -> c.Name = "Some")
-        let noneCase = optionCases |> Array.find (fun c -> c.Name = "None")
-        let someCtor = FSharpValue.PreComputeUnionConstructor(someCase)
-        let noneCtor = FSharpValue.PreComputeUnionConstructor(noneCase)
-
+    else if typeIsOption colType then
+        let someCtor, noneCtor = getOptionConstructors colType
         let innerType = colType.GetGenericArguments().[0]
         let innerTypeParser = colParserFor innerType
         (fun x -> (if x = ""

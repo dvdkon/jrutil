@@ -7,6 +7,7 @@ open System.IO
 open FSharp.Data
 
 open JrUtil.Utils
+open JrUtil.UnionCodec
 open JrUtil.GtfsModel
 open System
 open System.Globalization

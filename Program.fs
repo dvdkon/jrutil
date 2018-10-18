@@ -4,6 +4,7 @@
 open JrUtil
 open System.IO
 open DocoptNet
+open JrUtil.SqlRecordStore
 
 let docstring = """
 jrutil, a tool for working with czech public transport data
@@ -11,7 +12,10 @@ jrutil, a tool for working with czech public transport data
 Usage:
     jrutil.exe jdf_to_gtfs <JDF_in_dir> <GTFS_out_dir>
     jrutil.exe czptt_to_gtfs <CzPtt_in_file> <GTFS_out_dir>
-    jrutil.exe merge_gtfs <GTFS_out_dir> <GTFS_in_dir>...
+    jrutil.exe merge_gtfs --db-connstr=CONNSTR <GTFS_out_dir> <GTFS_in_dir>...
+
+Options
+    --db-connstr=CONNSTR
 
 Passing - to an input path parameter will make jrutil read input filenames
 from stdin. Each result will be output into a sequentially numbered
@@ -64,6 +68,11 @@ let main (args: string array) =
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
         if args.["merge_gtfs"].IsTrue then
+            let dbConnStr = args.["--db-connstr"].Value |> unbox
+
+            use dbConn = getPostgresqlConnection dbConnStr
+            dbConn.Open()
+
             let infiles =
                 args.["<GTFS_in_dir>"].AsList
                 |> Seq.cast<ValueObject>
@@ -74,7 +83,11 @@ let main (args: string array) =
                 else infiles
 
             let feedParser = Gtfs.gtfsParseFolder ()
-            let mergedFeed = new GtfsMerge.MergedFeed()
+
+            let mergedFeed = new GtfsMerge.MergedFeed(dbConn)
+            mergedFeed.CreateTables()
+
+            // TODO: Async
             infiles
             |> Seq.iter (fun inpath ->
                 printfn "Processing %s" inpath
@@ -84,9 +97,11 @@ let main (args: string array) =
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
+
             let feedSerializer = Gtfs.gtfsFeedToFolder ()
             let outPath = (unbox args.["<GTFS_out_dir>"].Value)
             feedSerializer outPath (mergedFeed.ToGtfsFeed())
+            dbConn.Close()
         0
     with
     | :? DocoptBaseException as e ->

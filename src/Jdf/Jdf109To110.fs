@@ -11,6 +11,7 @@ open System
 open JrUtil
 open JrUtil.AutoCopy
 open JrUtil.Utils
+open JrUtil.ReflectionUtils
 
 // A version of AutoCopy's "nameGetters" that creates a getter returning None
 // if no name-based getter is available and the target type is an option
@@ -21,8 +22,8 @@ let nameOptGetters<'f> (gs: (string * ('f -> obj)) list) =
         |> Option.orElse (
             let t = f.PropertyType
             let srcType = typeof<'f>
-            if srcType.GetMember(f.Name).Length = 0 && t.IsGenericType
-                && t.GetGenericTypeDefinition() = typedefof<_ option>
+            if srcType.GetMember(f.Name).Length = 0 &&
+                typeIsOption t
             then Some (constant None >> box)
             else None)
 

@@ -4,17 +4,15 @@
 module JrUtil.GtfsCsvSerializer
 
 open System
-open System.Reflection
 open Microsoft.FSharp.Reflection
 
-open JrUtil.Utils
+open JrUtil.ReflectionUtils
+open JrUtil.UnionCodec
 open JrUtil.GtfsModelMeta
 
 let optionSomeCase =
     FSharpType.GetUnionCases(typedefof<_ option>)
     |> Array.find (fun uc -> uc.Name = "Some")
-let optionCaseGetter = FSharpValue.PreComputeUnionTagReader(typedefof<_ option>)
-
 let rec getFormatter fieldType =
     if fieldType = typeof<string> then (fun x -> [| unbox x |])
     else if fieldType = typeof<int> then (fun x -> [| sprintf "%d" (unbox x) |])
@@ -35,8 +33,7 @@ let rec getFormatter fieldType =
             [| sprintf "%02d:%02d:%02d" (int ts.TotalHours)
                                         ts.Minutes
                                         ts.Seconds |]
-    else if fieldType.IsGenericType
-            && fieldType.GetGenericTypeDefinition() = typedefof<_ option> then
+    else if typeIsOption fieldType then
         let innerType = fieldType.GetGenericArguments().[0]
         let innerFormatter = getFormatter innerType
         fun x ->

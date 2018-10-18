@@ -3,64 +3,22 @@
 
 module JrUtil.GtfsMerge
 
-open System.Collections.Generic
-open System.Text.RegularExpressions
+open System.Data.Common
 
 open JrUtil.GtfsModel
+open JrUtil.SqlRecordStore
+open System.Text.RegularExpressions
+
 
 type IdMap = Map<string, string>
 
-// Since this operation is performance-critical (merging tens of thousands
-// of feeds isn't easy), it's implemented with mutable data structures.
-type MergedFeed() =
-    let agencies = new List<Agency>()
-    // These index dictionaries are here for efficient lookup based on
-    // a record's field. They map a value to a "pointer" into the
-    // greater list.
-    // Maybe I really should have written this in SQL...
-    let agenciesById = new Dictionary<string, int>()
-    let agenciesByName = new Dictionary<string, int>()
-    let stops = new List<Stop>()
-    let stopsById = new Dictionary<string, int>()
-    let stopsByName = new Dictionary<string, HashSet<int>>()
-    let stopRouteTypes = new Dictionary<int, string Set>()
-    let routes = new List<Route>()
-    let routesById = new Dictionary<string, int>()
-    let routesByName = new Dictionary<string, int>()
-    let trips = new List<Trip>()
-    let tripsById = new Dictionary<string, int>()
-    let stopTimes = new List<StopTime>()
-    let calendar = new List<CalendarEntry>()
-    let calendarEntryById = new Dictionary<string, int>()
-    let calendarExceptions = new List<CalendarException>()
-    let calendarExceptionsById = new Dictionary<string, HashSet<int>>()
+type MergedFeed(conn: DbConnection) =
+    let mutable feedNum = 0
 
-    member this.GetNewId prevId (objs: Dictionary<string, _>) =
-        if objs.ContainsKey(prevId) then
-            Seq.initInfinite id |> Seq.pick (fun i ->
-                let newId = sprintf "%s/%d" prevId i
-                if objs.ContainsKey(newId)
-                then None
-                else Some newId
-            )
-        else prevId
+    let newId oldId =
+        sprintf "%d/%s" feedNum oldId
 
-    // "MultiDict" is kind of an "ad-hoc" name, so don't expect to see it
-    // anywhere else.
-    member this.AddToMultiDict (mdict: Dictionary<'a, HashSet<'b>>) key value =
-        if mdict.ContainsKey(key) then
-            mdict.[key].Add(value) |> ignore
-        else
-            let set = new HashSet<'b>()
-            set.Add(value) |> ignore
-            mdict.[key] <- set
-
-    // The rest of this file is repetitive and boring code (and some comments).
-    // It all follows the same pattern (Change ID to new ID, change foreign
-    // IDs per ID maps).
-    // TODO: Abstraction!
-
-    member this.InsertAgency (agency: Agency) =
+    let insertAgency (agency: Agency) =
         // If this agency is already in the merged feed (determined by
         // comparing the name), it's not inserted and the existing agency's id
         // is returned. The two agency objects aren't merged in any way
@@ -71,24 +29,24 @@ type MergedFeed() =
         let agencyId = agency.id |> Option.defaultValue ""
         // Matching by name equality like this is not ideal.
         // Some sort of fuzzy matching would probably be best here.
-        if not <| agenciesByName.ContainsKey(agency.name) then
-            let newId = this.GetNewId agencyId agenciesById
+        let existingId =
+            sqlQueryOne conn "SELECT id FROM agencies WHERE name = @n"
+                        ["n", box agency.name]
+            |> unbox
+        if existingId <> null then
+            let newId = newId agencyId
             let newAgency = {agency with id = Some newId}
-            agencies.Add(newAgency)
-            agenciesById.Add(newId, agencies.Count - 1)
-            agenciesByName.Add(newAgency.name, agencies.Count - 1)
+            sqlInsert conn "agencies" newAgency
             newId
         else
-            let existingAgencyIndex = agenciesByName.[agency.name]
-            agencies.[existingAgencyIndex].id.Value
+            existingId
 
-    member this.InsertAgencies agencies =
-        agencies |> Array.map (fun a ->
-            let newId = this.InsertAgency a
-            (a.id |> Option.defaultValue "", newId))
+    let insertAgencies (agencies: Agency seq) =
+        agencies
+        |> Seq.map (fun a -> (a.id |> Option.defaultValue "", insertAgency a))
         |> Map
 
-    member this.StopRouteTypes (feed: GtfsFeed) (stop: Stop) =
+    let stopRouteTypes (feed: GtfsFeed) (stop: Stop) =
         feed.stopTimes
         |> Set.ofArray
         |> Set.filter (fun st -> st.stopId = stop.id)
@@ -98,7 +56,7 @@ type MergedFeed() =
                 feed.routes |> Array.find (fun r -> r.id = trip.routeId)
             route.routeType)
 
-    member this.InsertStop feed (stationIdMap: IdMap) (stop: Stop) =
+    let insertStop feed (stationIdMap: IdMap) (stop: Stop) =
         // The best we could do here is probably fuzzy matching while also
         // looking at adjacent stops via trip stop lists.
         // Such an approach might benefit from whole-dataset analysis
@@ -116,23 +74,32 @@ type MergedFeed() =
         // coordinates.
 
         let isRailwayStation =
-            Set.exists (fun rt -> rt = "2" || Regex.IsMatch(rt, "1.."))
+            stopRouteTypes feed stop
+            |> Set.exists (fun rt -> rt = "2" || Regex.IsMatch(rt, "1.."))
 
-        let mergeCandidate =
-            if stopsByName.ContainsKey(stop.name) then
-                stopsByName.[stop.name]
-                |> Seq.tryFind (fun si ->
-                    let existingRouteTypes = stopRouteTypes.[si]
-                    let newRouteTypes = this.StopRouteTypes feed stop
-                    isRailwayStation existingRouteTypes =
-                        isRailwayStation newRouteTypes
-                )
-                |> Option.map (fun si -> stops.[si])
-            else None
+        // TODO: PG fulltext search
+        // TODO: Indexed function?
+        let sql =
+            """
+            SELECT id FROM stops AS s
+            WHERE name = @n
+                AND (EXISTS (
+                    SELECT * FROM "stopTimes" AS st
+                        INNER JOIN trips AS t ON (t.id = st."tripId")
+                        INNER JOIN routes AS r ON (r.id = t."routeId")
+                    WHERE st."stopId" = s.id
+                        AND (r."routeType" = '2'
+                            OR r."routeType" LIKE '1__')
+                )) = @rs
+            """
 
-        match mergeCandidate with
-        | None ->
-            let newId = this.GetNewId stop.id stopsById
+        let mergeId =
+                sqlQuery conn sql
+                    ["n", box stop.name; "rs", box isRailwayStation]
+
+        match mergeId |> Seq.toList with
+        | [] ->
+            let newId = newId stop.id
             let newStop = {
                 stop with
                     id = newId
@@ -140,154 +107,168 @@ type MergedFeed() =
                         stop.parentStation
                         |> Option.map (fun ps -> stationIdMap.[ps])
             }
-            stops.Add(newStop)
-            let index = stops.Count - 1
-            stopsById.Add(newId, index)
-            this.AddToMultiDict stopsByName newStop.name index
-            stopRouteTypes.Add(index, this.StopRouteTypes feed newStop)
+            sqlInsert conn "stops" newStop
             newId
-        | Some mc ->
-            mc.id
+        | [row] -> unbox row.[0]
+        | _ -> failwithf "More than one merge candidate for stop \"%s\""
+                         stop.name
 
-    member this.InsertStops (feed: GtfsFeed) =
+    let insertStops (feed: GtfsFeed) =
+        // Stations and other stops have to be processed separately, because
+        // stops may reference stations and so we need the ID map
         let (stations, other) =
             feed.stops
             |> Array.partition (fun s -> s.locationType = Some Station)
         let stationIdMap =
             stations
-            |> Array.map (fun s -> (s.id, this.InsertStop feed Map.empty s))
+            |> Array.map (fun s -> (s.id, insertStop feed Map.empty s))
             |> Map
         let otherIdMap =
             other
-            |> Array.map (fun s -> (s.id, this.InsertStop feed stationIdMap s))
+            |> Array.map (fun s -> (s.id, insertStop feed stationIdMap s))
         Map (Seq.append (Map.toSeq stationIdMap) otherIdMap)
 
-    member this.InsertRoute (agencyIdMap: IdMap) (route: Route) =
+    let insertRoute (agencyIdMap: IdMap) (route: Route) =
         // For now this is done by comparing names, a better way might be
         // comparing a set of all stations
         let name =
             route.shortName |> Option.orElse route.longName |> Option.get
-        let canMerge = routesByName.ContainsKey(name)
+        let mergeId =
+            sqlQuery conn """
+            SELECT id FROM routes
+            WHERE COALESCE("shortName", "longName") = @n
+            """ ["n", box name]
 
-        if not canMerge then
-            let newId = this.GetNewId route.id routesById
+        match mergeId |> Seq.toList with
+        | [] ->
             let agencyId = route.agencyId |> Option.defaultValue ""
+            let nid = newId route.id
             let newRoute = {
                 route with
-                    id = newId
+                    id = nid
                     agencyId = Some agencyIdMap.[agencyId]
             }
-            routes.Add(newRoute)
-            let index = routes.Count - 1
-            routesById.Add(newId, index)
-            routesByName.Add(name, index)
-            newId
-        else
-            let existingRouteIndex = routesByName.[name]
-            routes.[existingRouteIndex].id
+            sqlInsert conn "routes" newRoute
+            nid
+        | [row] -> unbox row.[0]
+        | _ -> failwithf "More than one merge candidate for route \"%s\"" name
 
-    member this.InsertRoutes agencyIdMap (routes: Route array) =
-        routes
-        |> Array.map (fun r -> (r.id, this.InsertRoute agencyIdMap r))
-        |> Map
+    let insertRoutes agencyIdMap (routes: Route array) =
+        routes |> Array.map (fun r -> (r.id, insertRoute agencyIdMap r)) |> Map
 
-    member this.InsertCalendarEntry (calendarEntry: CalendarEntry) =
-        let newId = this.GetNewId calendarEntry.id calendarEntryById
+    let insertCalendarEntry (calendarEntry: CalendarEntry) =
+        let nid = newId calendarEntry.id
         let newCalEntry = {
             calendarEntry with
-                id = newId
+                id = nid
         }
-        calendar.Add(newCalEntry)
-        let index = calendar.Count - 1
-        calendarEntryById.Add(newId, index)
-        newId
+        sqlInsert conn "calendar" newCalEntry
+        nid
 
-    member this.InsertCalendar (calendarEntries: CalendarEntry array) =
-        calendarEntries
-        |> Array.map (fun ce -> (ce.id, this.InsertCalendarEntry ce))
+    let insertCalendar (calendar: CalendarEntry array) =
+        calendar
+        |> Array.map (fun ce -> (ce.id, insertCalendarEntry ce))
         |> Map
 
-    member this.InsertCalendarException
-            (calendarIdMap: IdMap)
-            (calendarException: CalendarException) =
-        let newId =
-            match calendarIdMap |> Map.tryFind calendarException.id with
-            | Some id -> id
-            | None -> this.GetNewId calendarException.id
-                                    calendarExceptionsById
+    let insertCalendarException (calendarIdMap: IdMap)
+                                (calExc: CalendarException) =
+        let nid =
+            calendarIdMap
+            |> Map.tryFind calExc.id
+            |> Option.defaultValue (newId calExc.id)
         let newCalExc = {
-            calendarException with
-                id = newId
+            calExc with
+                id = nid
         }
-        calendarExceptions.Add(newCalExc)
-        let index = calendarExceptions.Count - 1
-        this.AddToMultiDict calendarExceptionsById newId index
+        sqlInsert conn "calendarExceptions" newCalExc
+        nid
 
-        newId
-
-    member this.InsertCalendarExceptions calendarIdMap calendarExceptions =
-        calendarExceptions
+    let insertCalendarExceptions calendarIdMap calExcs =
+        calExcs
         |> Array.fold
             (fun m ce ->
-                let newId = this.InsertCalendarException m ce
+                let newId = insertCalendarException m ce
                 m |> Map.add ce.id newId)
             calendarIdMap
 
-    member this.InsertTrip
-            (routeIdMap: IdMap) (calendarIdMap: IdMap) (trip: Trip) =
-        // TODO: Trips are never merged.
-        let newId = this.GetNewId trip.id tripsById
+    let insertTrip (routeIdMap: IdMap) (calendarIdMap: IdMap) (trip: Trip) =
+        // TODO: Trips are never merged
+        let nid = newId trip.id
         let newTrip = {
             trip with
-                id = newId
+                id = nid
                 routeId = routeIdMap.[trip.routeId]
                 serviceId = calendarIdMap.[trip.serviceId]
         }
-        trips.Add(newTrip)
-        let index = trips.Count - 1
-        tripsById.Add(newId, index)
-        newId
+        sqlInsert conn "trips" newTrip
+        nid
 
-    member this.InsertTrips routeIdMap calendarIdMap (trips: Trip array) =
+    let insertTrips routeIdMap calendarIdMap (trips: Trip array) =
         trips
-        |> Array.map
-            (fun t -> (t.id, this.InsertTrip routeIdMap calendarIdMap t))
+        |> Array.map (fun t -> (t.id, insertTrip routeIdMap calendarIdMap t))
         |> Map
 
-    member this.InsertStopTime
+    let insertStopTime
             (tripIdMap: IdMap) (stopIdMap: IdMap) (stopTime: StopTime) =
         let newStopTime = {
             stopTime with
                 tripId = tripIdMap.[stopTime.tripId]
                 stopId = stopIdMap.[stopTime.stopId]
         }
-        stopTimes.Add(newStopTime)
+        sqlInsert conn "stopTimes" newStopTime
 
-    member this.InsertStopTimes tripIdMap stopIdMap stopTimes =
-        stopTimes |> Array.iter (this.InsertStopTime tripIdMap stopIdMap)
+    let insertStopTimes tripIdMap stopIdMap stopTimes =
+        stopTimes |> Array.iter (insertStopTime tripIdMap stopIdMap)
 
-    member this.InsertFeed (feed: GtfsFeed) =
-        let agencyIdMap = this.InsertAgencies feed.agencies
-        let stopIdMap = this.InsertStops feed
-        let routeIdMap = this.InsertRoutes agencyIdMap feed.routes
+    member this.InsertFeed feed =
+        feedNum <- feedNum + 1
+        let agencyIdMap = insertAgencies feed.agencies
+        let stopIdMap = insertStops feed
+        let routeIdMap = insertRoutes agencyIdMap feed.routes
         let calendarIdMap =
-            this.InsertCalendar (feed.calendar |> Option.defaultValue [||])
+            insertCalendar (feed.calendar |> Option.defaultValue [||])
         let calendarIdMap =
-            this.InsertCalendarExceptions calendarIdMap
-                                          (feed.calendarExceptions
-                                           |> Option.defaultValue [||])
-        let tripIdMap = this.InsertTrips routeIdMap calendarIdMap feed.trips
-        this.InsertStopTimes tripIdMap stopIdMap feed.stopTimes
+            insertCalendarExceptions
+                calendarIdMap
+                (feed.calendarExceptions |> Option.defaultValue [||])
+        let tripIdMap = insertTrips routeIdMap calendarIdMap feed.trips
+        insertStopTimes tripIdMap stopIdMap feed.stopTimes
 
-    member this.ToGtfsFeed () =
-        let feed: GtfsFeed = {
-            agencies = Array.ofSeq agencies
-            stops = Array.ofSeq stops
-            routes = Array.ofSeq routes
-            trips = Array.ofSeq trips
-            stopTimes = Array.ofSeq stopTimes
-            calendar = Array.ofSeq calendar |> Some
-            calendarExceptions = Array.ofSeq calendarExceptions |> Some
-            feedInfo = None
-        }
-        feed
+    member this.CreateTables() =
+        let table recType name pkeyCols indexCols =
+            createTableFor conn recType name
+            let pkey =
+                pkeyCols
+                |> Seq.map (fun f -> sprintf "\"%s\"" f)
+                |> String.concat ", "
+            executeSql conn
+                       (sprintf """ALTER TABLE "%s" ADD PRIMARY KEY (%s)"""
+                                name pkey) []
+            for ic in indexCols do
+                executeSql conn (sprintf """CREATE INDEX ON "%s" ("%s")"""
+                                         name ic) []
+
+        table typeof<Agency> "agencies" ["id"] ["name"]
+        table typeof<Stop> "stops" ["id"] ["name"]
+        table typeof<Route> "routes" ["id"]
+            ["agencyId"; "shortName"; "longName"]
+        table typeof<Trip> "trips" ["id"] ["routeId"; "serviceId"]
+        table typeof<StopTime> "stopTimes" ["tripId"; "stopSequence"] []
+        table typeof<CalendarEntry> "calendar" ["id"] []
+        table typeof<CalendarException> "calendarExceptions" ["id"; "date"] []
+
+    member this.ToGtfsFeed() = {
+        feedInfo = None
+        agencies = sqlQueryRec conn "SELECT * FROM agencies" [] |> Array.ofSeq
+        stops = sqlQueryRec conn "SELECT * FROM stops" [] |> Array.ofSeq
+        routes = sqlQueryRec conn "SELECT * FROM routes" [] |> Array.ofSeq
+        trips = sqlQueryRec conn "SELECT * FROM trips" [] |> Array.ofSeq
+        stopTimes =
+            sqlQueryRec conn """SELECT * FROM "stopTimes" """ [] |> Array.ofSeq
+        calendar =
+            sqlQueryRec conn "SELECT * FROM calendar" [] |> Array.ofSeq |> Some
+        calendarExceptions =
+            sqlQueryRec conn """SELECT * FROM "calendarExceptions" """ []
+            |> Array.ofSeq
+            |> Some
+    }

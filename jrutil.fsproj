@@ -11,8 +11,11 @@
 
   <ItemGroup>
     <Compile Include="src/Utils.fs" />
+    <Compile Include="src/ReflectionUtils.fs" />
+    <Compile Include="src/UnionCodec.fs" />
     <Compile Include="src/AutoCopy.fs" />
     <Compile Include="src/CsvParser.fs" />
+    <Compile Include="src/SqlRecordStore.fs" />
     <Compile Include="src/Jdf/JdfParser.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
     <Compile Include="src/Jdf/Jdf110Model.fs" />
@@ -35,6 +38,8 @@
   <ItemGroup>
     <PackageReference Include="docopt.net" Version="0.6.1.9" />
     <PackageReference Include="FSharp.Data" Version="3.0.0-beta4" />
+    <PackageReference Include="Npgsql" Version="4.0.3" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
   </ItemGroup>
 

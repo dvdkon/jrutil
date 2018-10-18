@@ -15,6 +15,7 @@ module JrUtil.GtfsModel
 open System
 
 open JrUtil.Utils
+open JrUtil.UnionCodec
 open JrUtil.GtfsModelMeta
 
 type Agency = {

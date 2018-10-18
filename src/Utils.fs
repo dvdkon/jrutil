@@ -4,49 +4,17 @@
 module JrUtil.Utils
 
 open System
-open Microsoft.FSharp.Reflection
+open System.Collections.Generic
 
-[<AllowNullLiteral>]
-type StrValueAttribute(value: string) =
-    inherit Attribute()
-    member this.Value = value
-
-let getUnionStrCases unionType =
-    FSharpType.GetUnionCases(unionType)
-    |> Array.collect (fun c ->
-        c.GetCustomAttributes()
-        |> Array.filter (fun a -> a :? StrValueAttribute)
-        |> Array.map (fun a -> a :?> StrValueAttribute)
-        |> Array.map (fun a -> (c, a.Value)))
-
-let getUnionParser unionType =
-    let unionConstructors =
-        getUnionStrCases unionType
-        |> Array.map
-            (fun (c, a) -> (a, FSharpValue.PreComputeUnionConstructor(c)))
-        |> Map
+let memoize f =
+    let cache = new Dictionary<_, _>()
     fun x ->
-        match unionConstructors |> Map.tryFind x with
-        | Some c -> c [| |]
-        | None -> failwithf "No union case for value \"%s\"" x
-
-let parseUnion<'u> str =
-    // This doesn't cache the parser function, I just hope the JIT takes care
-    // of that
-    (getUnionParser typeof<'u>) str |> unbox<'u>
-
-
-let getUnionSerializer unionType =
-    let cases =
-        getUnionStrCases unionType
-        |> Array.map (fun (c, a) -> (c.Tag, a))
-    let caseTagGetter = FSharpValue.PreComputeUnionTagReader unionType
-    fun x ->
-        let caseTag = caseTagGetter x
-        let (_, caseStr) = cases |> Array.find (fun (ci, _) -> ci = caseTag)
-        caseStr
-
-
+        let cached, result = cache.TryGetValue(x)
+        if cached then result
+        else
+            let result = f x
+            cache.[x] <- result
+            result
 
 let rec dateRange (startDate: DateTime) (endDate: DateTime)  =
     // Create a list of DateTime objects containing all days between
