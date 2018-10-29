@@ -10,7 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\jrutil\jrutil.fsproj" />
+    <ProjectReference Include="../jrutil/jrutil.fsproj" />
   </ItemGroup>
 
 </Project>
