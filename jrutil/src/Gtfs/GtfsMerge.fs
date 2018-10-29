@@ -75,14 +75,15 @@ type MergedFeed(conn: DbConnection, ?checkStopType: bool) =
         // "good enough" results, probably the best possible without
         // coordinates.
 
-        let isRailwayStation =
-            stopRouteTypes feed stop
-            |> Set.exists (fun rt -> rt = "2" || Regex.IsMatch(rt, "1.."))
-
         // TODO: PG fulltext search
         // TODO: Indexed function?
         let mergeId =
             if checkStopType then
+                let isRailwayStation =
+                    stopRouteTypes feed stop
+                    |> Set.exists
+                        (fun rt -> rt = "2" || Regex.IsMatch(rt, "1.."))
+
                 let sql =
                     """
                     SELECT id FROM stops AS s

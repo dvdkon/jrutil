@@ -5,7 +5,7 @@
   -->
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+	  <!--<OutputType>Exe</OutputType>-->
     <TargetFramework>netcoreapp2.1</TargetFramework>
   </PropertyGroup>
 
@@ -32,15 +32,17 @@
     <Compile Include="src/CzPtt/KadrEnumWs.fs" />
     <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/Gtfs/GtfsMerge.fs" />
-    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="docopt.net" Version="0.6.1.9" />
     <PackageReference Include="FSharp.Data" Version="3.0.0-beta4" />
     <PackageReference Include="Npgsql" Version="4.0.3" />
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../thirdparty/docopt.fs/Build/Docopt.fsproj" />
   </ItemGroup>
 
 </Project>

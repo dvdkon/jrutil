@@ -12,7 +12,8 @@ open JrUtil.GtfsModel
 open System
 open System.Globalization
 
-type CzPttXml = XmlProvider<Schema="src/CzPtt/czptt.xsd">
+// TODO: Workaround for path resolution issues!
+type CzPttXml = XmlProvider<Schema=const(__SOURCE_DIRECTORY__ + "/czptt.xsd")>
 
 type LocationType =
     | [<StrValue("01")>] Origin

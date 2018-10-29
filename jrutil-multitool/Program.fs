@@ -1,18 +1,21 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil` and is licenced under the GNU GPLv3 or later
 // (c) 2018 David Koňařík
 
-open JrUtil
 open System.IO
-open DocoptNet
+open Docopt
+
+open JrUtil
+open JrUtil.Utils
 open JrUtil.SqlRecordStore
 
-let docstring = """
+let docstring = (fun (s: string) -> s.Trim()) """
 jrutil, a tool for working with czech public transport data
 
 Usage:
-    jrutil.exe jdf_to_gtfs <JDF_in_dir> <GTFS_out_dir>
-    jrutil.exe czptt_to_gtfs <CzPtt_in_file> <GTFS_out_dir>
-    jrutil.exe merge_gtfs --db-connstr=CONNSTR [--no-check-stop-type] <GTFS_out_dir> <GTFS_in_dir>...
+    jrutil.exe jdf-to-gtfs <JDF-in-dir> <GTFS-out-dir>
+    jrutil.exe czptt-to-gtfs <CzPtt-in-file> <GTFS-out-dir>
+    jrutil.exe merge-gtfs --db-connstr=CONNSTR [--no-check-stop-type] <GTFS-out-dir> <GTFS-in-dir>...
+    jrutil.exe --help
 
 Options
     --db-connstr=CONNSTR
@@ -40,12 +43,13 @@ let inOutFiles inpath outpath =
 [<EntryPoint>]
 let main (args: string array) =
     try
-        let args = Docopt().Apply(docstring, args)
-        if args.["jdf_to_gtfs"].IsTrue then
+        let docopt = Docopt(docstring)
+        let args = docopt.Parse(args)
+        if argFlagSet args.["jdf-to-gtfs"] then
             let jdfPar = Jdf.jdfBatchDirParser ()
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (unbox args.["<JDF_in_dir>"].Value)
-                       (unbox args.["<GTFS_out_dir>"].Value)
+            inOutFiles (argValue args.["<JDF-in-dir>"])
+                       (argValue args.["<GTFS-out-dir>"])
             |> Seq.iter (fun (inpath, out) ->
                 printfn "Processing %s" inpath
                 try
@@ -55,10 +59,10 @@ let main (args: string array) =
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
-        if args.["czptt_to_gtfs"].IsTrue then
+        else if argFlagSet args.["czptt-to-gtfs"] then
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (unbox args.["<CzPtt_in_file>"].Value)
-                       (unbox args.["<GTFS_out_dir>"].Value)
+            inOutFiles (argValue args.["<CzPtt-in-file>"])
+                       (argValue args.["<GTFS-out-dir>"])
             |> Seq.iter (fun (inpath, out) ->
                 printfn "Processing %s" inpath
                 try
@@ -68,21 +72,18 @@ let main (args: string array) =
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
-        if args.["merge_gtfs"].IsTrue then
-            let dbConnStr = args.["--db-connstr"].Value |> unbox
-            let checkStopType = not args.["--no-check-stop-type"].IsTrue
+        else if argFlagSet args.["merge-gtfs"] then
+            let dbConnStr = argValue args.["--db-connstr"]
+            let checkStopType = not <| argFlagSet args.["--no-check-stop-type"]
 
             use dbConn = getPostgresqlConnection dbConnStr
             dbConn.Open()
 
-            let infiles =
-                args.["<GTFS_in_dir>"].AsList
-                |> Seq.cast<ValueObject>
-                |> Seq.map (fun vo -> unbox vo.Value)
+            let infiles = argValues args.["<GTFS-in-dir>"]
             let infiles =
                 if infiles |> Seq.tryHead = Some "-"
                 then stdinLinesSeq()
-                else infiles
+                else infiles |> Seq.ofList
 
             let feedParser = Gtfs.gtfsParseFolder ()
 
@@ -101,11 +102,12 @@ let main (args: string array) =
             )
 
             let feedSerializer = Gtfs.gtfsFeedToFolder ()
-            let outPath = (unbox args.["<GTFS_out_dir>"].Value)
+            let outPath = argValue args.["<GTFS-out-dir>"]
             feedSerializer outPath (mergedFeed.ToGtfsFeed())
             dbConn.Close()
+        else printfn "%s" docstring
         0
     with
-    | :? DocoptBaseException as e ->
-        printfn "%s" e.Message
+    | ArgvException(msg) ->
+        printfn "%s" msg
         1

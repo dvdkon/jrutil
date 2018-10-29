@@ -5,6 +5,7 @@ module JrUtil.Utils
 
 open System
 open System.Collections.Generic
+open Docopt
 
 let memoize f =
     let cache = new Dictionary<_, _>()
@@ -24,3 +25,19 @@ let rec dateRange (startDate: DateTime) (endDate: DateTime)  =
     else []
 
 let constant x _ = x
+
+let argFlagSet (arg: Arguments.Result) =
+    match arg with
+    | Arguments.Result.Flag | Arguments.Result.Flags _ -> true
+    | Arguments.Result.None -> false
+    | _ -> failwithf "Expected %A to be a Flag or Flags" arg
+
+let argValue (arg: Arguments.Result) =
+    match arg with
+    | Arguments.Result.Argument x -> x
+    | _ -> failwithf "Expected %A to be an Argument" arg
+
+let argValues (arg: Arguments.Result) =
+    match arg with
+    | Arguments.Result.Arguments x -> x
+    | _ -> failwithf "Expected %A to be Arguments" arg
