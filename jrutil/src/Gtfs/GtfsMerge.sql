@@ -37,13 +37,15 @@ $func$;
 -- If there are multiple mergable items in the same GTFS feed it will cause
 -- problems down the line (manifested as uniqueness constraint problems)
 
-CREATE OR REPLACE FUNCTION
+DROP FUNCTION IF EXISTS agency_should_merge;
+CREATE FUNCTION
 agency_should_merge(a1 $in.agencies, a2 $merged.agencies) RETURNS BOOLEAN
 LANGUAGE SQL AS $$
     SELECT a1.name = a2.name;
 $$;
 
-CREATE OR REPLACE FUNCTION
+DROP FUNCTION IF EXISTS stop_should_merge;
+CREATE FUNCTION
 stop_should_merge(s1 $in.stops, s2 $merged.stops) RETURNS BOOLEAN
 LANGUAGE SQL AS $$
     {{ if check_stations }}
@@ -57,7 +59,8 @@ LANGUAGE SQL AS $$
     {{ end }}
 $$;
 
-CREATE OR REPLACE FUNCTION
+DROP FUNCTION IF EXISTS route_should_merge;
+CREATE FUNCTION
 route_should_merge(r1 $in.routes, r2 $merged.routes) RETURNS BOOLEAN
 LANGUAGE SQL AS $$
     SELECT r1.shortname = r2.shortname;

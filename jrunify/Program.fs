@@ -20,6 +20,9 @@ GTFS feed
 Usage: jrunify.exe <connstr> <jdf-bus> <jdf-mhd> <czptt-szdc> <out>
 """
 
+let setSchema conn schemaName =
+    executeSql conn (sprintf "SET search_path TO %s" schemaName) []
+
 let cleanAndSetSchema conn schemaName =
     let sql = 
         sprintf """
@@ -71,10 +74,22 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
         }
     else jdfBatch
 
+let cleanGtfsTables conn =
+    let cleanSql = """
+    DELETE FROM agencies;
+    DELETE FROM stops;
+    DELETE FROM routes;
+    DELETE FROM trips;
+    DELETE FROM stopTimes;
+    DELETE FROM calendar;
+    DELETE FROM calendarExceptions;
+    """
+    executeSql conn cleanSql []
+
 let jdfToGtfsDb =
     let jdfParser = Jdf.jdfBatchDirParser ()
     fun (conn: DbConnection) inPath ->
-        Gtfs.sqlCreateGtfsTables conn
+        cleanGtfsTables conn
         let jdf = jdfParser inPath
         let jdf = fixupJdf jdf
         let gtfs = JdfToGtfs.getGtfsFeed jdf
@@ -89,13 +104,15 @@ let processJdf conn group path =
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
         new GtfsMerge.MergedFeed(conn, schemaMerged, false, false)
+    cleanAndSetSchema conn schemaIntermediate
+    Gtfs.sqlCreateGtfsTables conn
     Directory.EnumerateDirectories(path)
     |> Seq.iter (fun jdfPath ->
         printfn "Processing %s: %s" group jdfPath
         try
-            cleanAndSetSchema conn schemaIntermediate
+            setSchema conn schemaIntermediate
             jdfToGtfsDb conn jdfPath
-            cleanAndSetSchema conn schemaTemp
+            setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
         with
         | :? PostgresException as e ->
@@ -113,16 +130,18 @@ let processCzPtt conn path =
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
         new GtfsMerge.MergedFeed(conn, schemaMerged, false, true)
+    cleanAndSetSchema conn schemaIntermediate
+    Gtfs.sqlCreateGtfsTables conn
     Directory.EnumerateFiles(path, "*.xml", SearchOption.AllDirectories)
     |> Seq.iter (fun czpttFile ->
         printfn "Processing CZPTT: %s" czpttFile
         try
-            cleanAndSetSchema conn schemaIntermediate
-            Gtfs.sqlCreateGtfsTables conn
+            setSchema conn schemaIntermediate
+            cleanGtfsTables conn
             let czptt = CzPtt.parseFile czpttFile
             let gtfs = CzPtt.gtfsFeed czptt
             Gtfs.sqlInsertGtfsFeed conn gtfs
-            cleanAndSetSchema conn schemaTemp
+            setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
         with
         | :? PostgresException as e ->
