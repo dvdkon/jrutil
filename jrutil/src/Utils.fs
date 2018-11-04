@@ -4,11 +4,11 @@
 module JrUtil.Utils
 
 open System
-open System.Collections.Generic
+open System.Collections.Concurrent
 open Docopt
 
 let memoize f =
-    let cache = new Dictionary<_, _>()
+    let cache = new ConcurrentDictionary<_, _>()
     fun x ->
         let cached, result = cache.TryGetValue(x)
         if cached then result
