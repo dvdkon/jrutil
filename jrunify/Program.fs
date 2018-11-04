@@ -100,6 +100,7 @@ let processJdf conn group path =
     let schemaMerged = sprintf "%s_merged" group
     let schemaTemp = sprintf "%s_temp" group
     let schemaIntermediate = sprintf "%s_intermediate" group
+    cleanAndSetSchema conn schemaTemp
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
@@ -126,6 +127,7 @@ let processCzPtt conn path =
     let schemaMerged = "czptt_merged"
     let schemaTemp = "czptt_temp"
     let schemaIntermediate = "czptt_intermediate"
+    cleanAndSetSchema conn schemaTemp
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =

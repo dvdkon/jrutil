@@ -50,10 +50,12 @@ stop_should_merge(s1 $in.stops, s2 $merged.stops) RETURNS BOOLEAN
 LANGUAGE SQL AS $$
     {{ if check_stations }}
         SELECT s1.name = s2.name
-            -- TODO: '' should be equal to '0'
-            AND s1.locationtype = s2.locationtype
-            AND (s1.locationtype NOT IN (NULL, '', '0')
-                OR s1.platformcode = s2.platformcode);
+            -- Note to self: Comparing anything to null results in null,
+            -- making everything null and therefore "falsy". Reminds me of
+            -- PHP, but worse somehow...
+            AND COALESCE(s1.locationtype, '0') = COALESCE(s2.locationtype, '0')
+            AND (COALESCE(s1.locationtype, '0') NOT IN ('', '0')
+                OR s1.platformcode IS NOT DISTINCT FROM s2.platformcode);
     {{ else }}
         SELECT s1.name = s2.name;
     {{ end }}
@@ -63,7 +65,7 @@ DROP FUNCTION IF EXISTS route_should_merge;
 CREATE FUNCTION
 route_should_merge(r1 $in.routes, r2 $merged.routes) RETURNS BOOLEAN
 LANGUAGE SQL AS $$
-    SELECT r1.shortname = r2.shortname;
+SELECT r1.shortname = r2.shortname;
 $$;
 
 -- Agencies:
@@ -97,10 +99,11 @@ SELECT populate_idmap('stop_idmap', 'stops', 'stop_should_merge');
 
 INSERT INTO $merged.stops
     SELECT idmap.new_id, code, name, description, lat, lon, zoneid, url,
-           locationtype, parentstation, timezone, wheelchairboarding,
+           locationtype, idmap_ps.new_id, timezone, wheelchairboarding,
            platformcode
     FROM $in.stops
-    LEFT JOIN stop_idmap AS idmap ON id = idmap.orig_id
+    LEFT JOIN stop_idmap AS idmap ON idmap.orig_id = id
+    LEFT JOIN stop_idmap AS idmap_ps ON idmap_ps.orig_id = parentstation
     WHERE NOT idmap.merged;
 
 -- Routes:
