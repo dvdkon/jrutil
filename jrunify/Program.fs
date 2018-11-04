@@ -100,6 +100,7 @@ let processJdf conn group path =
     let schemaMerged = sprintf "%s_merged" group
     let schemaTemp = sprintf "%s_temp" group
     let schemaIntermediate = sprintf "%s_intermediate" group
+
     cleanAndSetSchema conn schemaTemp
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
@@ -107,6 +108,7 @@ let processJdf conn group path =
         new GtfsMerge.MergedFeed(conn, schemaMerged, false, false)
     cleanAndSetSchema conn schemaIntermediate
     Gtfs.sqlCreateGtfsTables conn
+
     Directory.EnumerateDirectories(path)
     |> Seq.iter (fun jdfPath ->
         printfn "Processing %s: %s" group jdfPath
@@ -124,9 +126,12 @@ let processJdf conn group path =
     )
 
 let processCzPtt conn path =
+    let fixupScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/FixupCzptt.sql")
+
     let schemaMerged = "czptt_merged"
     let schemaTemp = "czptt_temp"
     let schemaIntermediate = "czptt_intermediate"
+
     cleanAndSetSchema conn schemaTemp
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
@@ -134,6 +139,7 @@ let processCzPtt conn path =
         new GtfsMerge.MergedFeed(conn, schemaMerged, false, true)
     cleanAndSetSchema conn schemaIntermediate
     Gtfs.sqlCreateGtfsTables conn
+
     Directory.EnumerateFiles(path, "*.xml", SearchOption.AllDirectories)
     |> Seq.iter (fun czpttFile ->
         printfn "Processing CZPTT: %s" czpttFile
@@ -143,13 +149,13 @@ let processCzPtt conn path =
             let czptt = CzPtt.parseFile czpttFile
             let gtfs = CzPtt.gtfsFeed czptt
             Gtfs.sqlInsertGtfsFeed conn gtfs
+            executeSql conn fixupScript []
             setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
         with
         | :? PostgresException as e ->
             printfn "Error while processing %s:\nSQL error at %s:%s:%d:\n%s\n"
                     czpttFile e.File e.Line e.Position e.Message
-            exit 10
         | e ->
             printfn "Error while processing %s:\n%A" czpttFile e
     )
