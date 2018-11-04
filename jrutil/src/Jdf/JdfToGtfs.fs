@@ -95,7 +95,7 @@ let getGtfsStops: JdfModel.JdfBatch -> GtfsModel.Stop array = fun jdfBatch ->
         id = jdfStopId jdfStop.id
         code = None
         name = getStopName jdfStop
-        desc = None
+        description = None
         lat = 0m
         lon = 0m
         // How does this even work with stops that are in multiple
@@ -132,7 +132,7 @@ let getGtfsRoutes: JdfModel.JdfBatch -> GtfsModel.Route array = fun jdfBatch ->
         // TODO: From JdfModel.RouteIntegration? What about multiple names?
         shortName = Some (string jdfRoute.id)
         longName = Some jdfRoute.name
-        desc = None
+        description = None
         // TODO: Deal with routes that don't allow national service
         // (only international)
         routeType = getGtfsRouteType jdfRoute

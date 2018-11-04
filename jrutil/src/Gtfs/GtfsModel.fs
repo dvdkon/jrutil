@@ -38,7 +38,7 @@ type Stop = {
     [<CsvFieldName("stop_id")>] id: string
     [<CsvFieldName("stop_code")>] code: string option
     [<CsvFieldName("stop_name")>] name: string
-    [<CsvFieldName("stop_desc")>] desc: string option
+    [<CsvFieldName("stop_desc")>] description: string option
     [<CsvFieldName("stop_lat")>] lat: decimal
     [<CsvFieldName("stop_lon")>] lon: decimal
     [<CsvFieldName("zone_id")>] zoneId: string option
@@ -59,7 +59,7 @@ type Route = {
     [<CsvFieldName("agency_id")>] agencyId: string option
     [<CsvFieldName("route_short_name")>] shortName: string option
     [<CsvFieldName("route_long_name")>] longName: string option
-    [<CsvFieldName("route_desc")>] desc: string option
+    [<CsvFieldName("route_desc")>] description: string option
     // TODO: Enum? It'd be pretty big
     [<CsvFieldName("route_type")>] routeType: string
     [<CsvFieldName("route_url")>] url: string option

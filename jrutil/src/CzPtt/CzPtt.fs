@@ -131,7 +131,7 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
         agencyId = Some trainIdentifier.Company
         shortName = Some name
         longName = None
-        desc = None
+        description = None
         routeType = gtfsRouteType firstLocation
         url = None
         color = None
@@ -157,14 +157,15 @@ let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
 
 let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
-    info.CzpttLocations |> Array.collect (fun loc ->
+    info.CzpttLocations
+    |> Array.collect (fun loc ->
         if not <| isValidGtfsStop loc then [||]
         else
             let createStop locType station platform = {
                 id = (if locType = Station then "S" else "") + gtfsStopId loc
                 code = None
                 name = loc.PrimaryLocationName
-                desc = None
+                description = None
                 lat = 0m
                 lon = 0m
                 // Train routes can still have zones when joined into an
@@ -201,6 +202,9 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
             | None ->
                 [| createStop Stop None None |]
     )
+    // Deal with stops being driven through multiple times
+    |> Array.groupBy (fun s -> s.id)
+    |> Array.map (fun (_, ss) -> Seq.head ss)
 
 let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
     // Since trains aren't really divided into routes, we use one ID for

@@ -71,7 +71,7 @@ let getSerializer<'r> =
         |> String.concat ","
 
 let getRowsSerializer<'r> =
-    let header = getHeader<'r> |> String.concat ","
+    let header = getHeader typeof<'r> |> String.concat ","
     let serializer = getSerializer<'r>
     fun rows ->
         header + "\n" + (rows |> Seq.map serializer |> String.concat "\n")

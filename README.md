@@ -9,6 +9,8 @@ Slovak) public transport data, such as:
 
 # Usage:
 
+(This is outdated right now, sorry)
+
 - Conversion of JDF timetables (found on [ftp.cisjr.cz](ftp://ftp.cisjr.cz/)) to
   GTFS. JrUtil takes a directory of JDF files and creates a directory representing a
   GTFS feed.

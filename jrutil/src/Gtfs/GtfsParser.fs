@@ -56,7 +56,7 @@ let getGtfsParser<'r> =
         let data = lines |> Array.tail |> Array.filter (fun l -> l <> "")
 
         let colNames = splitLine header
-        let modelHeader = getHeader<'r>
+        let modelHeader = getHeader typeof<'r>
         let transformToModel =
             let indexes =
                 modelHeader

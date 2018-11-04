@@ -34,10 +34,7 @@ type SqlRow(columnNames: string seq, cols: obj array) =
         cols.[columnIndex]
 
 let getPostgresqlConnection connstr =
-    let factory = NpgsqlFactory.Instance
-    let connection = factory.CreateConnection()
-    connection.ConnectionString <- connstr
-    connection
+    new NpgsqlConnection(connstr)
 
 let rec sqlAdoTypeFor t =
     if t = typeof<string> then NpgsqlDbType.Text
@@ -62,6 +59,11 @@ let rec sqlPrepareValue value =
             sqlPrepareValue <| t.GetProperty("Value").GetValue(value)
         else if FSharpType.IsUnion(t) then getUnionSerializer t value |> box
         else box value
+
+/// Takes an identifier and makes it lowercase, so that it can be
+/// used in quotes by automatic scripts and without quotes in standard
+/// hand-written SQL.
+let sqlIdent (str: string) = str.ToLower()
 
 let createSqlCommand (conn: DbConnection) sql (paramSeq: (string * obj) seq) =
     let cmd = conn.CreateCommand()
@@ -106,7 +108,8 @@ let createSqlInserter = memoize <| fun recType ->
             [ for (i, v) in fields |> Seq.indexed -> (sprintf "@%d" i, v) ]
         let paramsStr =
             ps |> Seq.map (fun (n, _) -> n) |> String.concat ", "
-        let sql = sprintf """INSERT INTO "%s" VALUES (%s)""" table paramsStr
+        let sql = sprintf """INSERT INTO "%s" VALUES (%s)"""
+                          (sqlIdent table) paramsStr
         executeSql conn sql ps
 
 let sqlInsert conn table o =
@@ -183,10 +186,10 @@ let createTableFor conn recType tableName =
     let columns =
         FSharpType.GetRecordFields(recType)
         |> Seq.map (fun f ->
-            sprintf "\"%s\" %s" f.Name (sqlTypeFor f.PropertyType)
+            sprintf "\"%s\" %s" (sqlIdent f.Name) (sqlTypeFor f.PropertyType)
         )
     let tableDecl =
         sprintf "CREATE TABLE \"%s\" (\n%s\n);"
-            tableName
+            (sqlIdent tableName)
             (String.Join(",\n", columns))
     executeSql conn tableDecl []

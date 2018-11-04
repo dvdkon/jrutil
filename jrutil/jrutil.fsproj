@@ -37,6 +37,7 @@
   <ItemGroup>
     <PackageReference Include="FSharp.Data" Version="3.0.0-beta4" />
     <PackageReference Include="Npgsql" Version="4.0.3" />
+    <PackageReference Include="Scriban" Version="1.2.7" />
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
   </ItemGroup>

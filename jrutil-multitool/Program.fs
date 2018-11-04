@@ -87,8 +87,9 @@ let main (args: string array) =
 
             let feedParser = Gtfs.gtfsParseFolder ()
 
-            let mergedFeed = new GtfsMerge.MergedFeed(dbConn, checkStopType)
-            mergedFeed.CreateTables()
+            // TODO!
+            (*let mergedFeed = new GtfsMerge.MergedFeed(dbConn, checkStopType)
+            Gtfs.sqlCreateGtfsTables dbConn
 
             // TODO: Async
             infiles
@@ -103,7 +104,7 @@ let main (args: string array) =
 
             let feedSerializer = Gtfs.gtfsFeedToFolder ()
             let outPath = argValue args.["<GTFS-out-dir>"]
-            feedSerializer outPath (mergedFeed.ToGtfsFeed())
+            feedSerializer outPath (mergedFeed.ToGtfsFeed())*)
             dbConn.Close()
         else printfn "%s" docstring
         0

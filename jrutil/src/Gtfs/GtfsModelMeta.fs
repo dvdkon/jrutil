@@ -26,7 +26,7 @@ let getFieldColumnNames (field: PropertyInfo) =
     if spreadAttr <> null then spreadAttr.Headers
     else [| nameAttr.Name |]
 
-let getHeader<'r> =
-    assert FSharpType.IsRecord(typeof<'r>)
-    FSharpType.GetRecordFields(typeof<'r>)
+let getHeader recType =
+    assert FSharpType.IsRecord(recType)
+    FSharpType.GetRecordFields(recType)
     |> Array.collect getFieldColumnNames
