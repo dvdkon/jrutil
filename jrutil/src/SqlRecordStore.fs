@@ -7,14 +7,16 @@ open System
 open System.Data
 open System.Data.Common
 open System.Collections.Generic
+open System.Text.RegularExpressions
 open Microsoft.FSharp.Reflection
 open Npgsql
 open NpgsqlTypes
+open Scriban
+open Scriban.Runtime
 
 open JrUtil.Utils
 open JrUtil.UnionCodec
 open JrUtil.ReflectionUtils
-open Npgsql
 
 // WARNING: This module does NOT deal with SQL injection in table and
 // column names. It just relies on code being sane and no type/field having
@@ -43,6 +45,8 @@ let rec sqlAdoTypeFor t =
     else if t = typeof<decimal> then NpgsqlDbType.Numeric
     else if t = typeof<bool> then NpgsqlDbType.Boolean
     else if t = typeof<DateTime> then NpgsqlDbType.Timestamp
+    else if t = typeof<Date> then NpgsqlDbType.Unknown
+    else if t = typeof<Time> then NpgsqlDbType.Unknown
     else if t = typeof<TimeSpan> then NpgsqlDbType.Interval
     else if t = typeof<DBNull> then NpgsqlDbType.Unknown
     else if FSharpType.IsUnion(t) then NpgsqlDbType.Text
@@ -161,6 +165,8 @@ let sqlTypeFor (type_: Type) =
         else if t = typeof<decimal> then "DECIMAL"
         else if t = typeof<bool> then "BOOLEAN"
         else if t = typeof<DateTime> then "TIMESTAMP"
+        else if t = typeof<Date> then "DATE"
+        else if t = typeof<Time> then "TIME"
         else if t = typeof<TimeSpan> then "INTERVAL"
         // Sometimes non-nullablity can't be expressed in SQL, so just
         // give up and use the inner type directly.
@@ -193,3 +199,27 @@ let createTableFor conn recType tableName =
             (sqlIdent tableName)
             (String.Join(",\n", columns))
     executeSql conn tableDecl []
+
+// A wrapper over Scriban that replaces "$ident" with "{{ident}}"
+// Note that this just does textual replacements, there's no escaping
+// and SQLi protection
+let compileSqlTemplate =
+    let refRegex = new Regex(@"(?<!\$)\$([a-zA-Z_]+)(?=[^a-zA-Z_$])")
+    fun sql ->
+        let templateStr = refRegex.Replace(sql, @"{{$1}}")
+        let template = Template.Parse(templateStr)
+        if template.HasErrors then
+            failwithf "Errors in SQL template!\n%s"
+                      (template.Messages
+                       |> Seq.map (fun x -> x.ToString())
+                       |> String.concat "\n")
+        fun (vars: (string * obj) seq) ->
+            let context = new TemplateContext()
+            context.StrictVariables <- true
+            let globals = new ScriptObject()
+            vars |> Seq.iter (fun (k, v) ->
+                globals.Add(k, v)
+            )
+            context.PushGlobal(globals)
+            template.Render(context)
+

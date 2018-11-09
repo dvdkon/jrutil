@@ -1,3 +1,6 @@
+-- This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+-- (c) 2018 David Koňařík
+
 -- This script is supposed to be templated by JrUtil.Gtfs.GtfsMerge.templateSql
 -- It takes three arguments:
 --     Two schemas with GTFS tables already present:

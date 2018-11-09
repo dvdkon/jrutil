@@ -268,13 +268,13 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     let cal = info.PlannedCalendar
     let fromDate = cal.ValidityPeriod.StartDateTime
     let toDate = cal.ValidityPeriod.EndDateTime
-    let days = dateRange fromDate (toDate |> Option.defaultValue fromDate)
+    let days = dateTimeRange fromDate (toDate |> Option.defaultValue fromDate)
     assert (days.Length = cal.BitmapDays.Length)
     days
     |> List.mapi (fun i date ->
         let calException: CalendarException = {
             id = gtfsRouteId czptt
-            date = date
+            date = date |> dateTimeToDate
             exceptionType =
                 if cal.BitmapDays.[i] = '1'
                 then ServiceAdded
@@ -286,8 +286,8 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
 let gtfsFeedInfo (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
     let cal = info.PlannedCalendar
-    let fromDate = cal.ValidityPeriod.StartDateTime
-    let toDate = cal.ValidityPeriod.EndDateTime
+    let fromDate = cal.ValidityPeriod.StartDateTime |> dateTimeToDate
+    let toDate = cal.ValidityPeriod.EndDateTime |> Option.map dateTimeToDate
     let feedInfo = {
         publisherName = "JrUtil"
         publisherUrl = "https://gitlab.com/dvdkon/jrutil"

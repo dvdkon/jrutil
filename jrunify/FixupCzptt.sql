@@ -1,3 +1,6 @@
+-- This file is part of JrUnify and is licenced under the GNU GPLv3 or later
+-- (c) 2018 David Koňařík
+
 -- A script to modify GTFS feeds generated from CZPTT data to better fit into
 -- JrUtil's merging process.
 

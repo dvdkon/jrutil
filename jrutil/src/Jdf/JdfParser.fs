@@ -8,11 +8,14 @@ open System.IO
 open System.Text.RegularExpressions
 open System.Text
 
+open JrUtil.Utils
 open JrUtil.CsvParser
 
 let rec jdfColParserFor colType =
-    if colType = typeof<DateTime> then
-        dateTimeParser [|"ddMMyyyy"; "HHmm"|]
+    if colType = typeof<Date> then
+        parseDate "ddMMyyyy" >> box
+    else if colType = typeof<Time> then
+        parseTime "HHmm" >> box
     else
         colParserForBase jdfColParserFor colType
 

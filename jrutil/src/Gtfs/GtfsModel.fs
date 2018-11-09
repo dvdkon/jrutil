@@ -119,8 +119,8 @@ type CalendarEntry = {
     [<CsvSpread([|"monday"; "tuesday"; "wednesday"; "thursday";
                   "friday"; "saturday"; "sunday"|])>]
         weekdayService: bool array
-    [<CsvFieldName("start_date")>] startDate: DateTime
-    [<CsvFieldName("end_date")>] endDate: DateTime
+    [<CsvFieldName("start_date")>] startDate: Date
+    [<CsvFieldName("end_date")>] endDate: Date
 }
 
 type ExceptionType =
@@ -129,7 +129,7 @@ type ExceptionType =
 
 type CalendarException = {
     [<CsvFieldName("service_id")>] id: string
-    [<CsvFieldName("date")>] date: DateTime
+    [<CsvFieldName("date")>] date: Date
     [<CsvFieldName("exception_type")>] exceptionType: ExceptionType
 }
 
@@ -137,8 +137,8 @@ type FeedInfo = {
     [<CsvFieldName("feed_publisher_name")>] publisherName: string
     [<CsvFieldName("feed_publisher_url")>] publisherUrl: string
     [<CsvFieldName("feed_lang")>] lang: string
-    [<CsvFieldName("feed_start_date")>] startDate: DateTime option
-    [<CsvFieldName("feed_end_date")>] endDate: DateTime option
+    [<CsvFieldName("feed_start_date")>] startDate: Date option
+    [<CsvFieldName("feed_end_date")>] endDate: Date option
     [<CsvFieldName("feed_version")>] version: string option
 }
 

@@ -7,6 +7,7 @@ open System
 open System.Text.RegularExpressions
 open System.Globalization
 
+open JrUtil.Utils
 open JrUtil.CsvParser
 open JrUtil.UnionCodec
 
@@ -80,7 +81,7 @@ type JdfVersion = {
     duNum: int option // TODO: What is this exactly?
     region: string option
     batchId: string option
-    creationDate: DateTime option
+    creationDate: Date option
     name: String option
 }
 
@@ -168,10 +169,10 @@ type Route = {
     oneWay: bool
     reserved1: string option
     licenceNum: string option
-    licenceValidFrom: DateTime option
-    licenceValidTo: DateTime option
-    timetableValidFrom: DateTime
-    timetableValidTo: DateTime
+    licenceValidFrom: Date option
+    licenceValidTo: Date option
+    timetableValidFrom: Date
+    timetableValidTo: Date
     agencyDistinction: int // forms a 2-field foreign key with agencyId
     idDistinction: int // forms a 2-field primary key with id
 }
@@ -225,15 +226,14 @@ type TripStopTime =
     // It means that the vehicle doesn't even pass the stop, because
     // it's routed differently
     | [<StrValue("<")>] NotPassing
-    | Time of DateTime
+    | StopTime of Time
 
     with
     static member CsvParse(str) =
         match str with
         | "|" -> Passing
         | "<" -> NotPassing
-        | _ -> DateTime.ParseExact(str, "HHmm",
-                                   CultureInfo.InvariantCulture) |> Time
+        | _ -> parseTime "HHmm" str |> StopTime
 
 type TripStop = {
     routeId: string
@@ -275,8 +275,8 @@ type RouteTime = {
     id: int
     designation: string // TODO: What is this?
     timeType: RouteTimeType option
-    dateFrom: DateTime option
-    dateTo: DateTime option
+    dateFrom: Date option
+    dateTo: Date option
     note: string option
     routeDistinction: int
 }
@@ -305,8 +305,8 @@ type AgencyAlternation = {
     attributes: int option array
     timeType: string option
     reserved1: string option
-    dateFrom: DateTime option
-    dateTo: DateTime option
+    dateFrom: Date option
+    dateTo: Date option
     agencyDistinction: int
     routeDistinction: int
 }

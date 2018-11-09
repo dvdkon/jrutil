@@ -8,6 +8,7 @@ open System.Data.Common
 
 open JrUtil.GtfsCsvSerializer
 open JrUtil.GtfsModel
+open JrUtil.GtfsModelMeta
 open JrUtil.GtfsParser
 open JrUtil.SqlRecordStore
 
@@ -127,3 +128,29 @@ let sqlInsertGtfsFeed =
         stopTimesInserter conn feed.stopTimes
         calendarInserter conn feed.calendar
         calendarExceptionsInserter conn feed.calendarExceptions
+
+let saveGtfsSqlSchema =
+    let template =
+        compileSqlTemplate
+            (File.ReadAllText(__SOURCE_DIRECTORY__ + "/SaveGtfsSchema.sql"))
+    fun (conn: DbConnection) (schema: string) outpath ->
+        let abspath = Path.GetFullPath(outpath)
+        Directory.CreateDirectory(outpath) |> ignore
+        let writeHeader recType fileName =
+            let filepath = Path.Combine(abspath, fileName)
+            let header = getHeader recType |> String.concat ","
+            File.WriteAllText(filepath, header + "\n")
+
+        writeHeader typeof<GtfsModel.Agency> "agency.txt"
+        writeHeader typeof<GtfsModel.Stop> "stop.txt"
+        writeHeader typeof<GtfsModel.Route> "route.txt"
+        writeHeader typeof<GtfsModel.Trip> "trip.txt"
+        writeHeader typeof<GtfsModel.StopTime> "stop_times.txt"
+        writeHeader typeof<GtfsModel.CalendarEntry> "calendar.txt"
+        writeHeader typeof<GtfsModel.CalendarException> "calendar_dates.txt"
+
+        let sql = template [
+            "schema", box schema;
+            "outpath", box abspath;
+        ]
+        executeSql conn sql []

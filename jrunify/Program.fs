@@ -171,37 +171,9 @@ let mergeAll conn =
         mergedFeed.InsertFeed schema
     )
 
-let saveGtfsSqlTable conn recType table outpath =
-    let abspath = Path.GetFullPath(outpath)
-    let header = getHeader recType |> String.concat ","
-    File.WriteAllText(abspath, header)
-    let sql =
-        // TODO: SQLi? Parameters don't seem to work
-        // Cat trick taken from https://dba.stackexchange.com/a/167076
-        // This, of course, makes this program UNIX-specific
-        sprintf "COPY %s TO PROGRAM 'cat >> %s' WITH (FORMAT csv)"
-                table abspath
-    executeSql conn sql []
-
-let saveGtfsSqlSchema conn schema outpath =
-    Directory.CreateDirectory(outpath) |> ignore
-    let saveTable recType tableName fileName =
-        saveGtfsSqlTable
-            conn
-            recType
-            (sprintf "%s.%s" schema tableName)
-            (Path.Combine(outpath, fileName))
-
-    saveTable typeof<GtfsModel.Agency> "agencies" "agency.txt"
-    saveTable typeof<GtfsModel.Stop> "stops" "stop.txt"
-    saveTable typeof<GtfsModel.Route> "routes" "route.txt"
-    saveTable typeof<GtfsModel.Trip> "trips" "trip.txt"
-    saveTable typeof<GtfsModel.StopTime> "stoptimes" "stop_times.txt"
-    saveTable typeof<GtfsModel.CalendarEntry> "calendar" "calendar.txt"
-    saveTable typeof<GtfsModel.CalendarException> "calendarexceptions"
-                                                  "calendar_dates.txt"
-
 let jrunify dbConnStr jdfBusPath jdfMhdPath czpttSzdcPath outPath =
+    // Dirty hack to make sure there's no command timeout
+    let dbConnStrMod = dbConnStr + ";CommandTimeout=0"
     let newConn () =
         let c = getPostgresqlConnection dbConnStr
         c.Notice.Add(fun ev ->
@@ -236,7 +208,7 @@ let jrunify dbConnStr jdfBusPath jdfMhdPath czpttSzdcPath outPath =
     use c = newConn ()
     c.Open()
     mergeAll c
-    saveGtfsSqlSchema c "merged" outPath
+    Gtfs.saveGtfsSqlSchema c "merged" outPath
     c.Close()
 
 [<EntryPoint>]

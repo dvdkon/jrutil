@@ -17,9 +17,9 @@ let jdf110To111Converter () =
             "oneWay", constant false >> box
             "timetableValidTo", (fun (r: Jdf110Model.Route) ->
                 (match r.timetableValidTo with
-                 | Some dt -> dt
+                 | Some date -> date
                  // This is just an arbitrary large date
-                 | None -> new DateTime(3000, 1, 1)) |> box)
+                 | None -> {year = 3000; month = 1; day = 1}) |> box)
         ])
     let tripStopAC =
         getAutoCopier<Jdf110Model.TripStop, JdfModel.TripStop> (nameGetters [

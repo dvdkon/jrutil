@@ -199,7 +199,7 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
 
 let getGtfsCalendarExceptions:
         JdfModel.JdfBatch -> GtfsModel.CalendarException array =
-    let jdfDateRange (startDate: DateTime option) endDate =
+    let jdfDateRange (startDate: Utils.Date option) endDate =
         assert startDate.IsSome
         let endDate =
             match endDate with
@@ -283,8 +283,8 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
     trips
 
 let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
-    let dateTimeToTimeSpan (dtTime: DateTime) =
-        new TimeSpan(dtTime.Hour, dtTime.Minute, dtTime.Second)
+    let timeToTimeSpan (time: Utils.Time) =
+        new TimeSpan(time.hour, time.minute, time.second)
 
     jdfBatch.tripStops
     // We have to deal with stop times for each trip separately,
@@ -330,7 +330,7 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
                     tst
                     |> Option.map (fun x ->
                         match x with
-                        | JdfModel.Time dt -> dt
+                        | JdfModel.StopTime dt -> dt
                         | _ -> failwith "Invalid data"
                     )
 
@@ -343,7 +343,7 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
                                               + (new TimeSpan(24, 0, 0))
                         | None -> ()
                         lastTimeDT <- Some dt
-                        let ts = dateTimeToTimeSpan dt
+                        let ts = timeToTimeSpan dt
                         ts + dayTimeSpan
                     )
 

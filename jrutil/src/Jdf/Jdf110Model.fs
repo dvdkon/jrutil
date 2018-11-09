@@ -4,6 +4,7 @@
 module JrUtil.Jdf110Model
 
 open JrUtil
+open JrUtil.Utils
 open JrUtil.CsvParser
 open System
 
@@ -24,10 +25,10 @@ type Route = {
     usesStopPosts: bool
     reserved1: string option
     licenceNum: string option
-    licenceValidFrom: DateTime option
-    licenceValidTo: DateTime option
-    timetableValidFrom: DateTime
-    timetableValidTo: DateTime option
+    licenceValidFrom: Date option
+    licenceValidTo: Date option
+    timetableValidFrom: Date
+    timetableValidTo: Date option
     agencyDistinction: int
     idDistinction: int
 }
