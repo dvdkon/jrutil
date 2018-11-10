@@ -1,6 +1,11 @@
 -- This file is part of JrUtil and is licenced under the GNU GPLv3 or later
 -- (c) 2018 David Koňařík
 
+CREATE OR REPLACE FUNCTION gtfs_interval(i INTERVAL) RETURNS TEXT
+LANGUAGE SQL AS $$
+    SELECT (date_part('epoch', i) * INTERVAL '1 second')::TEXT;
+$$;
+
 COPY $schema.agencies
 TO PROGRAM 'cat >> $outpath/agency.txt' WITH (FORMAT csv);
 
@@ -13,8 +18,12 @@ TO PROGRAM 'cat >> $outpath/route.txt' WITH (FORMAT csv);
 COPY $schema.trips
 TO PROGRAM 'cat >> $outpath/trip.txt' WITH (FORMAT csv);
 
-COPY $schema.stoptimes
-TO PROGRAM 'cat >> $outpath/stop_times.txt' WITH (FORMAT csv);
+COPY (
+    SELECT tripid, gtfs_interval(arrivaltime), gtfs_interval(departuretime),
+           stopid, stopsequence, headsign, pickuptype, dropofftype,
+           shapedisttraveled, timepoint
+    FROM $schema.stoptimes
+) TO PROGRAM 'cat >> $outpath/stop_times.txt' WITH (FORMAT csv);
 
 COPY (
     SELECT id,

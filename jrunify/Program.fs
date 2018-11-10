@@ -175,7 +175,7 @@ let jrunify dbConnStr jdfBusPath jdfMhdPath czpttSzdcPath outPath =
     // Dirty hack to make sure there's no command timeout
     let dbConnStrMod = dbConnStr + ";CommandTimeout=0"
     let newConn () =
-        let c = getPostgresqlConnection dbConnStr
+        let c = getPostgresqlConnection dbConnStrMod
         c.Notice.Add(fun ev ->
             let n = ev.Notice
             if n.Severity <> "NOTICE" then
