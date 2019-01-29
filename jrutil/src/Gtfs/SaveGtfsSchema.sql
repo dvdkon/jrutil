@@ -10,13 +10,13 @@ COPY $schema.agencies
 TO PROGRAM 'cat >> $outpath/agency.txt' WITH (FORMAT csv);
 
 COPY $schema.stops
-TO PROGRAM 'cat >> $outpath/stop.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> $outpath/stops.txt' WITH (FORMAT csv);
 
 COPY $schema.routes
-TO PROGRAM 'cat >> $outpath/route.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> $outpath/routes.txt' WITH (FORMAT csv);
 
 COPY $schema.trips
-TO PROGRAM 'cat >> $outpath/trip.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> $outpath/trips.txt' WITH (FORMAT csv);
 
 COPY (
     SELECT tripid, gtfs_interval(arrivaltime), gtfs_interval(departuretime),

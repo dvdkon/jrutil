@@ -6,6 +6,7 @@ module JrUtil.Gtfs
 open System.IO
 open System.Data.Common
 
+open JrUtil.Utils
 open JrUtil.GtfsCsvSerializer
 open JrUtil.GtfsModel
 open JrUtil.GtfsModelMeta
@@ -49,12 +50,12 @@ let gtfsParseFolder () =
     // I think this is the best I can do without reflection.
     let fileParser name =
         let parser = getGtfsFileParser
-        fun path -> parser (Path.Combine(path, name))
+        fun path -> parser (Path.Combine(path, name)) |> Seq.toArray
     let fileParserOpt name =
         let parser = getGtfsFileParser
         fun path ->
             let p = Path.Combine(path, name)
-            if File.Exists(p) then Some <| parser p else None
+            if File.Exists(p) then Some <| (parser p |> Seq.toArray) else None
 
     let agenciesParser = fileParser "agency.txt"
     let stopsParser = fileParser "stops.txt"
@@ -104,6 +105,7 @@ let sqlCreateGtfsTables conn =
     table typeof<CalendarException> "calendarExceptions" ["id"; "date"] []
 
 let sqlInsertGtfsFeed =
+    // TODO: Use COPY
     let inserter t tableName =
         let i = createSqlInserter t
         fun (conn: DbConnection) -> Array.iter (fun x -> i tableName conn x)
@@ -141,16 +143,44 @@ let saveGtfsSqlSchema =
             let header = getHeader recType |> String.concat ","
             File.WriteAllText(filepath, header + "\n")
 
-        writeHeader typeof<GtfsModel.Agency> "agency.txt"
-        writeHeader typeof<GtfsModel.Stop> "stop.txt"
-        writeHeader typeof<GtfsModel.Route> "route.txt"
-        writeHeader typeof<GtfsModel.Trip> "trip.txt"
-        writeHeader typeof<GtfsModel.StopTime> "stop_times.txt"
-        writeHeader typeof<GtfsModel.CalendarEntry> "calendar.txt"
-        writeHeader typeof<GtfsModel.CalendarException> "calendar_dates.txt"
+        writeHeader typeof<Agency> "agency.txt"
+        writeHeader typeof<Stop> "stops.txt"
+        writeHeader typeof<Route> "routes.txt"
+        writeHeader typeof<Trip> "trips.txt"
+        writeHeader typeof<StopTime> "stop_times.txt"
+        writeHeader typeof<CalendarEntry> "calendar.txt"
+        writeHeader typeof<CalendarException> "calendar_dates.txt"
 
         let sql = template [
             "schema", box schema;
             "outpath", box abspath;
         ]
         executeSql conn sql []
+
+
+let sqlLoadGtfsFeed conn path =
+    // TODO: See if creating functions beforehand has a reasonable impact
+    // Maybe consider global memoization for reflection?
+    let inserter t table filename transform =
+        let lines = fileLinesSeq (Path.Combine(path, filename))
+        let transformToModel = gtfsTransformToModel t (lines |> Seq.head)
+        let colsNullable = recordSqlColsNullable t
+
+        lines
+        |> Seq.tail
+        |> Seq.map (splitLine >> transformToModel >> transform)
+        |> Seq.chunkBySize 100000 // Some random number
+        |> Seq.iter (sqlCopyInText conn table colsNullable)
+
+    inserter typeof<Agency> "agencies" "agency.txt" id
+    inserter typeof<Stop> "stops" "stops.txt" id
+    inserter typeof<Route> "routes" "routes.txt" id
+    inserter typeof<Trip> "trips" "trips.txt" id
+    inserter typeof<StopTime> "stopTimes" "stop_times.txt" id
+    inserter typeof<CalendarEntry> "calendar" "calendar.txt" (fun row ->
+        [| row.[0];
+           "{" + (row.[1..7]
+                  |> String.concat ",") + "}";
+           row.[8];
+           row.[9] |])
+    inserter typeof<CalendarException> "calendarExceptions" "calendar_dates.txt" id

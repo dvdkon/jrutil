@@ -7,12 +7,13 @@ open System
 open System.IO
 open System.Globalization
 
+open JrUtil.Utils
 open JrUtil.CsvParser
 open JrUtil.GtfsModelMeta
 
 let rec gtfsColParserFor colType =
-    if colType = typeof<DateTime> then
-        dateTimeParser [|"yyyyMMdd"|]
+    if colType = typeof<Date> then
+        parseDate "yyyyMMdd" >> box
     else if colType = typeof<TimeSpan> then
         fun instr ->
             let nums = instr.Split(":") |> Array.map int
@@ -48,36 +49,30 @@ let splitLine (line: string) =
     cols
     |> Seq.map (fun col -> String.Join("", col))
 
+let gtfsTransformToModel rowType header =
+    let colNames = splitLine header
+    let modelHeader = getHeader rowType
+    let indexes =
+        modelHeader
+        |> Array.map (fun name ->
+            match colNames |> Seq.tryFindIndex (fun n -> n = name) with
+            | Some i -> i
+            | None -> failwithf "Column \"%s\" not in GTFS file" name
+        )
+    fun (cols: string seq) ->
+        indexes |> Array.map (fun i -> cols |> Seq.item i)
+
 let getGtfsParser<'r> =
     let rowParser = getRowParser<'r> gtfsColParserFor
-    fun (text: string) ->
-        let lines = text.Split("\n")
-        let header = lines |> Array.head
-        let data = lines |> Array.tail |> Array.filter (fun l -> l <> "")
+    fun (lines: string seq) ->
+        let header = lines |> Seq.head
+        let data = lines |> Seq.tail |> Seq.filter (fun l -> l <> "")
+        let transformToModel = gtfsTransformToModel typeof<'r> header
 
-        let colNames = splitLine header
-        let modelHeader = getHeader typeof<'r>
-        let transformToModel =
-            let indexes =
-                modelHeader
-                |> Array.map (fun name ->
-                    match colNames |> Seq.tryFindIndex (fun n -> n = name) with
-                    | Some i -> i
-                    | None -> failwithf "Column \"%s\" not in GTFS file" name
-                )
-            fun (cols: string seq) ->
-                indexes |> Array.map (fun i -> cols |> Seq.item i)
-
-        data
-        |> Array.map (fun line ->
-            splitLine line
-            |> transformToModel
-            |> Seq.toArray
-            |> rowParser
-        )
+        data |> Seq.map (splitLine >> transformToModel >> rowParser)
 
 let getGtfsFileParser<'r> =
     let parser = getGtfsParser<'r>
     fun path ->
-        let text = File.ReadAllText(path)
+        let text = fileLinesSeq path
         parser text

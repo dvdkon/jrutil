@@ -42,13 +42,13 @@ let rec colParserForBase colParserFor (colType: Type) =
     else if colType = typeof<decimal> then decimal >> box
     else if colType = typeof<bool> then
         fun x -> match x with
-                  // An empty string meaning false isn't according to spec,
-                  // but occurs in real-world data
-                  | "0" | "" -> false
-                  | "1" -> true
-                  | _ -> raise (CsvParseException
-                                 (sprintf "Invalid value for bool: %s" x))
-                  |> box
+                 // An empty string meaning false isn't according to spec,
+                 // but occurs in real-world data
+                 | "0" | "" -> false
+                 | "1" -> true
+                 | _ -> raise (CsvParseException
+                                (sprintf "Invalid value for bool: %s" x))
+                 |> box
     else if typeIsOption colType then
         let someCtor, noneCtor = getOptionConstructors colType
         let innerType = colType.GetGenericArguments().[0]
@@ -85,8 +85,7 @@ let getRowParser<'r> (colParserFor: Type -> (string -> obj)) =
                         (sprintf ("Failed parsing field \"%s\" of value \"%s\": %s")
                                  f.Name x (e.ToString())))
     let colParsers =
-        fields
-        |> Array.map (fun f -> getFieldParser f)
+        fields |> Array.map getFieldParser
 
     let recordConstructor = FSharpValue.PreComputeRecordConstructor(recordType)
     fun (cols: string array) ->

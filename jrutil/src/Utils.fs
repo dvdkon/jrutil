@@ -4,6 +4,7 @@
 module JrUtil.Utils
 
 open System
+open System.IO
 open System.Globalization
 open System.Collections.Concurrent
 open Docopt
@@ -22,6 +23,11 @@ let memoize f =
 
 let chainCompare next prev =
     if prev <> 0 then prev else next
+
+let fileLinesSeq filename = seq {
+    use file = File.OpenText filename
+    while not file.EndOfStream do yield file.ReadLine()
+}
 
 [<CustomComparison>]
 [<StructuralEquality>]
@@ -105,7 +111,7 @@ let rec dateRange (startDate: Date) (endDate: Date) =
     if startDate <= endDate
     then startDate :: (dateRange (dateAddDay startDate) endDate)
     else []
-    
+
 
 let rec dateTimeRange (startDate: DateTime) (endDate: DateTime)  =
     // Create a list of DateTime objects containing all days between

@@ -12,22 +12,15 @@ let docstring = (fun (s: string) -> s.Trim()) """
 jrutil, a tool for working with czech public transport data
 
 Usage:
-    jrutil.exe jdf-to-gtfs <JDF-in-dir> <GTFS-out-dir>
-    jrutil.exe czptt-to-gtfs <CzPtt-in-file> <GTFS-out-dir>
-    jrutil.exe merge-gtfs --db-connstr=CONNSTR [--no-check-stop-type] <GTFS-out-dir> <GTFS-in-dir>...
-    jrutil.exe --help
+    jrutil-multitool.exe jdf-to-gtfs <JDF-in-dir> <GTFS-out-dir>
+    jrutil-multitool.exe czptt-to-gtfs <CzPtt-in-file> <GTFS-out-dir>
+    jrutil-multitool.exe load-gtfs-to-db <db-connstr> <GTFS-in-dir>
+    jrutil-multitool.exe --help
 
-Options
-    --db-connstr=CONNSTR
-    --no-check-stop-type
-
-Passing - to an input path parameter will make jrutil read input filenames
-from stdin. Each result will be output into a sequentially numbered
-directory.
+Passing - to an input path parameter will make most jrutil commands read
+input filenames from stdin. Each result will be output into a sequentially
+numbered directory.
 """
-
-// merge_gtfs' argument order being opposite of other commands' is not
-// intentional, it's necessary to work around a "bug" in docopt.net
 
 let stdinLinesSeq () =
     Seq.initInfinite (fun i -> stdin.ReadLine())
@@ -72,39 +65,19 @@ let main (args: string array) =
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
-        else if argFlagSet args.["merge-gtfs"] then
-            let dbConnStr = argValue args.["--db-connstr"]
-            let checkStopType = not <| argFlagSet args.["--no-check-stop-type"]
+        else if argFlagSet args.["load-gtfs-to-db"] then
+            let dbConnStr = argValue args.["<db-connstr>"]
+            let indir = argValue args.["<GTFS-in-dir>"]
 
             use dbConn = getPostgresqlConnection dbConnStr
             dbConn.Open()
 
-            let infiles = argValues args.["<GTFS-in-dir>"]
-            let infiles =
-                if infiles |> Seq.tryHead = Some "-"
-                then stdinLinesSeq()
-                else infiles |> Seq.ofList
+            try
+                Gtfs.sqlCreateGtfsTables dbConn
+                Gtfs.sqlLoadGtfsFeed dbConn indir
+            with
+                | e -> printfn "Error while processing:\n%A" e
 
-            let feedParser = Gtfs.gtfsParseFolder ()
-
-            // TODO!
-            (*let mergedFeed = new GtfsMerge.MergedFeed(dbConn, checkStopType)
-            Gtfs.sqlCreateGtfsTables dbConn
-
-            // TODO: Async
-            infiles
-            |> Seq.iter (fun inpath ->
-                printfn "Processing %s" inpath
-                try
-                    let feed = feedParser inpath
-                    mergedFeed.InsertFeed feed
-                with
-                    | e -> printfn "Error while processing %s:\n%A" inpath e
-            )
-
-            let feedSerializer = Gtfs.gtfsFeedToFolder ()
-            let outPath = argValue args.["<GTFS-out-dir>"]
-            feedSerializer outPath (mergedFeed.ToGtfsFeed())*)
             dbConn.Close()
         else printfn "%s" docstring
         0

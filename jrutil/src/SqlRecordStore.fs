@@ -24,7 +24,8 @@ open JrUtil.ReflectionUtils
 
 // Most of the code is trying to be somewhat database portable, but there are
 // places where that's just not possible and being specific to one database
-// (PostgreSQL in this case) is inevitable.
+// (PostgreSQL in this case) is inevitable. Other parts of the project are
+// specific to PostgreSQL, so DB portability isn't really a priority.
 
 type SqlRow(columnNames: string seq, cols: obj array) =
     member this.ColumnNames = columnNames
@@ -187,6 +188,10 @@ let sqlTypeFor (type_: Type) =
 
     (sqlTypeForNonOptional t) + if isOption then "" else " NOT NULL"
 
+let recordSqlColsNullable recType =
+    FSharpType.GetRecordFields(recType)
+    |> Array.map (fun f -> typeIsOption f.PropertyType)
+
 let createTableFor conn recType tableName =
     assert FSharpType.IsRecord(recType)
     let columns =
@@ -199,6 +204,27 @@ let createTableFor conn recType tableName =
             (sqlIdent tableName)
             (String.Join(",\n", columns))
     executeSql conn tableDecl []
+
+let sqlCopyInText (conn: NpgsqlConnection)
+                  table
+                  (colsNullable: bool array)
+                  data =
+    let query =
+        sprintf "COPY \"%s\" FROM STDIN (FORMAT text)"
+                (sqlIdent table)
+    use writer = conn.BeginTextImport(query)
+    data |> Seq.iter (fun row ->
+        let rowStr =
+            row
+            |> Array.mapi (fun i (col: string) ->
+                if col = "" && colsNullable.[i]
+                then @"\N"
+                else col.Replace(@"\", @"\\")
+                        .Replace("\n", @"\n")
+                        .Replace("\t", @"\t"))
+            |> String.concat "\t"
+        writer.Write(rowStr + "\n");
+    )
 
 // A wrapper over Scriban that replaces "$ident" with "{{ident}}"
 // Note that this just does textual replacements, there's no escaping
@@ -222,4 +248,3 @@ let compileSqlTemplate =
             )
             context.PushGlobal(globals)
             template.Render(context)
-
