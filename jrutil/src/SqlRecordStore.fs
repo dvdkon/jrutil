@@ -145,8 +145,12 @@ let createSqlRecQuerier = memoize <| fun (recType: Type) ->
         if results.Count > 0 then
             // This is not strictly necessary, but helps catch bugs
             // If it proves to be too restrictive it can be removed
-            assert ((results.[0].ColumnNames
-                     |> Seq.compareWith Operators.compare fieldNames) = 0)
+            if (results.[0].ColumnNames
+                |> Seq.compareWith Operators.compare
+                                   (fieldNames |> Seq.map sqlIdent)) <> 0
+            then
+                failwithf "SQL column/F# field name mismatch\nColumns: %A\nFields: %A"
+                          (results.[0].ColumnNames |> Seq.toList) fieldNames
         results |> Seq.map (fun r ->
             let vals =
                 r.Cols
