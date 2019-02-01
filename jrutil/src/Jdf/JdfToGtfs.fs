@@ -270,7 +270,7 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
             // This is kind of arbitrary
             // TODO: Customizability?
             shortName = Some (sprintf "%s %d" jdfTrip.routeId jdfTrip.id)
-            directionId = None // TODO
+            directionId = Some (if jdfTrip.id % 2 = 0 then "0" else "1")
             blockId = None
             shapeId = None
             wheelchairAccessible =
