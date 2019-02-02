@@ -124,8 +124,7 @@ let routePage conn routeId =
                   trip.[1] :?> obj[][] |> Array.map (fun tripStop ->
                       (tripStop.[0] :?> string,
                        tripStop.[1] :?> TimeSpan,
-                       tripStop.[2] :?> TimeSpan)
-                  )))))
+                       tripStop.[2] :?> TimeSpan))))))
     |]
 
     let lastSome opts =
@@ -153,29 +152,30 @@ let routePage conn routeId =
                             let stop = stopSeq.[i]
                             let mappingToLater =
                                 stopSeqs
-                                |> Seq.filter (fun ss2 ->
-                                    ss2 <> stopSeq
+                                |> zipWithIndex
+                                |> Seq.filter (fun (ssNum2, ss2) ->
+                                    ssNum <> ssNum2
                                     && Array.length ss2 >= Array.length stopSeq)
-                                |> Seq.mapi (fun ssNum2 ss2 ->
+                                |> Seq.map (fun (ssNum2, ss2) ->
                                     ss2.[i..]
                                     |> Array.mapi (fun i2 stop2 ->
-                                        let laterStops =
-                                            stopSeq.[i..] |> Set.ofArray
-                                        let laterStops2 =
-                                            ss2.[i..i+i2] |> Set.ofArray
-                                        if stop2 = stop
-                                            && (Set.intersect laterStops
+                                        if stop2 = stop then
+                                            let laterStops =
+                                                stopSeq.[i..] |> Set.ofArray
+                                            let laterStops2 =
+                                                ss2.[i..i+i2-1] |> Set.ofArray
+                                            if (Set.intersect laterStops
                                                               laterStops2
                                                 |> Set.count) = 0
-                                        then Some (ssNum2, i+i2)
+                                            then Some (ssNum2, i+i2)
+                                            else None
                                         else None)
                                     |> lastSome)
                                 |> lastSome
                             yield match mappingToLater with
-                                  | None -> ((ssNum, i, ssNum, i),
-                                             Some (ssNum, i, stop))
+                                  | None -> (None, Some (ssNum, i, stop))
                                   | Some (ssNum2, stopNum) ->
-                                      ((ssNum, i, ssNum2, stopNum), None)
+                                      (Some (ssNum, i, ssNum2, stopNum), None)
             ]
             let stops =
                 res
@@ -183,16 +183,28 @@ let routePage conn routeId =
                 |> List.choose id
                 |> List.toArray
             let mappings =
-                res |> List.map (fun (m, _) -> m)
+                res |> List.map (fun (m, _) -> m) |> List.choose id
 
             let stopIds = stops |> Array.map (fun (_, _, sid) -> sid)
 
+            printfn "D42 %A" mappings
+            mappings
+            |> List.filter (fun (a, b, a2, b2) -> a = a2 && b = b2)
+            |> List.iter (fun (a, b, _, _) -> printfn "D41 %d %d" a b)
+
             stopIds, stopSeqs |> Seq.toArray |> Array.mapi (fun ssNum ->
                 Array.mapi (fun stopNum stop ->
-                    let (_, _, tgtSsNum, tgtStopNum) =
-                        mappings
-                        |> Seq.find (fun (ss, i, _, _) ->
-                            ss = ssNum && i = stopNum)
+                    let mutable tgtSsNum = ssNum
+                    let mutable tgtStopNum = stopNum
+                    while mappings |> Seq.exists (fun (ss, i, _, _) ->
+                            ss = tgtSsNum && i = tgtStopNum) do
+                        let (_, _, newSsNum, newStopNum) =
+                            mappings
+                            |> Seq.find (fun (ss, i, _, _) ->
+                                ss = tgtSsNum && i = tgtStopNum)
+                        tgtSsNum <- newSsNum
+                        tgtStopNum <- newStopNum
+                    printfn "D47 %d %d" tgtSsNum tgtStopNum
                     let (tgti, _) =
                         stops
                         |> zipWithIndex
