@@ -80,6 +80,13 @@ let agencyPage conn agencyId =
     ]
 
 let routePage conn routeId =
+    let lastSome opts =
+        opts
+        |> Seq.choose id
+        |> Seq.tryLast
+
+    let zipWithIndex xs = xs |> Seq.mapi (fun i x -> (i, x))
+
     let route =
         (sqlQueryRec<Route> conn "SELECT * FROM routes WHERE id = @id"
                             ["id", routeId]) |> Seq.exactlyOne
@@ -96,103 +103,85 @@ let routePage conn routeId =
             WHERE trips.routeid = @id
             """ ["id", routeId]
 
-    printfn "D2 %A" (stops |> Seq.toList |> List.map (fun s -> s.name))
+    let byDirection = [|
+        for direction in [null; "0"; "1"] do
+        let stopSeqsWithTrips =
+            sqlQuery conn """
+                SELECT i.stopseq, array_agg((i.tripid, i.trip)) AS triparr
+                FROM
+                    (SELECT
+                        array_agg(st.stopid ORDER BY stopsequence) AS stopseq,
+                        array_agg((st.stopid, st.arrivaltime, st.departuretime)
+                                  ORDER BY stopsequence)
+                            AS trip,
+                        trips.id AS tripid
+                    FROM stoptimes AS st
+                    INNER JOIN trips ON st.tripid = trips.id
+                    WHERE trips.routeid = @id
+                        AND trips.directionId IS NOT DISTINCT FROM @direction
+                    GROUP BY trips.id) AS i
+                GROUP BY i.stopseq;
+                """ ["id", box routeId; "direction", box direction]
+            |> Seq.map (fun row ->
+                (row.["stopseq"] :?> string array,
+                 row.["triparr"] :?> obj[][]
+                 |> Array.map (fun trip ->
+                     (trip.[0] :?> string,
+                      trip.[1] :?> obj[][] |> Array.map (fun tripStop ->
+                          (tripStop.[0] :?> string,
+                           tripStop.[1] :?> TimeSpan,
+                           tripStop.[2] :?> TimeSpan))))))
 
-    let stopSeqsByDirection = [|
-        for direction in [null; "0"; "1"] ->
-        sqlQuery conn """
-            SELECT i.stopseq, array_agg((i.tripid, i.trip)) AS triparr
-            FROM
-                (SELECT
-                    array_agg(st.stopid ORDER BY stopsequence) AS stopseq,
-                    array_agg((st.stopid, st.arrivaltime, st.departuretime)
-                              ORDER BY stopsequence)
-                        AS trip,
-                    trips.id AS tripid
-                FROM stoptimes AS st
-                INNER JOIN trips ON st.tripid = trips.id
-                WHERE trips.routeid = @id
-                    AND trips.directionId IS NOT DISTINCT FROM @direction
-                GROUP BY trips.id) AS i
-            GROUP BY i.stopseq;
-            """ ["id", box routeId; "direction", box direction]
-        |> Seq.map (fun row ->
-            (row.["stopseq"] :?> string array,
-             row.["triparr"] :?> obj[][]
-             |> Array.map (fun trip ->
-                 (trip.[0] :?> string,
-                  trip.[1] :?> obj[][] |> Array.map (fun tripStop ->
-                      (tripStop.[0] :?> string,
-                       tripStop.[1] :?> TimeSpan,
-                       tripStop.[2] :?> TimeSpan))))))
-    |]
+        let stopSeqs = stopSeqsWithTrips |> Seq.map (fun (ss, _) -> ss)
+        let maxStopCount =
+            if Seq.length stopSeqs = 0 then 0
+            else stopSeqs
+                 |> Seq.map Array.length
+                 |> Seq.max
+        let stopsAndMap =
+            [for i = 0 to maxStopCount do
+                for ssNum, stopSeq in zipWithIndex stopSeqs do
+                    if Array.length stopSeq > i then
+                        let stop = stopSeq.[i]
+                        let mappingToLater =
+                            stopSeqs
+                            |> zipWithIndex
+                            |> Seq.filter (fun (ssNum2, ss2) ->
+                                ssNum <> ssNum2
+                                && Array.length ss2 >= Array.length stopSeq)
+                            |> Seq.map (fun (ssNum2, ss2) ->
+                                ss2.[i..]
+                                |> Array.mapi (fun i2 stop2 ->
+                                    if stop2 = stop then
+                                        let laterStops =
+                                            stopSeq.[i..] |> Set.ofArray
+                                        let laterStops2 =
+                                            ss2.[i..i+i2-1] |> Set.ofArray
+                                        if (Set.intersect laterStops
+                                                          laterStops2
+                                            |> Set.count) = 0
+                                        then Some (ssNum2, i+i2)
+                                        else None
+                                    else None)
+                                |> lastSome)
+                            |> lastSome
+                        yield match mappingToLater with
+                              | None -> (None, Some (ssNum, i, stop))
+                              | Some (ssNum2, stopNum) ->
+                                  (Some (ssNum, i, ssNum2, stopNum), None)
+        ]
+        let stopsWithLoc =
+            stopsAndMap
+            |> List.map (fun (_, s) -> s)
+            |> List.choose id
+            |> List.toArray
+        let mappings =
+            stopsAndMap |> List.map (fun (m, _) -> m) |> List.choose id
 
-    let lastSome opts =
-        opts
-        |> Seq.choose id
-        |> Seq.tryLast
+        let stopIds = stopsWithLoc |> Array.map (fun (_, _, sid) -> sid)
 
-    let zipWithIndex xs = xs |> Seq.mapi (fun i x -> (i, x))
-
-    let combinedStopSeqs = [|
-        for stopSeqs in stopSeqsByDirection ->
-            let stopSeqs =
-                stopSeqs
-                |> Seq.map (fun (ss, _) -> ss)
-            printfn "D1 %A" (stopSeqs)
-            let maxLen =
-                if Seq.length stopSeqs = 0 then 0
-                else stopSeqs
-                     |> Seq.map Array.length
-                     |> Seq.max
-            let res =
-                [for i = 0 to maxLen do
-                    for ssNum, stopSeq in zipWithIndex stopSeqs do
-                        if Array.length stopSeq > i then
-                            let stop = stopSeq.[i]
-                            let mappingToLater =
-                                stopSeqs
-                                |> zipWithIndex
-                                |> Seq.filter (fun (ssNum2, ss2) ->
-                                    ssNum <> ssNum2
-                                    && Array.length ss2 >= Array.length stopSeq)
-                                |> Seq.map (fun (ssNum2, ss2) ->
-                                    ss2.[i..]
-                                    |> Array.mapi (fun i2 stop2 ->
-                                        if stop2 = stop then
-                                            let laterStops =
-                                                stopSeq.[i..] |> Set.ofArray
-                                            let laterStops2 =
-                                                ss2.[i..i+i2-1] |> Set.ofArray
-                                            if (Set.intersect laterStops
-                                                              laterStops2
-                                                |> Set.count) = 0
-                                            then Some (ssNum2, i+i2)
-                                            else None
-                                        else None)
-                                    |> lastSome)
-                                |> lastSome
-                            yield match mappingToLater with
-                                  | None -> (None, Some (ssNum, i, stop))
-                                  | Some (ssNum2, stopNum) ->
-                                      (Some (ssNum, i, ssNum2, stopNum), None)
-            ]
-            let stops =
-                res
-                |> List.map (fun (_, s) -> s)
-                |> List.choose id
-                |> List.toArray
-            let mappings =
-                res |> List.map (fun (m, _) -> m) |> List.choose id
-
-            let stopIds = stops |> Array.map (fun (_, _, sid) -> sid)
-
-            printfn "D42 %A" mappings
-            mappings
-            |> List.filter (fun (a, b, a2, b2) -> a = a2 && b = b2)
-            |> List.iter (fun (a, b, _, _) -> printfn "D41 %d %d" a b)
-
-            stopIds, stopSeqs |> Seq.toArray |> Array.mapi (fun ssNum ->
+        let stopMaps =
+            stopSeqs |> Seq.toArray |> Array.mapi (fun ssNum ->
                 Array.mapi (fun stopNum stop ->
                     let mutable tgtSsNum = ssNum
                     let mutable tgtStopNum = stopNum
@@ -204,114 +193,72 @@ let routePage conn routeId =
                                 ss = tgtSsNum && i = tgtStopNum)
                         tgtSsNum <- newSsNum
                         tgtStopNum <- newStopNum
-                    printfn "D47 %d %d" tgtSsNum tgtStopNum
                     let (tgti, _) =
-                        stops
+                        stopsWithLoc
                         |> zipWithIndex
                         |> Seq.find (fun (_, (ss, i, _)) ->
                             ss = tgtSsNum && i = tgtStopNum)
                     tgti
                 )
             )
-    |]
 
-    combinedStopSeqs
-    |> Array.iter (fun (stopIds, mss) ->
-        printfn "D3 %A"
-                (stopIds |> Array.map (fun stopId ->
-                    let stop = stops |> Seq.find (fun s -> s.id = stopId)
-                    stop.name
-                ))
-        printfn "D4 %A" (Seq.map Seq.toList mss |> Seq.toList))
-    |> ignore
-
-
-    stopSeqsByDirection
-    |> Seq.iteri (fun directionIndex direction ->
-        let _, stopSeqs = combinedStopSeqs.[directionIndex]
-        direction |> Seq.iteri (fun stopSeqIndex (_, trips) ->
-            let stopSeq = stopSeqs.[stopSeqIndex]
-            trips |> Seq.iter (fun (tripid, tripStops) ->
-                printfn "D5 %A" (tripStops |> Array.map (fun (sid, a, d) ->
-                        let stop = stops |> Seq.find (fun s -> s.id = sid)
-                        sprintf "\t%A" (stop.name, a, d))
-                    |> String.concat "\n")
-                tripStops |> Seq.iteri (fun i (_, arr, dep) ->
-                    printfn "D6 %d %A %A" stopSeq.[i] arr dep
-                )
-            )
-        )
-    )
-    |> ignore
-
-    let timeTable = [|
-        for directionIndex, (stopIds, stopMaps)
-                in zipWithIndex combinedStopSeqs -> [|
-            let tripsByStopSeq = stopSeqsByDirection.[directionIndex]
-            for stopSeqIndex, (_, trips) in zipWithIndex tripsByStopSeq do
+        let stopTimesTable = [|
+            for stopSeqIndex, (_, trips)
+                in zipWithIndex stopSeqsWithTrips do
             let stopMap = stopMaps.[stopSeqIndex]
-            yield! [|
-                for (tripId, tripStops) in trips ->
-                [|
-                    for stopIndex = 0 to Seq.length stopIds do
-                    yield
-                        stopMap
-                        |> Seq.tryFindIndex ((=) stopIndex)
-                        |> Option.map (fun n -> tripStops.[n])
-                |]
+            for (tripId, tripStops) in trips ->
+            [|
+                for stopIndex = 0 to Seq.length stopIds do
+                yield
+                    stopMap
+                    |> Seq.tryFindIndex ((=) stopIndex)
+                    |> Option.map (fun n -> tripStops.[n])
             |]
         |]
+
+        let tableTrips = [
+            for (_, tripIds) in stopSeqsWithTrips do
+            for (tripId, _) in tripIds do
+            yield trips |> Seq.find (fun t -> t.id = tripId)
+        ]
+
+        let tableStops =
+            stopIds
+            |> Array.map (fun sid -> stops |> Seq.find (fun s -> s.id = sid))
+
+        if Seq.length tableTrips > 0 then
+            yield (stopTimesTable, tableTrips, tableStops)
     |]
 
-    timeTable
-    |> Seq.iter (fun table ->
-        table |> Array.map (
-            Array.map (fun stop ->
-                match stop with
-                | Some (_, arr, dep) -> sprintf "%A" arr
-                | None -> "   |   "
-            ) >> String.concat "\t")
-        |> String.concat "\n"
-        |> printfn "D7\n%s"
-    )
+    let stopTimeToTd = function
+        | Some (_, time: TimeSpan, _) ->
+            td [] [str <| sprintf "%02d:%02d" time.Hours time.Minutes]
+        | None -> td [] []
 
-    let tableTrips = [|
-        for tripsByStopSeq in stopSeqsByDirection do
-        for (_, trips) in tripsByStopSeq do
-        for (tripId, _) in trips do
-        yield tripId
-    |]
-
-    let name =
+    let routeName =
         route.shortName
         |> Option.orElse route.longName
         |> Option.defaultValue "UNNAMED"
-    pageTemplate ("Route – " + name)
+
+    pageTemplate ("Route – " + routeName)
     <| div [] [
         h2 [] [str "Timetable"]
         div [] [
-            for (dirIndex, (stopIds, _)) in
-                    zipWithIndex combinedStopSeqs ->
-            printfn "D30 %d" dirIndex
-            let tripsTable = timeTable.[dirIndex]
+            for timeTable, tableTrips, stops in byDirection ->
             table [] [
-                thead [] [ tr [] (List.concat [
-                    [th [] []]
-                    [for tripId in tableTrips ->
-                        let trip = trips |> Seq.find (fun t -> t.id = tripId)
-                        th [] [optStr trip.shortName]
-                ]])]
+                thead [] [
+                    tr [] (
+                        [th [] []] @
+                        [for trip in tableTrips ->
+                            th [] [optStr trip.shortName]
+                    ])
+                ]
                 tbody [] [
-                    for stopIndex, stopId in zipWithIndex stopIds ->
-                    let stop = stops |> Seq.find (fun s -> s.id = stopId)
-                    tr [] (List.concat [
-                        [th [] [str stop.name]]
-                        [for trip in tripsTable ->
-                            match trip.[stopIndex] with
-                            | Some (_, arr, dep) ->
-                                td [] [str (sprintf "%A" arr)]
-                            | None -> td [] []
-                        ]])]
+                    for stopIndex, stop in zipWithIndex stops ->
+                    tr [] (
+                        [th [] [str stop.name]] @
+                        [for trip in timeTable ->
+                            stopTimeToTd trip.[stopIndex]])]
             ]
         ]
     ]
