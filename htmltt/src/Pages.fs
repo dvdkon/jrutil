@@ -80,11 +80,6 @@ let agencyPage conn agencyId =
     ]
 
 let routePage conn routeId =
-    let lastSome opts =
-        opts
-        |> Seq.choose id
-        |> Seq.tryLast
-
     let zipWithIndex xs = xs |> Seq.mapi (fun i x -> (i, x))
 
     let route =
@@ -105,6 +100,11 @@ let routePage conn routeId =
 
     let byDirection = [|
         for direction in [null; "0"; "1"] do
+        // This whole chunk of code tries to create a combined list of stops
+        // that would reasonably apply to all trips. This becomes really hard
+        // when cycles and branches get involved, so the current algorithm
+        // is slow and doesn't always produce pretty or even correct results.
+        // The code is also kind of a mess. Sorry.
         let stopSeqsWithTrips =
             sqlQuery conn """
                 SELECT i.stopseq, array_agg((i.tripid, i.trip)) AS triparr
@@ -138,33 +138,65 @@ let routePage conn routeId =
             else stopSeqs
                  |> Seq.map Array.length
                  |> Seq.max
+
+        let removeOnce toRemove l =
+            let removed, rl = l |> List.fold (fun (shouldRemove, rl) item ->
+                if item = toRemove
+                then (false, rl)
+                else (shouldRemove, item :: rl)) (true, [])
+            (not removed, rl)
+        let difference l1 l2 =
+            l1 |> List.fold (fun l item ->
+                let removed, rl = removeOnce item l
+                rl) l2
+
+        let firstSome opts =
+            opts
+            |> Seq.choose id
+            |> Seq.tryHead
+
         let stopsAndMap =
             [for i = 0 to maxStopCount do
                 for ssNum, stopSeq in zipWithIndex stopSeqs do
                     if Array.length stopSeq > i then
                         let stop = stopSeq.[i]
                         let mappingToLater =
-                            stopSeqs
-                            |> zipWithIndex
-                            |> Seq.filter (fun (ssNum2, ss2) ->
-                                ssNum <> ssNum2
-                                && Array.length ss2 >= Array.length stopSeq)
-                            |> Seq.map (fun (ssNum2, ss2) ->
-                                ss2.[i..]
-                                |> Array.mapi (fun i2 stop2 ->
+                            seq {maxStopCount-1 .. -1 .. i}
+                            //seq {i .. maxStopCount-1}
+                            |> Seq.map (fun i2 ->
+                                stopSeqs
+                                |> zipWithIndex
+                                |> Seq.rev
+                                |> Seq.filter (fun (ssNum2, ss2) ->
+                                    ssNum <> ssNum2
+                                    && (i <> i2 || ssNum2 > ssNum)
+                                    && Array.length ss2 > i2)
+                                |> Seq.map (fun (ssNum2, ss2) ->
+                                    let stop2 = ss2.[i2]
                                     if stop2 = stop then
+                                        let prevStops =
+                                            if i-1 < 0 then [||]
+                                            else stopSeq.[..i-1]
                                         let laterStops =
-                                            stopSeq.[i..] |> Set.ofArray
+                                            stopSeq.[i+1..]
+                                        let prevStops2 =
+                                            if i2-1 < 0 then [||]
+                                            else ss2.[..i2-1]
                                         let laterStops2 =
-                                            ss2.[i..i+i2-1] |> Set.ofArray
-                                        if (Set.intersect laterStops
-                                                          laterStops2
+                                            ss2.[i2+1..]
+
+                                        let stc = Array.toList laterStops
+                                        let stc2 =
+                                            difference
+                                                (Seq.toList prevStops2)
+                                                (Seq.toList prevStops)
+                                        if (Set.intersect (set stc) (set stc2)
                                             |> Set.count) = 0
-                                        then Some (ssNum2, i+i2)
+                                        then Some (ssNum2, i2)
                                         else None
                                     else None)
-                                |> lastSome)
-                            |> lastSome
+                                |> firstSome)
+                            |> firstSome
                         yield match mappingToLater with
                               | None -> (None, Some (ssNum, i, stop))
                               | Some (ssNum2, stopNum) ->
@@ -179,6 +211,7 @@ let routePage conn routeId =
             stopsAndMap |> List.map (fun (m, _) -> m) |> List.choose id
 
         let stopIds = stopsWithLoc |> Array.map (fun (_, _, sid) -> sid)
+
 
         let stopMaps =
             stopSeqs |> Seq.toArray |> Array.mapi (fun ssNum ->
