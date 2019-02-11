@@ -43,6 +43,11 @@ bulk operations. To use those, set up a PostgreSQL server and pass an
 [Npgsql connection string](https://www.npgsql.org/doc/connection-string-parameters.html)
 as a parameter.
 
+# Periodic outputs
+
+JrUnify is run every day at 1:00 on a server and the outputs are available at
+[jrutil.konarici.cz](https://jrutil.konarici.cz/)
+
 # Community
 
 To contribute to the project or to report issues go to the
