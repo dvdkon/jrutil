@@ -25,10 +25,10 @@ let jdfStopId id =
     sprintf "JDFS-%d" id
 
 let jdfRouteId id idDistinction =
-    sprintf "JDFR-%s-%d" id idDistinction
+    sprintf "-CISR-%s-%d" id idDistinction
 
 let jdfTripId routeId routeDistinction id =
-    sprintf "JDFT-%s-%d-%d" routeId routeDistinction id
+    sprintf "CIST-%s-%d-%d" routeId routeDistinction id
 
 let getGtfsRouteType (jdfRoute: JdfModel.Route) =
     match (jdfRoute.transportMode, jdfRoute.routeType) with

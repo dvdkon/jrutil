@@ -10,7 +10,16 @@
 -- Its searchpath should consist of a "throwaway" schema which will only be
 -- used for temporary tables (ID maps).
 
-CREATE OR REPLACE FUNCTION create_idmap_table(name TEXT) RETURNS VOID
+-- JrUtil's merge functionality started with a goal of reasonably merging any
+-- number of arbitrary ("correct") GTFS feeds. As it was changed and rewritten,
+-- it became clear that this goal is unrealistic, so the only functioning
+-- versions were only actually able to merge feeds which were very similar in
+-- structure (basically everything names the same). I have now officially given
+-- up. This version of the merge function now mostly relies on inputs having
+-- "stable IDs" -- whether two rows should be merged is determined by the
+-- equality of their IDs.
+
+CREATE OR REPLACE FUNCTION create_idmap_table(name TEXT) RETURNS void
 LANGUAGE plpgsql AS $func$
 BEGIN
     EXECUTE format($$
@@ -18,21 +27,38 @@ BEGIN
         CREATE TEMPORARY TABLE %I (
             orig_id TEXT PRIMARY KEY,
             new_id TEXT NOT NULL,
-            merged BOOLEAN NOT NULL
+            merged boolean NOT NULL
         );
     $$, name, name);
 END;
 $func$;
 
 CREATE OR REPLACE FUNCTION
-populate_idmap(idmap TEXT, name TEXT, merge_func TEXT) RETURNS VOID
+id_is_stable(id text) RETURNS boolean
+IMMUTABLE LANGUAGE SQL AS $$
+        SELECT id LIKE '-%';
+$$;
+
+CREATE OR REPLACE FUNCTION
+get_new_id(old_id text, new_id text) RETURNS text
+IMMUTABLE LANGUAGE SQL AS $$
+    SELECT CASE WHEN id_is_stable(old_id) THEN old_id
+                ELSE COALESCE(new_id, '$feednum/' || old_id)
+           END;
+$$;
+
+CREATE OR REPLACE FUNCTION
+populate_idmap(idmap TEXT, name TEXT, merge_func TEXT) RETURNS void
 LANGUAGE plpgsql AS $func$
 BEGIN
     EXECUTE format($$
         INSERT INTO %I
-            SELECT old.id, COALESCE(new.id, '$feednum/' || old.id), new.id IS NOT NULL
+            SELECT old.id,
+                   get_new_id(old.id, new.id),
+                   new.id IS NOT NULL
             FROM $in.%I AS old
-            LEFT JOIN $merged.%I AS new ON %I(old, new);
+            LEFT JOIN $merged.%I AS new ON
+                (%I(old, new) OR (old.id = new.id AND id_is_stable(old.id)));
     $$, idmap, name, name, merge_func);
 END;
 $func$;
@@ -40,35 +66,38 @@ $func$;
 -- If there are multiple mergable items in the same GTFS feed it will cause
 -- problems down the line (manifested as uniqueness constraint problems)
 
-DROP FUNCTION IF EXISTS agency_should_merge;
-CREATE FUNCTION
-agency_should_merge(a1 $in.agencies, a2 $merged.agencies) RETURNS BOOLEAN
-LANGUAGE SQL AS $$
+--DROP FUNCTION IF EXISTS agency_should_merge;
+CREATE OR REPLACE FUNCTION
+agency_should_merge(a1 $in.agencies, a2 $merged.agencies) RETURNS boolean
+IMMUTABLE LANGUAGE SQL AS $$
     SELECT a1.name = a2.name;
 $$;
 
-DROP FUNCTION IF EXISTS stop_should_merge;
-CREATE FUNCTION
-stop_should_merge(s1 $in.stops, s2 $merged.stops) RETURNS BOOLEAN
+--DROP FUNCTION IF EXISTS stop_should_merge;
+CREATE OR REPLACE FUNCTION
+stop_should_merge(s1 $in.stops, s2 $merged.stops) RETURNS boolean
 LANGUAGE SQL AS $$
-    {{ if check_stations }}
-        SELECT s1.name = s2.name
+    SELECT
+        s1.name = s2.name
             -- Note to self: Comparing anything to null results in null,
             -- making everything null and therefore "falsy". Reminds me of
             -- PHP, but worse somehow...
             AND COALESCE(s1.locationtype, '0') = COALESCE(s2.locationtype, '0')
             AND (COALESCE(s1.locationtype, '0') NOT IN ('', '0')
                 OR s1.platformcode IS NOT DISTINCT FROM s2.platformcode);
-    {{ else }}
-        SELECT s1.name = s2.name;
-    {{ end }}
 $$;
 
-DROP FUNCTION IF EXISTS route_should_merge;
-CREATE FUNCTION
-route_should_merge(r1 $in.routes, r2 $merged.routes) RETURNS BOOLEAN
+--DROP FUNCTION IF EXISTS route_should_merge;
+CREATE OR REPLACE FUNCTION
+route_should_merge(r1 $in.routes, r2 $merged.routes) RETURNS boolean
 LANGUAGE SQL AS $$
-SELECT r1.shortname = r2.shortname;
+    SELECT r1.shortname = r2.shortname;
+$$;
+
+CREATE OR REPLACE FUNCTION
+trip_should_merge(t1 $in.trips, t2 $merged.trips) RETURNS boolean
+LANGUAGE SQL AS $$
+    SELECT false;
 $$;
 
 -- Agencies:
@@ -79,7 +108,7 @@ SELECT create_idmap_table('agency_idmap');
 -- attributes. Since this script merges agencies by name, only use the first
 -- one
 INSERT INTO agency_idmap
-    SELECT old.id, COALESCE(new.id, '$feednum/' || uniq.id),
+    SELECT old.id, get_new_id(uniq.id, new.id),
            new.id IS NOT NULL OR old.id <> uniq.id
     FROM $in.agencies AS old
     LEFT JOIN (SELECT DISTINCT ON (name) * FROM $in.agencies) AS uniq
@@ -152,9 +181,7 @@ INSERT INTO $merged.calendarexceptions
 
 SELECT create_idmap_table('trip_idmap');
 
-INSERT INTO trip_idmap
-    SELECT id, '$feednum/' || id, false
-    FROM $in.trips;
+SELECT populate_idmap('trip_idmap', 'trips', 'trip_should_merge');
 
 INSERT INTO $merged.trips
     SELECT route_idmap.new_id, calendar_idmap.new_id, trip_idmap.new_id,

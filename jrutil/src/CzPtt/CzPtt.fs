@@ -11,6 +11,7 @@ open JrUtil.UnionCodec
 open JrUtil.GtfsModel
 open System
 open System.Globalization
+open JrUtil
 
 // TODO: Workaround for path resolution issues!
 type CzPttXml = XmlProvider<Schema=const(__SOURCE_DIRECTORY__ + "/czptt.xsd")>
@@ -96,11 +97,8 @@ let getIdentifierByType (czptt: CzPttXml.CzpttcisMessage) idt =
     |> Array.find (fun ti -> ti.ObjectType = idt)
 
 let gtfsRouteId (czptt: CzPttXml.CzpttcisMessage) =
-    let info = czptt.CzpttInformation
-
     let trainIdentifier = getIdentifierByType czptt "TR"
-
-    trainIdentifier.Core
+    "-CZPTTR-" + trainIdentifier.Core
 
 let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
@@ -142,8 +140,20 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     route
 
 let gtfsStopId (loc: CzPttXml.CzpttLocation) =
-    loc.LocationPrimaryCode
-    |> Option.defaultValue loc.PrimaryLocationName
+    let platform =
+        loc.LocationSubsidiaryIdentification
+        |> Option.map (fun lsi -> lsi.LocationSubsidiaryCode.Value)
+    sprintf "-CZPTTS-%s-%s%s"
+            loc.CountryCodeIso
+            (loc.LocationPrimaryCode |> Option.get)
+            (platform
+             |> Option.map (fun p -> "-" + p)
+             |> Option.defaultValue "")
+
+let gtfsStationId (loc: CzPttXml.CzpttLocation) =
+    sprintf "-CZPTTST-%s-%s"
+            loc.CountryCodeIso
+            (loc.LocationPrimaryCode |> Option.get)
 
 let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
     // This is kind of a heuristic, since the conversion code uses .Value on
@@ -162,7 +172,9 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
         if not <| isValidGtfsStop loc then [||]
         else
             let createStop locType station platform = {
-                id = (if locType = Station then "S" else "") + gtfsStopId loc
+                id = if locType = Station
+                     then gtfsStationId loc
+                     else gtfsStopId loc
                 code = None
                 name = loc.PrimaryLocationName
                 description = None
@@ -196,7 +208,7 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
                 let platform =
                     createStop
                         Stop
-                        ("S" + (gtfsStopId loc) |> Some)
+                        (gtfsStationId loc |> Some)
                         (Some platformCode)
                 [| station; platform |];
             | None ->
@@ -206,13 +218,14 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
     |> Array.groupBy (fun s -> s.id)
     |> Array.map (fun (_, ss) -> Seq.head ss)
 
+let gtfsTripId czptt =
+    let trainIdentifier = getIdentifierByType czptt "TR"
+    sprintf "CZPTTT-%s-%s" trainIdentifier.Core trainIdentifier.Variant
+
 let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
-    // Since trains aren't really divided into routes, we use one ID for
-    // everything (but not a constant, which would make merging the resultant
-    // GTFS feeds harder and more confusing).
-    let id = gtfsRouteId czptt
+    let id = gtfsTripId czptt
     let trip: Trip = {
-        routeId = id
+        routeId = gtfsRouteId czptt
         serviceId = id
         id = id
         headsign = None
@@ -248,7 +261,7 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
             let depTime = findTime "ALD"
 
             let stopTime: StopTime = {
-                tripId = gtfsRouteId czptt
+                tripId = gtfsTripId czptt
                 arrivalTime = arrTime |> Option.orElse depTime
                 departureTime = depTime |> Option.orElse arrTime
                 stopId = gtfsStopId loc
@@ -273,7 +286,7 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     days
     |> List.mapi (fun i date ->
         let calException: CalendarException = {
-            id = gtfsRouteId czptt
+            id = gtfsTripId czptt
             date = date |> dateTimeToDate
             exceptionType =
                 if cal.BitmapDays.[i] = '1'
@@ -314,7 +327,7 @@ let gtfsAgency (czptt: CzPttXml.CzpttcisMessage) =
     let agencyNum = trainIdentifier.Company
     let agency = companies |> Array.find (fun c -> c.EvCisloEu = agencyNum)
     let gtfsAgency: Agency = {
-        id = Some agencyNum
+        id = Some <| sprintf "-CZPTTA-%s" agencyNum
         name = agency.ObchodNazev
         url = agency.Www |> Option.defaultValue ""
         timezone = "Europe/Prague" // TODO

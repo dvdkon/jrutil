@@ -5,6 +5,7 @@ module JrUtil.Utils
 
 open System
 open System.IO
+open System.Diagnostics
 open System.Globalization
 open System.Collections.Concurrent
 open Docopt
@@ -20,6 +21,15 @@ let memoize f =
             let result = f x
             cache.[x] <- result
             result
+
+let memoizeVoidFunc f =
+    let mutable cache = None
+    fun () ->
+        cache
+        |> Option.defaultWith (fun () ->
+            let result = f()
+            cache <- Some result
+            result)
 
 let chainCompare next prev =
     if prev <> 0 then prev else next
@@ -137,3 +147,9 @@ let argValues (arg: Arguments.Result) =
     match arg with
     | Arguments.Result.Arguments x -> x
     | _ -> failwithf "Expected %A to be Arguments" arg
+
+let measureTime msg func =
+    let sw = Stopwatch.StartNew()
+    func()
+    sw.Stop()
+    printfn "%s took %A" msg sw.Elapsed

@@ -25,7 +25,7 @@ let setSchema conn schemaName =
     executeSql conn (sprintf "SET search_path TO %s" schemaName) []
 
 let cleanAndSetSchema conn schemaName =
-    let sql = 
+    let sql =
         sprintf """
                 DROP SCHEMA IF EXISTS %s CASCADE;
                 CREATE SCHEMA IF NOT EXISTS %s;
@@ -184,45 +184,43 @@ let jrunify dbConnStr jdfBusPath jdfMhdPath czpttSzdcPath outPath =
         c
     [
         async {
-            let sw = Stopwatch.StartNew()
-            let c = newConn ()
-            c.Open()
-            processJdf c "jdfbus" jdfBusPath
-            c.Close()
-            sw.Stop()
-            printfn "Processing jdfbus took %A" sw.Elapsed
+            measureTime "Processing jdfbus" (fun () ->
+                let c = newConn ()
+                c.Open()
+                processJdf c "jdfbus" jdfBusPath
+                c.Close()
+            )
         };
         async {
-            let sw = Stopwatch.StartNew()
-            let c = newConn ()
-            c.Open()
-            processJdf c "jdfmhd" jdfMhdPath
-            c.Close()
-            sw.Stop()
-            printfn "Processing jdfmhd took %A" sw.Elapsed
+            measureTime "Processing jdfmhd" (fun () ->
+                let c = newConn ()
+                c.Open()
+                processJdf c "jdfmhd" jdfMhdPath
+                c.Close()
+            )
         };
         async {
-            let sw = Stopwatch.StartNew()
-            let c = newConn ()
-            c.Open()
-            processCzPtt c czpttSzdcPath
-            c.Close()
-            sw.Stop()
-            printfn "Processing czptt took %A" sw.Elapsed
+            measureTime "Processing czptt" (fun () ->
+                let c = newConn ()
+                c.Open()
+                processCzPtt c czpttSzdcPath
+                c.Close()
+            )
         };
     ]
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
 
-    let sw = Stopwatch.StartNew()
     use c = newConn ()
     c.Open()
-    mergeAll c
-    Gtfs.saveGtfsSqlSchema c "merged" outPath
+    measureTime "Merging" (fun () ->
+        mergeAll c
+    )
+    measureTime "Saving" (fun () ->
+        Gtfs.saveGtfsSqlSchema c "merged" outPath
+    )
     c.Close()
-    sw.Stop()
-    printfn "Merging took %A" sw.Elapsed
 
 [<EntryPoint>]
 let main args =

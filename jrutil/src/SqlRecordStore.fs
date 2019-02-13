@@ -107,14 +107,18 @@ let sqlQueryOne conn sql paramSeq =
 let createSqlInserter = memoize <| fun recType ->
     assert FSharpType.IsRecord(recType)
     let fieldsGetter = FSharpValue.PreComputeRecordReader recType
+    let columnsStr =
+        FSharpType.GetRecordFields(recType)
+        |> Seq.map (fun f -> sprintf "\"%s\"" (sqlIdent f.Name))
+        |> String.concat ", "
     fun table (conn: DbConnection) (o: obj) ->
         let fields = fieldsGetter o
         let ps =
             [ for (i, v) in fields |> Seq.indexed -> (sprintf "@%d" i, v) ]
         let paramsStr =
             ps |> Seq.map (fun (n, _) -> n) |> String.concat ", "
-        let sql = sprintf """INSERT INTO "%s" VALUES (%s)"""
-                          (sqlIdent table) paramsStr
+        let sql = sprintf """INSERT INTO "%s" (%s) VALUES (%s)"""
+                          (sqlIdent table) columnsStr paramsStr
         executeSql conn sql ps
 
 let sqlInsert conn table o =
