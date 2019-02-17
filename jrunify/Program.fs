@@ -77,13 +77,13 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
 
 let cleanGtfsTables conn =
     let cleanSql = """
-    DELETE FROM agencies;
-    DELETE FROM stops;
-    DELETE FROM routes;
-    DELETE FROM trips;
     DELETE FROM stopTimes;
+    DELETE FROM trips;
     DELETE FROM calendar;
     DELETE FROM calendarExceptions;
+    DELETE FROM routes;
+    DELETE FROM stops;
+    DELETE FROM agencies;
     """
     executeSql conn cleanSql []
 

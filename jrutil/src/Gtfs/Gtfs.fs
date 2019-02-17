@@ -104,6 +104,17 @@ let sqlCreateGtfsTables conn =
     table typeof<CalendarEntry> "calendar" ["id"] []
     table typeof<CalendarException> "calendarExceptions" ["id"; "date"] []
 
+    // No foreign key constraint for parentStation because it'd make
+    // inserting into the table annoying
+    // Also no constraint for serviceId, because one of two tables could
+    // contain the referenced rows.
+    executeSql conn """
+        ALTER TABLE routes ADD FOREIGN KEY (agencyid) REFERENCES agencies (id);
+        ALTER TABLE trips ADD FOREIGN KEY (routeid) REFERENCES routes (id);
+        ALTER TABLE stoptimes ADD FOREIGN KEY (tripid) REFERENCES trips (id);
+        ALTER TABLE stoptimes ADD FOREIGN KEY (stopid) REFERENCES stops (id);
+    """ []
+
 let sqlInsertGtfsFeed =
     // TODO: Use COPY
     let inserter t tableName =
