@@ -58,7 +58,9 @@ BEGIN
                    new.id IS NOT NULL
             FROM $in.%I AS old
             LEFT JOIN $merged.%I AS new ON
-                (%I(old, new) OR (old.id = new.id AND id_is_stable(old.id)));
+                CASE WHEN id_is_stable(old.id) THEN old.id = new.id
+                     ELSE %I(old, new)
+                END;
     $$, idmap, name, name, merge_func);
 END;
 $func$;

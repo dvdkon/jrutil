@@ -100,6 +100,20 @@ let gtfsRouteId (czptt: CzPttXml.CzpttcisMessage) =
     let trainIdentifier = getIdentifierByType czptt "TR"
     "-CZPTTR-" + trainIdentifier.Core
 
+let gtfsAgencyId (czptt: CzPttXml.CzpttcisMessage) =
+    let trainIdentifier = getIdentifierByType czptt "TR"
+    let agencyNum = trainIdentifier.Company
+    sprintf "-CZPTTA-%s" agencyNum
+
+let gtfsStationId (loc: CzPttXml.CzpttLocation) =
+    sprintf "-CZPTTST-%s-%s"
+            loc.CountryCodeIso
+            (loc.LocationPrimaryCode |> Option.get)
+
+let gtfsTripId czptt =
+    let trainIdentifier = getIdentifierByType czptt "TR"
+    sprintf "CZPTTT-%s-%s" trainIdentifier.Core trainIdentifier.Variant
+
 let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
 
@@ -126,7 +140,7 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
 
     let route: Route = {
         id = gtfsRouteId czptt
-        agencyId = Some trainIdentifier.Company
+        agencyId = Some <| gtfsAgencyId czptt
         shortName = Some name
         longName = None
         description = None
@@ -150,10 +164,6 @@ let gtfsStopId (loc: CzPttXml.CzpttLocation) =
              |> Option.map (fun p -> "-" + p)
              |> Option.defaultValue "")
 
-let gtfsStationId (loc: CzPttXml.CzpttLocation) =
-    sprintf "-CZPTTST-%s-%s"
-            loc.CountryCodeIso
-            (loc.LocationPrimaryCode |> Option.get)
 
 let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
     // This is kind of a heuristic, since the conversion code uses .Value on
@@ -218,9 +228,6 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
     |> Array.groupBy (fun s -> s.id)
     |> Array.map (fun (_, ss) -> Seq.head ss)
 
-let gtfsTripId czptt =
-    let trainIdentifier = getIdentifierByType czptt "TR"
-    sprintf "CZPTTT-%s-%s" trainIdentifier.Core trainIdentifier.Variant
 
 let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
     let id = gtfsTripId czptt
@@ -327,7 +334,7 @@ let gtfsAgency (czptt: CzPttXml.CzpttcisMessage) =
     let agencyNum = trainIdentifier.Company
     let agency = companies |> Array.find (fun c -> c.EvCisloEu = agencyNum)
     let gtfsAgency: Agency = {
-        id = Some <| sprintf "-CZPTTA-%s" agencyNum
+        id = Some <| gtfsAgencyId czptt
         name = agency.ObchodNazev
         url = agency.Www |> Option.defaultValue ""
         timezone = "Europe/Prague" // TODO
