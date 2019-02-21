@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2019 David Koňařík
 
 module JrUtil.CzPtt
 
@@ -188,8 +188,8 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
                 code = None
                 name = loc.PrimaryLocationName
                 description = None
-                lat = 0m
-                lon = 0m
+                lat = None
+                lon = None
                 // Train routes can still have zones when joined into an
                 // integrated transport system, just this format doesn't have
                 // them.
@@ -278,6 +278,7 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
                 dropoffType = None
                 shapeDistTraveled = None
                 timepoint = Some Exact
+                stopZoneIds = None
             }
             Some stopTime
     )
@@ -341,7 +342,7 @@ let gtfsAgency (czptt: CzPttXml.CzpttcisMessage) =
         lang = None
         phone = agency.Telefon
         fareUrl = None
-        email = agency.Email |> Option.defaultValue ""
+        email = agency.Email
     }
     gtfsAgency
 

@@ -143,6 +143,10 @@ let argValue (arg: Arguments.Result) =
     | Arguments.Result.Argument x -> x
     | _ -> failwithf "Expected %A to be an Argument" arg
 
+let optArgValue = function
+    | Arguments.Result.None -> None
+    | arg -> Some <| argValue arg
+
 let argValues (arg: Arguments.Result) =
     match arg with
     | Arguments.Result.Arguments x -> x

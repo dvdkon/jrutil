@@ -234,11 +234,11 @@ let sqlCopyInText (conn: NpgsqlConnection)
         writer.Write(rowStr + "\n");
     )
 
-// A wrapper over Scriban that replaces "$ident" with "{{ident}}"
+// A wrapper over Scriban that replaces "#ident" with "{{ident}}"
 // Note that this just does textual replacements, there's no escaping
 // and SQLi protection
 let compileSqlTemplate =
-    let refRegex = new Regex(@"(?<!\$)\$([a-zA-Z_]+)(?=[^a-zA-Z_$])")
+    let refRegex = new Regex(@"(?<!\$)#([a-zA-Z_]+)(?=[^a-zA-Z_$])")
     fun sql ->
         let templateStr = refRegex.Replace(sql, @"{{$1}}")
         let template = Template.Parse(templateStr)

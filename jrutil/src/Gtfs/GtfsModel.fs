@@ -1,14 +1,10 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2019 David Koňařík
 
 // This file contains records that model a variant of GTFS which contains
 // most of the standard GTFS fields and numerous extensions
 // Fields or enumeration variants that are introduced by extensions are marked
-// with "Extension:" comments and documented there.
-
-// List of standard extensions:
-// Additional Route Types
-// Station platforms
+// with "Extension" comments and documented in "jrutil_gtfs.md"
 
 module JrUtil.GtfsModel
 
@@ -26,7 +22,7 @@ type Agency = {
     [<CsvFieldName("agency_lang")>] lang: string option
     [<CsvFieldName("agency_phone")>] phone: string option
     [<CsvFieldName("agency_fare_url")>] fareUrl: string option
-    [<CsvFieldName("agency_email")>] email: string
+    [<CsvFieldName("agency_email")>] email: string option
 }
 
 type LocationType =
@@ -39,8 +35,8 @@ type Stop = {
     [<CsvFieldName("stop_code")>] code: string option
     [<CsvFieldName("stop_name")>] name: string
     [<CsvFieldName("stop_desc")>] description: string option
-    [<CsvFieldName("stop_lat")>] lat: decimal
-    [<CsvFieldName("stop_lon")>] lon: decimal
+    [<CsvFieldName("stop_lat")>] lat: decimal option
+    [<CsvFieldName("stop_lon")>] lon: decimal option
     [<CsvFieldName("zone_id")>] zoneId: string option
     [<CsvFieldName("stop_url")>] url: string option
     [<CsvFieldName("location_type")>] locationType: LocationType option
@@ -104,6 +100,7 @@ type StopTime = {
     // boundaries with DateTime would be awkward
     [<CsvFieldName("arrival_time")>] arrivalTime: TimeSpan option
     [<CsvFieldName("departure_time")>] departureTime: TimeSpan option
+    // Extension: Composite stops
     [<CsvFieldName("stop_id")>] stopId: string
     [<CsvFieldName("stop_sequence")>] stopSequence: int
     [<CsvFieldName("stop_headsign")>] headsign: string option
@@ -111,6 +108,8 @@ type StopTime = {
     [<CsvFieldName("drop_off_type")>] dropoffType: ServiceType option
     [<CsvFieldName("shape_dist_traveled")>] shapeDistTraveled: decimal option
     [<CsvFieldName("timepoint")>] timepoint: TimePoint option
+    // Extension: Per-trip zones
+    [<CsvFieldName("stop_zone_ids")>] stopZoneIds: string option
 }
 
 

@@ -4,10 +4,10 @@
 module JrUtil.GtfsParser
 
 open System
-open System.IO
-open System.Globalization
+open Microsoft.FSharp.Reflection
 
 open JrUtil.Utils
+open JrUtil.ReflectionUtils
 open JrUtil.CsvParser
 open JrUtil.GtfsModelMeta
 
@@ -52,15 +52,22 @@ let splitLine (line: string) =
 let gtfsTransformToModel rowType header =
     let colNames = splitLine header
     let modelHeader = getHeader rowType
+    let fieldTypes =
+        FSharpType.GetRecordFields(rowType)
+        |> Array.map (fun f -> f.PropertyType)
     let indexes =
         modelHeader
-        |> Array.map (fun name ->
+        |> Array.mapi (fun i name ->
             match colNames |> Seq.tryFindIndex (fun n -> n = name) with
-            | Some i -> i
-            | None -> failwithf "Column \"%s\" not in GTFS file" name
+            | Some j -> Some j
+            | None -> if typeIsOption fieldTypes.[i]
+                      then None
+                      else failwithf "Column \"%s\" not in GTFS file" name
         )
     fun (cols: string seq) ->
-        indexes |> Array.map (fun i -> cols |> Seq.item i)
+        indexes |> Array.map (function
+                              | Some i -> cols |> Seq.item i
+                              | None -> "")
 
 let getGtfsParser<'r> =
     let rowParser = getRowParser<'r> gtfsColParserFor

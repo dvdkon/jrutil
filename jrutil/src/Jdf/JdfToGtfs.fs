@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2019 David Koňařík
 
 module JrUtil.JdfToGtfs
 
@@ -76,7 +76,7 @@ let convertToGtfsAgency: JdfModel.Agency -> GtfsModel.Agency = fun jdfAgency ->
         lang = Some "cs"
         phone = Some jdfAgency.officePhoneNum
         fareUrl = None
-        email = jdfAgency.email |> Option.defaultValue ""
+        email = jdfAgency.email
     }
 
 let getGtfsStops: JdfModel.JdfBatch -> GtfsModel.Stop array = fun jdfBatch ->
@@ -85,21 +85,13 @@ let getGtfsStops: JdfModel.JdfBatch -> GtfsModel.Stop array = fun jdfBatch ->
     jdfBatch.stops
     |> Array.map (fun jdfStop ->
     {
-        // Here the mapping from JDF to GTFS starts becoming non-trivial
-        // For example, JDF doesn't contain the positions of stops, so
-        // this function will give them as 0,0 and rely on other sources to
-        // fill them later.
-        // Another problem is "zoneId", which is given per-stop in GTFS,
-        // but per-stop-of-route in JDF. This function assumes that
-        // the zone of a stop doesn't change, which may or may not be true.
         id = jdfStopId jdfStop.id
         code = None
         name = getStopName jdfStop
         description = None
-        lat = 0m
-        lon = 0m
-        // How does this even work with stops that are in multiple
-        // transport systems and therefore zones?
+        lat = None
+        lon = None
+        // This is just a list of all zones this stop is in
         zoneId = Jdf.stopZone jdfBatch jdfStop
         url = None
         locationType = Some GtfsModel.Stop
@@ -321,6 +313,13 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
 
         jdfTripStops
         |> Array.mapi (fun i jdfTripStop ->
+            let jdfRouteStop =
+                jdfBatch.routeStops
+                |> Array.find (fun rs ->
+                    rs.routeId = jdfTripStop.routeId
+                 && rs.routeDistinction = jdfTripStop.routeDistinction
+                 && rs.routeStopId = jdfTripStop.routeStopId)
+
             // TODO: This will deal with the majority of trips, but some
             // might fail. I'll deal with them when I get data samples.
             match jdfTripStop.departureTime with
@@ -402,6 +401,7 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
                     // This will be dynamic when support for JDF's
                     // min/max times comes.
                     timepoint = Some GtfsModel.Exact
+                    stopZoneIds = jdfRouteStop.zone
                 }
                 Some stopTime
             )

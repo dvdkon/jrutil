@@ -6,23 +6,23 @@ LANGUAGE SQL AS $$
     SELECT (date_part('epoch', i) * INTERVAL '1 second')::TEXT;
 $$;
 
-COPY $schema.agencies
+COPY #schema.agencies
 TO PROGRAM 'cat >> $outpath/agency.txt' WITH (FORMAT csv);
 
-COPY $schema.stops
+COPY #schema.stops
 TO PROGRAM 'cat >> $outpath/stops.txt' WITH (FORMAT csv);
 
-COPY $schema.routes
+COPY #schema.routes
 TO PROGRAM 'cat >> $outpath/routes.txt' WITH (FORMAT csv);
 
-COPY $schema.trips
+COPY #schema.trips
 TO PROGRAM 'cat >> $outpath/trips.txt' WITH (FORMAT csv);
 
 COPY (
     SELECT tripid, gtfs_interval(arrivaltime), gtfs_interval(departuretime),
            stopid, stopsequence, headsign, pickuptype, dropofftype,
            shapedisttraveled, timepoint
-    FROM $schema.stoptimes
+    FROM #schema.stoptimes
 ) TO PROGRAM 'cat >> $outpath/stop_times.txt' WITH (FORMAT csv);
 
 COPY (
@@ -35,8 +35,8 @@ COPY (
            CASE WHEN weekdayservice[5] THEN 1 ELSE 0 END,
            CASE WHEN weekdayservice[6] THEN 1 ELSE 0 END,
            startdate, enddate
-    FROM $schema.calendar
+    FROM #schema.calendar
 ) TO PROGRAM 'cat >> $outpath/calendar.txt' WITH (FORMAT csv);
 
-COPY $schema.calendarexceptions
+COPY #schema.calendarexceptions
 TO PROGRAM 'cat >> $outpath/calendar_dates.txt' WITH (FORMAT csv);

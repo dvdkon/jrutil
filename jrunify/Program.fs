@@ -1,35 +1,44 @@
 // This file is part of JrUnify and is licenced under the GNU GPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2019 David Koňařík
 
 open Docopt
 
-open System
 open System.IO
-open System.Diagnostics
 open System.Data.Common
 open Npgsql
 
 open JrUtil
 open JrUtil.Utils
 open JrUtil.SqlRecordStore
-open JrUtil.GtfsModelMeta
+open Npgsql
 
 let docstring = (fun (s: string) -> s.Trim()) """
 jrunify, a tool for combining czech public transport data into a single
 GTFS feed
 
-Usage: jrunify.exe <connstr> <jdf-bus> <jdf-mhd> <czptt-szdc> <out>
+Usage: jrunify.exe --connstr=CONNSTR --out=OUT [options]
+
+Options:
+    --connstr=CONNSTR              Npgsql connection string
+    --out=OUTPATH                  Output directory
+    --jdf-bus=PATH                 JDF BUS directory (extracted)
+    --jdf-mhd=PATH                 JDF MHD directory (extracted)
+    --czptt-szdc=PATH              CZPTT SŽDC directory (extracted)
+    --cis-stop-list=PATH           CIS "zastavky.csv"
+    --dpmlj-gtfs=PATH              GTFS from DPMLJ (extracted)
+
+This program creates numerous schemas in the given database
 """
 
 let setSchema conn schemaName =
-    executeSql conn (sprintf "SET search_path TO %s" schemaName) []
+    executeSql conn (sprintf "SET search_path TO %s, public" schemaName) []
 
 let cleanAndSetSchema conn schemaName =
     let sql =
         sprintf """
                 DROP SCHEMA IF EXISTS %s CASCADE;
                 CREATE SCHEMA IF NOT EXISTS %s;
-                SET search_path TO %s;
+                SET search_path TO %s, public;
                 """
                 schemaName schemaName schemaName
     executeSql conn sql []
@@ -166,13 +175,77 @@ let mergeAll conn =
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
         new GtfsMerge.MergedFeed(conn, "merged", true, true)
-    ["jdfbus_merged"; "jdfmhd_merged"; "czptt_merged"]
+    ["dpmlj"; "jdfbus_merged"; "jdfmhd_merged"; "czptt_merged"]
     |> List.iter (fun schema ->
-        cleanAndSetSchema conn "merge_temp"
-        mergedFeed.InsertFeed schema
+        try
+            cleanAndSetSchema conn "merge_temp"
+            mergedFeed.InsertFeed schema
+        with
+        | :? PostgresException as e ->
+            printfn "Error while merging %s:\nSQL error at %s:%s:%d:\n%s\n"
+                    schema e.File e.Line e.Position e.Message
+        | e ->
+            printfn "Error while merging %s:\n%A" schema e
     )
 
-let jrunify dbConnStr jdfBusPath jdfMhdPath czpttSzdcPath outPath =
+let loadCisStopList (conn: NpgsqlConnection) path =
+    cleanAndSetSchema conn "cis_stops"
+    executeSql conn """
+        CREATE TABLE stops (name text PRIMARY KEY);
+        --CREATE INDEX ON stops USING GIN (name gin_trgm_ops);
+        """ []
+    use writer = conn.BeginTextImport("COPY stops FROM STDOUT (FORMAT CSV)")
+    writer.Write(File.ReadAllText(path))
+
+let normaliseStopNames conn stopsTable prefix =
+    let scriptPath = __SOURCE_DIRECTORY__ + "/NormaliseStopNames.sql"
+    let script = File.ReadAllText(scriptPath)
+    let template = compileSqlTemplate script
+    let sql = template ["tgtstops", stopsTable]
+    executeSql conn sql [
+        "prefix", box prefix
+        "threshold", box 0.7]
+    ()
+
+let deduplicateRoutes conn =
+    let scriptPath = __SOURCE_DIRECTORY__ + "/DeduplicateRoutes.sql"
+    let script = File.ReadAllText(scriptPath)
+    executeSql conn script []
+
+let processDpmljGtfs conn path =
+    try
+        cleanAndSetSchema conn "dpmlj"
+        // TODO: Foreign key constraints!
+        Gtfs.sqlCreateGtfsTablesNoConstrs conn
+        Gtfs.sqlLoadGtfsFeed conn path
+        // XXX: Workaround. Remove when clean data is available
+        executeSql conn """
+            DELETE FROM stoptimes
+            WHERE NOT EXISTS (SELECT FROM stops WHERE id = stopid)
+        """ []
+        Gtfs.sqlCreateGtfsConstrs conn
+
+        deduplicateRoutes conn
+
+        executeSql conn """
+            UPDATE routes
+            SET id = '-CISR-545' || lpad(id, 3, '0') || '-0';
+        """ []
+
+        // TODO: This sometimes results in wrong stops being merged
+        // Maybe getting rid of "cityless" stops from JDF will help?
+        // Different prefixes per city will also be needed.
+        // That'll probably have to wait for OSM integration
+        normaliseStopNames conn "cis_stops.stops" "Liberec"
+    with
+    | :? PostgresException as e ->
+        printfn "Error while processing DPMLJ GTFS:\nSQL error at %s:%s:%d:\n%s\n"
+                e.File e.Line e.Position e.Message
+    | e ->
+        printfn "Error while processing DPMLJ GTFS:\n%A" e
+
+let jrunify dbConnStr outPath
+            jdfBusPath jdfMhdPath czpttSzdcPath cisStopList dpmljGtfsPath =
     // Dirty hack to make sure there's no command timeout
     let dbConnStrMod = dbConnStr + ";CommandTimeout=0"
     let newConn () =
@@ -184,29 +257,49 @@ let jrunify dbConnStr jdfBusPath jdfMhdPath czpttSzdcPath outPath =
         c
     [
         async {
-            measureTime "Processing jdfbus" (fun () ->
-                let c = newConn ()
-                c.Open()
-                processJdf c "jdfbus" jdfBusPath
-                c.Close()
+            jdfBusPath |> Option.iter (fun jdfBusPath ->
+                measureTime "Processing jdfbus" (fun () ->
+                    let c = newConn ()
+                    c.Open()
+                    processJdf c "jdfbus" jdfBusPath
+                    c.Close()
+                )
             )
         };
         async {
-            measureTime "Processing jdfmhd" (fun () ->
-                let c = newConn ()
-                c.Open()
-                processJdf c "jdfmhd" jdfMhdPath
-                c.Close()
+            jdfMhdPath |> Option.iter (fun jdfMhdPath ->
+                measureTime "Processing jdfmhd" (fun () ->
+                    let c = newConn ()
+                    c.Open()
+                    processJdf c "jdfmhd" jdfMhdPath
+                    c.Close()
+                )
             )
         };
         async {
-            measureTime "Processing czptt" (fun () ->
-                let c = newConn ()
-                c.Open()
-                processCzPtt c czpttSzdcPath
-                c.Close()
+            czpttSzdcPath |> Option.iter (fun czpttSzdcPath ->
+                measureTime "Processing czptt" (fun () ->
+                    let c = newConn ()
+                    c.Open()
+                    processCzPtt c czpttSzdcPath
+                    c.Close()
+                )
             )
         };
+        async {
+            dpmljGtfsPath |> Option.iter (fun dpmljGtfsPath ->
+                let c = newConn ()
+                c.Open()
+                measureTime "Reading CIS stop list" (fun () ->
+                    loadCisStopList c (Option.get cisStopList)
+                )
+
+                measureTime "Processing DPMLJ GTFS" (fun () ->
+                    processDpmljGtfs c dpmljGtfsPath
+                )
+                c.Close()
+            )
+        }
     ]
     |> Async.Parallel
     |> Async.RunSynchronously
@@ -228,11 +321,13 @@ let main args =
         let docopt = Docopt(docstring)
         let args = docopt.Parse(args)
 
-        jrunify (argValue args.["<connstr>"])
-                (argValue args.["<jdf-bus>"])
-                (argValue args.["<jdf-mhd>"])
-                (argValue args.["<czptt-szdc>"])
-                (argValue args.["<out>"])
+        jrunify (argValue args.["--connstr"])
+                (argValue args.["--out"])
+                (optArgValue args.["--jdf-bus"])
+                (optArgValue args.["--jdf-mhd"])
+                (optArgValue args.["--czptt-szdc"])
+                (optArgValue args.["--cis-stop-list"])
+                (optArgValue args.["--dpmlj-gtfs"])
         0
     with
     | ArgvException(msg) ->
