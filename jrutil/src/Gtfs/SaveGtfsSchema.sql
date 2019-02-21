@@ -7,23 +7,23 @@ LANGUAGE SQL AS $$
 $$;
 
 COPY #schema.agencies
-TO PROGRAM 'cat >> $outpath/agency.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> #outpath/agency.txt' WITH (FORMAT csv);
 
 COPY #schema.stops
-TO PROGRAM 'cat >> $outpath/stops.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> #outpath/stops.txt' WITH (FORMAT csv);
 
 COPY #schema.routes
-TO PROGRAM 'cat >> $outpath/routes.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> #outpath/routes.txt' WITH (FORMAT csv);
 
 COPY #schema.trips
-TO PROGRAM 'cat >> $outpath/trips.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> #outpath/trips.txt' WITH (FORMAT csv);
 
 COPY (
     SELECT tripid, gtfs_interval(arrivaltime), gtfs_interval(departuretime),
            stopid, stopsequence, headsign, pickuptype, dropofftype,
            shapedisttraveled, timepoint
     FROM #schema.stoptimes
-) TO PROGRAM 'cat >> $outpath/stop_times.txt' WITH (FORMAT csv);
+) TO PROGRAM 'cat >> #outpath/stop_times.txt' WITH (FORMAT csv);
 
 COPY (
     SELECT id,
@@ -36,7 +36,7 @@ COPY (
            CASE WHEN weekdayservice[6] THEN 1 ELSE 0 END,
            startdate, enddate
     FROM #schema.calendar
-) TO PROGRAM 'cat >> $outpath/calendar.txt' WITH (FORMAT csv);
+) TO PROGRAM 'cat >> #outpath/calendar.txt' WITH (FORMAT csv);
 
 COPY #schema.calendarexceptions
-TO PROGRAM 'cat >> $outpath/calendar_dates.txt' WITH (FORMAT csv);
+TO PROGRAM 'cat >> #outpath/calendar_dates.txt' WITH (FORMAT csv);

@@ -8,7 +8,7 @@ SET name = (
         (SELECT tgtname FROM (
             SELECT tgt.name AS tgtname,
                    word_similarity(@prefix || stops.name, tgt.name) AS sim
-            FROM $tgtstops AS tgt) AS matches
+            FROM #tgtstops AS tgt) AS matches
         WHERE sim > @threshold
         ORDER BY sim DESC
         LIMIT 1)

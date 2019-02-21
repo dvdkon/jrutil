@@ -5,17 +5,20 @@ module JrUtil.GtfsMerge
 
 open System.IO
 open System.Data.Common
-open System.Text.RegularExpressions
 
-open JrUtil.GtfsModel
+open JrUtil.UnionCodec
 open JrUtil.SqlRecordStore
+
+type TripMergeStrategy =
+    | [<StrValue("never")>] Never
+    | [<StrValue("with_route")>] WithRoute
+    | [<StrValue("full")>] Full
 
 type MergedFeed(conn: DbConnection,
                 schema: string,
-                ?checkStopType: bool,
-                ?checkStations: bool) =
+                tripMergeStrategy: TripMergeStrategy,
+                ?checkStopType: bool) =
     let checkStopType = defaultArg checkStopType true
-    let checkStations = defaultArg checkStations false
 
     // TODO: Include template at compile-time? This is really fragile
     static let template = compileSqlTemplate (File.ReadAllText(__SOURCE_DIRECTORY__ + "/GtfsMerge.sql"))
@@ -25,10 +28,10 @@ type MergedFeed(conn: DbConnection,
     member this.InsertFeed feedSchema =
         feedNum <- feedNum + 1
         let sql = template [
-            "merged", box schema;
-            "in", box feedSchema;
-            "feednum", box feedNum;
-            "check_stations", box checkStations;
+            "merged", box schema
+            "in", box feedSchema
+            "feednum", box feedNum
+            "trip_merge_strategy", box <| serializeUnion tripMergeStrategy
         ]
         executeSql conn sql []
 

@@ -44,3 +44,6 @@ let getUnionSerializer = memoize <| fun (unionType: Type) ->
         let caseTag = caseTagGetter x
         let (_, caseStr) = cases |> Array.find (fun (ci, _) -> ci = caseTag)
         caseStr
+
+let serializeUnion<'u> (u: 'u) =
+    (getUnionSerializer typeof<'u>) u

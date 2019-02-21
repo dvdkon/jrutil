@@ -10,7 +10,7 @@ open Npgsql
 open JrUtil
 open JrUtil.Utils
 open JrUtil.SqlRecordStore
-open Npgsql
+open JrUtil.GtfsMerge
 
 let docstring = (fun (s: string) -> s.Trim()) """
 jrunify, a tool for combining czech public transport data into a single
@@ -115,7 +115,7 @@ let processJdf conn group path =
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        new GtfsMerge.MergedFeed(conn, schemaMerged, false, false)
+        new MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, false)
     cleanAndSetSchema conn schemaIntermediate
     Gtfs.sqlCreateGtfsTables conn
 
@@ -146,7 +146,7 @@ let processCzPtt conn path =
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        new GtfsMerge.MergedFeed(conn, schemaMerged, false, true)
+        new MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, true)
     cleanAndSetSchema conn schemaIntermediate
     Gtfs.sqlCreateGtfsTables conn
 
@@ -174,7 +174,7 @@ let mergeAll conn =
     cleanAndSetSchema conn "merged"
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        new GtfsMerge.MergedFeed(conn, "merged", true, true)
+        new MergedFeed(conn, "merged", TripMergeStrategy.WithRoute, true)
     ["dpmlj"; "jdfbus_merged"; "jdfmhd_merged"; "czptt_merged"]
     |> List.iter (fun schema ->
         try
@@ -215,28 +215,36 @@ let deduplicateRoutes conn =
 let processDpmljGtfs conn path =
     try
         cleanAndSetSchema conn "dpmlj"
-        // TODO: Foreign key constraints!
         Gtfs.sqlCreateGtfsTablesNoConstrs conn
         Gtfs.sqlLoadGtfsFeed conn path
+
         // XXX: Workaround. Remove when clean data is available
         executeSql conn """
             DELETE FROM stoptimes
             WHERE NOT EXISTS (SELECT FROM stops WHERE id = stopid)
         """ []
-        Gtfs.sqlCreateGtfsConstrs conn
 
         deduplicateRoutes conn
 
         executeSql conn """
+            UPDATE trips
+            SET routeid =
+                '-CISR-545'
+                || lpad((SELECT shortname FROM routes
+                         WHERE id = routeid), 3, '0')
+                || '-0';
+
             UPDATE routes
-            SET id = '-CISR-545' || lpad(id, 3, '0') || '-0';
+            SET id = '-CISR-545' || lpad(shortname, 3, '0') || '-0';
         """ []
+
+        Gtfs.sqlCreateGtfsConstrs conn
 
         // TODO: This sometimes results in wrong stops being merged
         // Maybe getting rid of "cityless" stops from JDF will help?
         // Different prefixes per city will also be needed.
         // That'll probably have to wait for OSM integration
-        normaliseStopNames conn "cis_stops.stops" "Liberec"
+        //normaliseStopNames conn "cis_stops.stops" "Liberec"
     with
     | :? PostgresException as e ->
         printfn "Error while processing DPMLJ GTFS:\nSQL error at %s:%s:%d:\n%s\n"
