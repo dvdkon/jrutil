@@ -51,12 +51,13 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
     // primary key, this script takes all such agencies and combines them into
     // one "composite agency" with IČO 0, then deletes the rest.
 
-    let zeroAgencies = jdfBatch.agencies |> Array.filter (fun a -> a.id = 0)
+    let zeroAgencies =
+        jdfBatch.agencies
+        |> Array.filter (fun a -> a.id = 0 && a.idDistinction = 0)
     // This process only applies to cases where the agencies aren't
     // distinguished further by "idDistinction"
     if (zeroAgencies
-        |> Array.groupBy (fun a -> a.idDistinction)
-        |> Array.length) = 1 then
+        |> Array.length) > 1 then
         let names = zeroAgencies |> Array.map (fun a -> a.name)
         let addresses = zeroAgencies |> Array.map (fun a -> a.officeAddress)
         let phoneNums = zeroAgencies |> Array.map (fun a -> a.officePhoneNum)
