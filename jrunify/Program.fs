@@ -244,7 +244,7 @@ let processDpmljGtfs conn path =
         // Maybe getting rid of "cityless" stops from JDF will help?
         // Different prefixes per city will also be needed.
         // That'll probably have to wait for OSM integration
-        //normaliseStopNames conn "cis_stops.stops" "Liberec"
+        normaliseStopNames conn "cis_stops.stops" "Liberec"
     with
     | :? PostgresException as e ->
         printfn "Error while processing DPMLJ GTFS:\nSQL error at %s:%s:%d:\n%s\n"
