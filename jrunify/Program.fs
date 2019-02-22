@@ -136,6 +136,7 @@ let processJdf conn group path =
     )
 
 let processCzPtt conn path =
+    // TODO: Filter out non-passenger trains (Sv)
     let fixupScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/FixupCzptt.sql")
 
     let schemaMerged = "czptt_merged"

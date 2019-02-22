@@ -1,5 +1,5 @@
 # This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-# (c) 2018 David Koňařík
+# (c) 2019 David Koňařík
 
 # At first I tried to create an XML Schema (XSD) for the format,
 # but after getting to a state when the schema had a few hundred lines but
@@ -14,8 +14,10 @@
 # This schema defines the CZPTTCISMessage XML object given to CIS JŘ per
 # official SŽDC documentation ("Popis DJR_CIS_v1_04.pdf"). It contains
 # only elements used in the docs sent to and publicly available from CIS JŘ
+# When the docs and given data diverge, the structure of the data is
+# used for the spec's creation.
 
-company = xsd:string { pattern="[0-9]{4}" }
+company = xsd:string { pattern="[0-9]{1,4}" }
 
 
 TransportIdentifier =
@@ -54,7 +56,7 @@ start =
 				element LocationPrimaryCode {
 					xsd:string { pattern="[0-9]{5}" }
 				}?,
-				element PrimaryLocationName { xsd:string },
+				element PrimaryLocationName { xsd:string }?,
 				element LocationSubsidiaryIdentification {
 					element LocationSubsidiaryCode {
 						attribute LocationSubsidiaryTypeCode { xsd:string },
@@ -74,7 +76,7 @@ start =
 				element ResponsibleRU { company }?,
 				element ResponsibleIM { company }?,
 				element TrainType { "1" }?,
-				element TrafficType { xsd:string { pattern="[0-9A-B]{2}" } }?,
+				element TrafficType { xsd:string { pattern="[0-9A-Z]{2}" } }?,
 				element CommercialTrafficType {
 					xsd:string { pattern="[0-9A-B]{2,4}" }
 				}?,

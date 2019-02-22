@@ -2,7 +2,7 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
   <!--
     This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-    (c) 2018 David Koňařík
+    (c) 2019 David Koňařík
   -->
   <!--
     At first I tried to create an XML Schema (XSD) for the format,
@@ -20,10 +20,12 @@
     This schema defines the CZPTTCISMessage XML object given to CIS JŘ per
     official SŽDC documentation ("Popis DJR_CIS_v1_04.pdf"). It contains
     only elements used in the docs sent to and publicly available from CIS JŘ
+    When the docs and given data diverge, the structure of the data is
+    used for the spec's creation.
   -->
   <xs:simpleType name="company">
     <xs:restriction base="xs:string">
-      <xs:pattern value="[0-9]{4}"/>
+      <xs:pattern value="[0-9]{1,4}"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:complexType name="TransportIdentifier">
@@ -115,7 +117,7 @@
       <xs:sequence>
         <xs:element ref="CountryCodeISO"/>
         <xs:element minOccurs="0" ref="LocationPrimaryCode"/>
-        <xs:element ref="PrimaryLocationName"/>
+        <xs:element minOccurs="0" ref="PrimaryLocationName"/>
         <xs:element minOccurs="0" ref="LocationSubsidiaryIdentification"/>
         <xs:element minOccurs="0" ref="TimingAtLocation"/>
         <xs:element minOccurs="0" ref="ResponsibleRU"/>
@@ -209,7 +211,7 @@
   <xs:element name="TrafficType">
     <xs:simpleType>
       <xs:restriction base="xs:string">
-        <xs:pattern value="[0-9A-B]{2}"/>
+        <xs:pattern value="[0-9A-Z]{2}"/>
       </xs:restriction>
     </xs:simpleType>
   </xs:element>

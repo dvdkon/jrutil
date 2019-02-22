@@ -30,10 +30,11 @@ type LocationType =
 // in data and the one used for display)
 let trafficTypes =
     Map [
-        ("11", "Os");
-        ("C1", "Ex");
-        ("C2", "R");
-        ("C3", "Sp");
+        ("11", "Os")
+        ("C1", "Ex")
+        ("C2", "R")
+        ("C3", "Sp")
+        ("C4", "Sv")
     ]
 
 let commercialTrafficTypes =
@@ -42,21 +43,21 @@ let commercialTrafficTypes =
         // the official docs ("Fast train" for "R"). These are almost never
         // written like that anywhere, so the abbreviation is used for the
         // "long name" as well.
-        ("50", ("EuroCity", "EC"));
-        ("63", ("Intercity", "IC"));
-        ("69", ("Express", "Ex"));
-        ("70", ("Euro Night", "EN"));
-        ("84", ("Os", "Os"));
-        ("94", ("SuperCity", "SC"));
-        ("122", ("Sp", "Sp"));
-        ("157", ("R", "R"));
-        ("209", ("RailJet", "rj"));
-        ("9000", ("Rex", "Rx"));
-        ("9001", ("Trilex-expres", "TLX"));
-        ("9002", ("Trilex", "TL"));
-        ("9003", ("LEO Expres", "LE"));
-        ("9004", ("Regiojet", "RJ"));
-        ("9005", ("Arriva Expres", "AEx"));
+        ("50", ("EuroCity", "EC"))
+        ("63", ("Intercity", "IC"))
+        ("69", ("Express", "Ex"))
+        ("70", ("Euro Night", "EN"))
+        ("84", ("Os", "Os"))
+        ("94", ("SuperCity", "SC"))
+        ("122", ("Sp", "Sp"))
+        ("157", ("R", "R"))
+        ("209", ("RailJet", "rj"))
+        ("9000", ("Rex", "Rx"))
+        ("9001", ("Trilex-expres", "TLX"))
+        ("9002", ("Trilex", "TL"))
+        ("9003", ("LEO Expres", "LE"))
+        ("9004", ("Regiojet", "RJ"))
+        ("9005", ("Arriva Expres", "AEx"))
     ]
 
 let parseFile (path: string) =
@@ -89,6 +90,7 @@ let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
             | "Os" | "Sp" -> "106" // Regional Rail
             | "R" -> "103" // Inter Regional Rail
             | "Ex" -> "102" // Long Distance Rail
+            | "Sv" -> "100" // Railway Service (Sv -- maintenance train)
             | _ -> failwith "Invalid state"
         | None -> "100" // Railway
 
@@ -186,7 +188,7 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
                      then gtfsStationId loc
                      else gtfsStopId loc
                 code = None
-                name = loc.PrimaryLocationName
+                name = loc.PrimaryLocationName |> Option.defaultValue ""
                 description = None
                 lat = None
                 lon = None
@@ -220,7 +222,7 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
                         Stop
                         (gtfsStationId loc |> Some)
                         (Some platformCode)
-                [| station; platform |];
+                [| station; platform |]
             | None ->
                 [| createStop Stop None None |]
     )
