@@ -21,7 +21,7 @@ TO PROGRAM 'cat >> #outpath/trips.txt' WITH (FORMAT csv);
 COPY (
     SELECT tripid, gtfs_interval(arrivaltime), gtfs_interval(departuretime),
            stopid, stopsequence, headsign, pickuptype, dropofftype,
-           shapedisttraveled, timepoint
+           shapedisttraveled, timepoint, stopzoneids
     FROM #schema.stoptimes
 ) TO PROGRAM 'cat >> #outpath/stop_times.txt' WITH (FORMAT csv);
 
