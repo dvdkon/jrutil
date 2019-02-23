@@ -44,9 +44,11 @@ $$;
 CREATE OR REPLACE FUNCTION
 get_new_id(old_id text, new_id text) RETURNS text
 IMMUTABLE LANGUAGE SQL AS $$
-    SELECT CASE WHEN id_is_stable(old_id) THEN old_id
-                ELSE COALESCE(new_id, '#feednum/' || old_id)
-           END;
+    SELECT COALESCE(
+        new_id,
+        CASE WHEN id_is_stable(old_id) THEN old_id
+             ELSE '#feednum/' || old_id
+        END);
 $$;
 
 CREATE OR REPLACE FUNCTION
@@ -128,7 +130,7 @@ INSERT INTO agency_idmap
         ON old.name = uniq.name
     LEFT JOIN #merged.agencies AS new ON
         agency_should_merge(uniq, new) > 0
-        OR id_is_stable(old.id) AND old.id = new.id;
+        OR (id_is_stable(old.id) AND old.id = new.id);
 
 -- SELECT populate_idmap('agency_idmap', 'agencies', 'agency_should_merge');
 
