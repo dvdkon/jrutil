@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+	  <Compile Include="src/Utils.fs" />
+	  <Compile Include="src/CzPtt.fs" />
+	  <Compile Include="src/Jdf.fs" />
+	  <Compile Include="src/Dpmlj.fs" />
+	  <Compile Include="src/MergeAll.fs" />
 	  <Compile Include="Program.fs" />
   </ItemGroup>
 
