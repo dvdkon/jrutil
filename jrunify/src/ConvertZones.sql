@@ -11,17 +11,17 @@ SET stopzoneids = (
     WHERE stops.id = stopid);
 
 CREATE TEMPORARY TABLE stop_idmap AS
-    SELECT stops.id AS orig_id,
+    SELECT nonuniq.id AS orig_id,
            uniq.id AS new_id,
-           stops.id = uniq.id AS keep
-    FROM stops
-    LEFT JOIN stops AS uniq ON stops.lat = uniq.lat AND stops.lon = uniq.lon;
+           nonuniq.id = uniq.id AS keep
+    FROM stops AS nonuniq
+    LEFT JOIN (SELECT DISTINCT ON (lat, lon) lat, lon, id FROM stops) AS uniq
+        ON nonuniq.lat = uniq.lat AND nonuniq.lon = uniq.lon;
 
 UPDATE stops
 SET zoneid = (
     SELECT string_agg(zoneid, ', ')
-    FROM stops AS s WHERE s.id = stop_idmap.orig_id;
-)
+    FROM stops AS s WHERE s.id = stop_idmap.orig_id)
 FROM stop_idmap
 WHERE new_id = id;
 

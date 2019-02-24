@@ -46,3 +46,8 @@ let deduplicateRoutes conn =
     let scriptPath = __SOURCE_DIRECTORY__ + "/DeduplicateRoutes.sql"
     let script = File.ReadAllText(scriptPath)
     executeSql conn script []
+
+let convertZones conn =
+    let scriptPath = __SOURCE_DIRECTORY__ + "/ConvertZones.sql"
+    let script = File.ReadAllText(scriptPath)
+    executeSql conn script []

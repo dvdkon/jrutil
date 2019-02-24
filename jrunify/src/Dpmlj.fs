@@ -47,6 +47,8 @@ let processDpmljGtfs conn path =
 
         Gtfs.sqlCreateGtfsConstrs conn
 
+        convertZones conn
+
         // TODO: This sometimes results in wrong stops being merged
         // Maybe getting rid of "cityless" stops from JDF will help?
         // Different prefixes per city will also be needed.
