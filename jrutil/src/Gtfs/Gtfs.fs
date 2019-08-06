@@ -5,6 +5,7 @@ module JrUtil.Gtfs
 
 open System.IO
 open System.Data.Common
+open System.Runtime.InteropServices
 
 open JrUtil.Utils
 open JrUtil.GtfsCsvSerializer
@@ -153,7 +154,7 @@ let saveGtfsSqlSchema =
             (File.ReadAllText(__SOURCE_DIRECTORY__ + "/SaveGtfsSchema.sql"))
     fun (conn: DbConnection) (schema: string) outpath ->
         let abspath = Path.GetFullPath(outpath)
-        Directory.CreateDirectory(outpath) |> ignore
+        Directory.CreateDirectory(abspath) |> ignore
         let writeHeader recType fileName =
             let filepath = Path.Combine(abspath, fileName)
             let header = getHeader recType |> String.concat ","
@@ -167,12 +168,32 @@ let saveGtfsSqlSchema =
         writeHeader typeof<CalendarEntry> "calendar.txt"
         writeHeader typeof<CalendarException> "calendar_dates.txt"
 
-        let sql = template [
-            "schema", box schema;
-            "outpath", box abspath;
-        ]
-        executeSql conn sql []
-
+        if RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+           || RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
+            let sql = template [
+                "platform", box "unix"
+                "schema", box schema
+                "outpath", box abspath
+            ]
+            executeSql conn sql []
+        else
+            // assert RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            let tmpPath = Path.Combine(abspath, "tmp")
+            Directory.CreateDirectory(tmpPath) |> ignore
+            let sql = template [
+                "platform", box "windows"
+                "schema", box schema
+                "outpath", box tmpPath
+            ]
+            executeSql conn sql []
+            for filename in ["agency.txt"; "stops.txt"; "routes.txt";
+                             "trips.txt"; "stop_times.txt"; "calendar.txt";
+                             "calendar_dates.txt"] do
+                use infile = File.Open(Path.Combine(tmpPath, filename),
+                                       FileMode.Open)
+                use outfile = File.Open(Path.Combine(abspath, filename),
+                                        FileMode.Append)
+                infile.CopyTo(outfile)
 
 let sqlLoadGtfsFeed conn path =
     // TODO: See if creating functions beforehand has a reasonable impact
