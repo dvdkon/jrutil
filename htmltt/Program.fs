@@ -23,15 +23,15 @@ let main argv =
         let docopt = Docopt(docstring)
         let args = docopt.Parse(argv)
 
-        let dbConn = getPostgresqlConnection (argValue args.["<db-connstr>"])
+        let dbConn = getPostgresqlConnection (argValue args "<db-connstr>")
         dbConn.Open()
 
-        if argFlagSet args.["generate"] then
+        if argFlagSet args "generate" then
             printfn "Not implemented yet"
             dbConn.Close()
             2
-        else if argFlagSet args.["serve"] then
-            Server.runServer dbConn (argValue args.["<bind-addr>"])
+        else if argFlagSet args "serve" then
+            Server.runServer dbConn (argValue args "<bind-addr>")
             dbConn.Close()
             0
         else failwith "Unreachable"

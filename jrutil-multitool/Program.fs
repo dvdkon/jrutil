@@ -38,11 +38,11 @@ let main (args: string array) =
     try
         let docopt = Docopt(docstring)
         let args = docopt.Parse(args)
-        if argFlagSet args.["jdf-to-gtfs"] then
+        if argFlagSet args "jdf-to-gtfs" then
             let jdfPar = Jdf.jdfBatchDirParser ()
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (argValue args.["<JDF-in-dir>"])
-                       (argValue args.["<GTFS-out-dir>"])
+            inOutFiles (argValue args "<JDF-in-dir>")
+                       (argValue args "<GTFS-out-dir>")
             |> Seq.iter (fun (inpath, out) ->
                 printfn "Processing %s" inpath
                 try
@@ -52,10 +52,10 @@ let main (args: string array) =
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
-        else if argFlagSet args.["czptt-to-gtfs"] then
+        else if argFlagSet args "czptt-to-gtfs" then
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (argValue args.["<CzPtt-in-file>"])
-                       (argValue args.["<GTFS-out-dir>"])
+            inOutFiles (argValue args "<CzPtt-in-file>")
+                       (argValue args "<GTFS-out-dir>")
             |> Seq.iter (fun (inpath, out) ->
                 printfn "Processing %s" inpath
                 try
@@ -65,9 +65,9 @@ let main (args: string array) =
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
-        else if argFlagSet args.["load-gtfs-to-db"] then
-            let dbConnStr = argValue args.["<db-connstr>"]
-            let indir = argValue args.["<GTFS-in-dir>"]
+        else if argFlagSet args "load-gtfs-to-db" then
+            let dbConnStr = argValue args "<db-connstr>"
+            let indir = argValue args "<GTFS-in-dir>"
 
             use dbConn = getPostgresqlConnection dbConnStr
             dbConn.Open()
