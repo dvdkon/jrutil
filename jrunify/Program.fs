@@ -21,7 +21,8 @@ let docstring = (fun (s: string) -> s.Trim()) """
 jrunify, a tool for combining czech public transport data into a single
 GTFS feed
 
-Usage: jrunify.exe --connstr=CONNSTR --out=OUT [options]
+Usage:
+    jrunify.exe --connstr=CONNSTR --out=OUT [options]
 
 Options:
     --connstr=CONNSTR              Npgsql connection string
@@ -56,7 +57,7 @@ let jrunify dbConnStr outPath
                     c.Close()
                 )
             )
-        };
+        }
         async {
             jdfMhdPath |> Option.iter (fun jdfMhdPath ->
                 measureTime "Processing jdfmhd" (fun () ->
@@ -66,7 +67,7 @@ let jrunify dbConnStr outPath
                     c.Close()
                 )
             )
-        };
+        }
         async {
             czpttSzdcPath |> Option.iter (fun czpttSzdcPath ->
                 measureTime "Processing czptt" (fun () ->
@@ -76,7 +77,7 @@ let jrunify dbConnStr outPath
                     c.Close()
                 )
             )
-        };
+        }
         async {
             dpmljGtfsPath |> Option.iter (fun dpmljGtfsPath ->
                 let c = newConn ()
@@ -108,19 +109,23 @@ let jrunify dbConnStr outPath
 
 [<EntryPoint>]
 let main args =
-    try
-        let docopt = Docopt(docstring)
-        let args = docopt.Parse(args)
-
-        jrunify (argValue args.["--connstr"])
-                (argValue args.["--out"])
-                (optArgValue args.["--jdf-bus"])
-                (optArgValue args.["--jdf-mhd"])
-                (optArgValue args.["--czptt-szdc"])
-                (optArgValue args.["--cis-stop-list"])
-                (optArgValue args.["--dpmlj-gtfs"])
+    if args.Length = 0 then
+        printf "%s" docstring
         0
-    with
-    | ArgvException(msg) ->
-        printfn "%s" msg
-        1
+    else
+        try
+            let docopt = Docopt(docstring)
+            let args = docopt.Parse(args)
+
+            jrunify (argValue args "--connstr")
+                    (argValue args "--out")
+                    (optArgValue args "--jdf-bus")
+                    (optArgValue args "--jdf-mhd")
+                    (optArgValue args "--czptt-szdc")
+                    (optArgValue args "--cis-stop-list")
+                    (optArgValue args "--dpmlj-gtfs")
+            0
+        with
+        | ArgvException(msg) ->
+            printfn "%s" msg
+            1

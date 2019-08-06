@@ -132,25 +132,35 @@ let rec dateTimeRange (startDate: DateTime) (endDate: DateTime)  =
 
 let constant x _ = x
 
-let argFlagSet (arg: Arguments.Result) =
-    match arg with
+let argFlagSet (args: Arguments.Dictionary) name =
+    match args.[name] with
     | Arguments.Result.Flag | Arguments.Result.Flags _ -> true
     | Arguments.Result.None -> false
-    | _ -> failwithf "Expected %A to be a Flag or Flags" arg
+    | _ -> raise (ArgvException (sprintf "Expected %A to be a Flag or Flags while processing %s"
+                                         args.[name] name))
 
-let argValue (arg: Arguments.Result) =
-    match arg with
+let argValue (args: Arguments.Dictionary) name =
+    match args.[name] with
     | Arguments.Result.Argument x -> x
-    | _ -> failwithf "Expected %A to be an Argument" arg
+    | Arguments.Result.None ->
+        raise (ArgvException (sprintf "Argument not found: %s" name))
+    | _ -> raise (ArgvException (sprintf "Expected %A to be an Argument"
+                                         args.[name]))
 
-let optArgValue = function
+let optArgValue (args: Arguments.Dictionary) name =
+    match args.[name] with
     | Arguments.Result.None -> None
-    | arg -> Some <| argValue arg
+    | Arguments.Result.Argument x -> Some x
+    | _ -> raise (ArgvException (sprintf "Expected %A to be an Argument or None"
+                                         args.[name]))
 
-let argValues (arg: Arguments.Result) =
-    match arg with
+let argValues (args: Arguments.Dictionary) name =
+    match args.[name] with
     | Arguments.Result.Arguments x -> x
-    | _ -> failwithf "Expected %A to be Arguments" arg
+    | Arguments.Result.None ->
+        raise (ArgvException (sprintf "Argument not found: %s" name))
+    | _ -> raise (ArgvException (sprintf "Expected %A to be Arguments"
+                                         args.[name]))
 
 let measureTime msg func =
     let sw = Stopwatch.StartNew()
