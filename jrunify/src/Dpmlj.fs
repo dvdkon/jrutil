@@ -16,7 +16,7 @@ let loadCisStopList (conn: NpgsqlConnection) path =
     executeSql conn """
         CREATE TABLE stops (name text PRIMARY KEY);
         """ []
-    use writer = conn.BeginTextImport("COPY stops FROM STDOUT (FORMAT CSV)")
+    use writer = conn.BeginTextImport("COPY stops FROM STDIN (FORMAT CSV)")
     writer.Write(File.ReadAllText(path))
 
 let processDpmljGtfs conn path =

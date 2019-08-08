@@ -31,13 +31,15 @@ Options:
     --jdf-mhd=PATH                 JDF MHD directory (extracted)
     --czptt-szdc=PATH              CZPTT SŽDC directory (extracted)
     --cis-stop-list=PATH           CIS "zastavky.csv"
+    --cis-coords=PATH              CSV file with coordinates of CIS stops
     --dpmlj-gtfs=PATH              GTFS from DPMLJ (extracted)
 
 This program creates numerous schemas in the given database
 """
 
 let jrunify dbConnStr outPath
-            jdfBusPath jdfMhdPath czpttSzdcPath cisStopList dpmljGtfsPath =
+            jdfBusPath jdfMhdPath czpttSzdcPath cisStopList cisCoords
+            dpmljGtfsPath =
     // Dirty hack to make sure there's no command timeout
     let dbConnStrMod = dbConnStr + ";CommandTimeout=0"
     let newConn () =
@@ -46,13 +48,18 @@ let jrunify dbConnStr outPath
             let n = ev.Notice
             if n.Severity <> "NOTICE" then
                 printfn "SQL notice: %s" n.MessageText)
+        c.Open()
         c
+
+    let c = newConn ()
+    loadCisCoords c cisCoords
+    c.Close()
+
     [
         async {
             jdfBusPath |> Option.iter (fun jdfBusPath ->
                 measureTime "Processing jdfbus" (fun () ->
                     let c = newConn ()
-                    c.Open()
                     processJdf c "jdfbus" jdfBusPath
                     c.Close()
                 )
@@ -62,7 +69,6 @@ let jrunify dbConnStr outPath
             jdfMhdPath |> Option.iter (fun jdfMhdPath ->
                 measureTime "Processing jdfmhd" (fun () ->
                     let c = newConn ()
-                    c.Open()
                     processJdf c "jdfmhd" jdfMhdPath
                     c.Close()
                 )
@@ -72,7 +78,6 @@ let jrunify dbConnStr outPath
             czpttSzdcPath |> Option.iter (fun czpttSzdcPath ->
                 measureTime "Processing czptt" (fun () ->
                     let c = newConn ()
-                    c.Open()
                     processCzPtt c czpttSzdcPath
                     c.Close()
                 )
@@ -81,7 +86,6 @@ let jrunify dbConnStr outPath
         async {
             dpmljGtfsPath |> Option.iter (fun dpmljGtfsPath ->
                 let c = newConn ()
-                c.Open()
                 measureTime "Reading CIS stop list" (fun () ->
                     loadCisStopList c (Option.get cisStopList)
                 )
@@ -98,7 +102,6 @@ let jrunify dbConnStr outPath
     |> ignore
 
     use c = newConn ()
-    c.Open()
     measureTime "Merging" (fun () ->
         mergeAll c
     )
@@ -123,6 +126,7 @@ let main args =
                     (optArgValue args "--jdf-mhd")
                     (optArgValue args "--czptt-szdc")
                     (optArgValue args "--cis-stop-list")
+                    (optArgValue args "--cis-coords")
                     (optArgValue args "--dpmlj-gtfs")
             0
         with
