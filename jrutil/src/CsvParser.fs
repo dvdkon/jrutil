@@ -38,6 +38,7 @@ let rec colParserForBase colParserFor (colType: Type) =
     if parseMethod <> null then (fun x -> parseMethod.Invoke(null, [|x|]))
     else if colType = typeof<string> then box
     else if colType = typeof<int> then int >> box
+    else if colType = typeof<int64> then int64 >> box
     else if colType = typeof<float> then float >> box
     else if colType = typeof<decimal> then decimal >> box
     else if colType = typeof<bool> then

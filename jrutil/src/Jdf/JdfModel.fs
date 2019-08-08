@@ -86,7 +86,7 @@ type JdfVersion = {
 }
 
 type Stop = {
-    id: int
+    id: int64
     town: string
     district: string option
     nearbyPlace: string option // In practice used for the stop name
@@ -97,8 +97,8 @@ type Stop = {
 }
 
 type StopPost = {
-    stopId: int
-    stopPostId: int
+    stopId: int64
+    stopPostId: int64
     name: string option
     description: string option
     postName: string option // Name within the station
@@ -120,8 +120,8 @@ type CompanyType =
     | [<StrValue("2")>] NaturalPerson
 
 type Agency = {
-    id: int // IČO
-    taxId: int option // DIČ
+    id: string // IČO
+    taxId: string option // DIČ
     name: string
     companyType: CompanyType
     personName: string
@@ -160,7 +160,7 @@ type TransportMode =
 type Route = {
     id: string
     name: string
-    agencyId: int
+    agencyId: string
     routeType: RouteType
     transportMode: TransportMode
     detour: bool
@@ -180,7 +180,7 @@ type Route = {
 type RouteIntegration = {
     routeId: string
     entryNum: int // Incremented per routeId
-    transportSystemId: int
+    transportSystemId: int64
     routeName: string
     preferential: bool
     reserved1: string
@@ -189,15 +189,15 @@ type RouteIntegration = {
 
 type Trip = {
     routeId: string
-    id: int
+    id: int64
     [<CsvSpread(10)>]
     attributes: int option array
-    tripGroupId: int option
+    tripGroupId: int64 option
     routeDistinction: int // forms a 2-field foreign key with routeId
 }
 
 type TripGroup = {
-    id: int
+    id: int64
     entryNum: int // Incremented per route
     name: string
     description: string option
@@ -209,9 +209,9 @@ type RouteStop = {
     // The stop's ID within this route
     // I'm not sure what this is or how it's used
     // TBD probably by analysis of existing files
-    routeStopId: int // TODO
+    routeStopId: int64 // TODO
     zone: string option
-    stopId: int
+    stopId: int64
     approximateTime: int option // Minutes from route start
     [<CsvSpread(3)>]
     attributes: int option array
@@ -237,10 +237,10 @@ type TripStopTime =
 
 type TripStop = {
     routeId: string
-    tripId: int
-    routeStopId: int
-    stopId: int
-    stopPostId: int option
+    tripId: int64
+    routeStopId: int64
+    stopId: int64
+    stopPostId: int64 option
     stopPostNum: int option
     [<CsvSpread(3)>]
     attributes: int option array
@@ -254,7 +254,7 @@ type TripStop = {
 
 type RouteInfo = {
     routeId: string
-    id: int
+    id: int64
     text: string
     routeDistinction: int
 }
@@ -271,8 +271,8 @@ type RouteTimeType =
 
 type RouteTime = {
     routeId: string
-    tripId: int
-    id: int
+    tripId: int64
+    id: int64
     designation: string // TODO: What is this?
     timeType: RouteTimeType option
     dateFrom: Date option
@@ -284,14 +284,14 @@ type RouteTime = {
 type Transfer = {
     transferType: string
     routeId: string
-    tripId: int
-    routeStopId: int
+    tripId: int64
+    routeStopId: int64
     // All points to global register
-    transferRouteId: int option
-    transferStopId: int option
-    transferStopPostId: int option
-    transferEndStopId: int option
-    transferEndStopPostId: int option
+    transferRouteId: int64 option
+    transferStopId: int64 option
+    transferStopPostId: int64 option
+    transferEndStopId: int64 option
+    transferEndStopPostId: int64 option
     waitMinutes: int option
     note: string option
     routeDistinction: int
@@ -299,8 +299,8 @@ type Transfer = {
 
 type AgencyAlternation = {
     routeId: string
-    tripId: int
-    agencyId: int
+    tripId: int64
+    agencyId: string
     [<CsvSpread(6)>]
     attributes: int option array
     timeType: string option
@@ -320,7 +320,7 @@ type AlternateRouteName = {
 
 type ReservationOptions = {
     routeId: string
-    tripId: int
+    tripId: int64
     note: string
     routeDistinction: int
 }

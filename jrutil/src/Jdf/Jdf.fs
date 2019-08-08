@@ -11,7 +11,7 @@ open System
 open System.IO
 open System.Text.RegularExpressions
 
-let parseAttributes batch attributes =
+let parseAttributes batch (attributes: int option array) =
     attributes
     |> Array.choose id
     |> Set.ofArray

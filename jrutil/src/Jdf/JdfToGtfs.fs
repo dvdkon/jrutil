@@ -19,7 +19,7 @@ open System.Text.RegularExpressions
 // to become a problem.
 
 let jdfAgencyId id idDistinction =
-    sprintf "JDFA-%d-%d" id idDistinction
+    sprintf "JDFA-%s-%d" id idDistinction
 
 let jdfStopId id =
     sprintf "JDFS-%d" id
@@ -144,7 +144,7 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
             (fun t -> t.routeId = jdfRoute.id
                       && t.routeDistinction = jdfRoute.idDistinction)
         |> Array.map (fun jdfTrip ->
-            let attrs = Jdf.parseAttributes  jdfBatch jdfTrip.attributes
+            let attrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
             let servicedDays =
                 attrs
                 |> Set.toList
@@ -262,7 +262,7 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
             // This is kind of arbitrary
             // TODO: Customizability?
             shortName = Some (sprintf "%s %d" jdfTrip.routeId jdfTrip.id)
-            directionId = Some (if jdfTrip.id % 2 = 0 then "0" else "1")
+            directionId = Some (if jdfTrip.id % 2L = 0L then "0" else "1")
             blockId = None
             shapeId = None
             wheelchairAccessible =

@@ -17,7 +17,7 @@ open System
 type Route = {
     id: string
     name: string
-    agencyId: int
+    agencyId: string
     routeType: JdfModel.RouteType
     transportMode: JdfModel.TransportMode
     detour: bool
@@ -35,10 +35,10 @@ type Route = {
 
 type TripStop = {
     routeId: string
-    tripId: int
-    routeStopId: int
-    stopId: int
-    stopPostId: int option
+    tripId: int64
+    routeStopId: int64
+    stopId: int64
+    stopPostId: int64 option
     stopPostNum: int option
     [<CsvSpread(2)>]
     attributes: int option array
@@ -51,14 +51,14 @@ type TripStop = {
 type Transfer = {
     transferType: string
     routeId: string
-    tripId: int
-    routeStopId: int
+    tripId: int64
+    routeStopId: int64
     // All points to global register
-    transferRouteId: int option
-    transferStopId: int option
-    transferStopPostId: int option
-    transferEndStopId: int option
-    transferEndStopPostId: int option
+    transferRouteId: int64 option
+    transferStopId: int64 option
+    transferStopPostId: int64 option
+    transferEndStopId: int64 option
+    transferEndStopPostId: int64 option
     waitMinutes: int option
     routeDistinction: int
 }

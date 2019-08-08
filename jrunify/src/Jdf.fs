@@ -45,7 +45,7 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
 
     let zeroAgencies =
         jdfBatch.agencies
-        |> Array.filter (fun a -> a.id = 0 && a.idDistinction = 0)
+        |> Array.filter (fun a -> a.id = "0" && a.idDistinction = 0)
     // This process only applies to cases where the agencies aren't
     // distinguished further by "idDistinction"
     if (zeroAgencies
@@ -54,7 +54,7 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
         let addresses = zeroAgencies |> Array.map (fun a -> a.officeAddress)
         let phoneNums = zeroAgencies |> Array.map (fun a -> a.officePhoneNum)
         let composite: JdfModel.Agency = {
-            id = 0
+            id = "0"
             taxId = None
             name = "Composite: " + (String.concat "; " names)
             companyType = JdfModel.Corporation
@@ -70,7 +70,7 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
         }
         let agencies =
             jdfBatch.agencies
-            |> Array.filter (fun a -> a.id <> 0)
+            |> Array.filter (fun a -> a.id <> "0")
             |> Array.append [| composite |]
         { jdfBatch with
             agencies = agencies

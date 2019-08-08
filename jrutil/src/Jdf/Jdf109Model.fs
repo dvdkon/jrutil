@@ -13,8 +13,8 @@ type JdfVersion = {
 }
 
 type Agency = {
-    id: int // IČO
-    taxId: int option // DIČ
+    id: int64 // IČO
+    taxId: int64 option // DIČ
     name: string
     companyType: JdfModel.CompanyType
     personName: string
@@ -30,7 +30,7 @@ type Agency = {
 type Route = {
     id: string
     name: string
-    agencyId: int
+    agencyId: string
     routeType: JdfModel.RouteType
     reserved1: string option
     licenceNum: string option
@@ -42,7 +42,7 @@ type Route = {
 
 type Trip = {
     routeId: string
-    id: int
+    id: int64
     [<CsvSpread(10)>]
     attributes: int option array
 }
@@ -52,18 +52,18 @@ type RouteStop = {
     // The stop's ID within this route
     // I'm not sure what this is or how it's used
     // TBD probably by analysis of existing files
-    routeStopId: int // TODO
+    routeStopId: int64 // TODO
     reserved1: string option
-    stopId: int
+    stopId: int64
     [<CsvSpread(3)>]
     attributes: int option array
 }
 
 type TripStop = {
     routeId: string
-    tripId: int
-    routeStopId: int
-    stopId: int
+    tripId: int64
+    routeStopId: int64
+    stopId: int64
     stopPostNum: int option
     [<CsvSpread(2)>]
     attributes: int option array
@@ -74,14 +74,14 @@ type TripStop = {
 
 type RouteInfo = {
     routeId: string
-    id: int
+    id: int64
     text: string
 }
 
 type RouteTime = {
     routeId: string
-    tripId: int
-    id: int
+    tripId: int64
+    id: int64
     designation: string // TODO: What is this?
     timeType: JdfModel.RouteTimeType option
     dateFrom: Date option
@@ -91,8 +91,8 @@ type RouteTime = {
 
 type AgencyAlternation = {
     routeId: string
-    tripId: int
-    agencyId: int
+    tripId: int64
+    agencyId: string
     [<CsvSpread(6)>]
     attributes: int option array
     timeType: string option
@@ -109,7 +109,7 @@ type AlternateRouteName = {
 
 type ReservationOptions = {
     routeId: string
-    tripId: int
+    tripId: int64
     note: string
 }
 
