@@ -6,6 +6,7 @@ module JrUtil.Gtfs
 open System.IO
 open System.Data.Common
 open System.Runtime.InteropServices
+open Npgsql
 
 open JrUtil.Utils
 open JrUtil.GtfsCsvSerializer
@@ -148,52 +149,49 @@ let sqlInsertGtfsFeed =
         calendarInserter conn feed.calendar
         calendarExceptionsInserter conn feed.calendarExceptions
 
-let saveGtfsSqlSchema =
-    let template =
-        compileSqlTemplate
-            (File.ReadAllText(__SOURCE_DIRECTORY__ + "/SaveGtfsSchema.sql"))
-    fun (conn: DbConnection) (schema: string) outpath ->
-        let abspath = Path.GetFullPath(outpath)
-        Directory.CreateDirectory(abspath) |> ignore
-        let writeHeader recType fileName =
-            let filepath = Path.Combine(abspath, fileName)
-            let header = getHeader recType |> String.concat ","
-            File.WriteAllText(filepath, header + "\n")
+let saveGtfsSqlSchema (conn: NpgsqlConnection) (schema: string) outpath =
+    let abspath = Path.GetFullPath(outpath)
+    Directory.CreateDirectory(abspath) |> ignore
+    let writeHeader recType (file: StreamWriter) =
+        let header = getHeader recType |> String.concat ","
+        file.Write(header + "\n")
 
-        writeHeader typeof<Agency> "agency.txt"
-        writeHeader typeof<Stop> "stops.txt"
-        writeHeader typeof<Route> "routes.txt"
-        writeHeader typeof<Trip> "trips.txt"
-        writeHeader typeof<StopTime> "stop_times.txt"
-        writeHeader typeof<CalendarEntry> "calendar.txt"
-        writeHeader typeof<CalendarException> "calendar_dates.txt"
+    let save recType filename query =
+        let path = Path.Combine(outpath, filename)
+        use file = new StreamWriter(path)
+        writeHeader recType file
+        use reader =
+            conn.BeginTextExport(sprintf "COPY %s TO STDOUT WITH (FORMAT csv)"
+                                         query)
+        // TextReader doesn't have .CopyTo, so this will have to do
+        let buf = Array.create 4096 '\000'
+        let mutable hasData = true;
+        while hasData do
+            let len = reader.ReadBlock(buf, 0, buf.Length)
+            file.Write(buf.[0..len - 1]);
+            hasData <- len = buf.Length
 
-        if RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-           || RuntimeInformation.IsOSPlatform(OSPlatform.OSX) then
-            let sql = template [
-                "platform", box "unix"
-                "schema", box schema
-                "outpath", box abspath
-            ]
-            executeSql conn sql []
-        else
-            // assert RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            let tmpPath = Path.Combine(abspath, "tmp")
-            Directory.CreateDirectory(tmpPath) |> ignore
-            let sql = template [
-                "platform", box "windows"
-                "schema", box schema
-                "outpath", box tmpPath
-            ]
-            executeSql conn sql []
-            for filename in ["agency.txt"; "stops.txt"; "routes.txt";
-                             "trips.txt"; "stop_times.txt"; "calendar.txt";
-                             "calendar_dates.txt"] do
-                use infile = File.Open(Path.Combine(tmpPath, filename),
-                                       FileMode.Open)
-                use outfile = File.Open(Path.Combine(abspath, filename),
-                                        FileMode.Append)
-                infile.CopyTo(outfile)
+    let saveTable recType filename tableName =
+        save recType filename (sprintf "%s.%s" schema tableName)
+
+    saveTable typeof<Agency> "agency.txt" "agencies"
+    saveTable typeof<Stop> "stops.txt" "stops"
+    saveTable typeof<Route> "routes.txt" "routes"
+    saveTable typeof<Trip> "trips.txt" "trips"
+    saveTable typeof<StopTime> "stop_times.txt" "stoptimes"
+    save typeof<CalendarEntry> "calendar.txt" (sprintf """(
+            SELECT id,
+                   CASE WHEN weekdayservice[0] THEN 1 ELSE 0 END,
+                   CASE WHEN weekdayservice[1] THEN 1 ELSE 0 END,
+                   CASE WHEN weekdayservice[2] THEN 1 ELSE 0 END,
+                   CASE WHEN weekdayservice[3] THEN 1 ELSE 0 END,
+                   CASE WHEN weekdayservice[4] THEN 1 ELSE 0 END,
+                   CASE WHEN weekdayservice[5] THEN 1 ELSE 0 END,
+                   CASE WHEN weekdayservice[6] THEN 1 ELSE 0 END,
+                   startdate, enddate
+            FROM %s.calendar
+        )""" schema)
+    saveTable typeof<CalendarException> "calendar_dates.txt" "calendarexceptions"
 
 let sqlLoadGtfsFeed conn path =
     // TODO: See if creating functions beforehand has a reasonable impact
