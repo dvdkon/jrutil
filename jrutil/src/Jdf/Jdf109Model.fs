@@ -13,8 +13,8 @@ type JdfVersion = {
 }
 
 type Agency = {
-    id: int64 // IČO
-    taxId: int64 option // DIČ
+    id: string // IČO
+    taxId: string option // DIČ
     name: string
     companyType: JdfModel.CompanyType
     personName: string

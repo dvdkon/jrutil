@@ -150,8 +150,7 @@ let sqlInsertGtfsFeed =
         calendarExceptionsInserter conn feed.calendarExceptions
 
 let saveGtfsSqlSchema (conn: NpgsqlConnection) (schema: string) outpath =
-    let abspath = Path.GetFullPath(outpath)
-    Directory.CreateDirectory(abspath) |> ignore
+    Directory.CreateDirectory(outpath) |> ignore
     let writeHeader recType (file: StreamWriter) =
         let header = getHeader recType |> String.concat ","
         file.Write(header + "\n")
@@ -168,7 +167,7 @@ let saveGtfsSqlSchema (conn: NpgsqlConnection) (schema: string) outpath =
         let mutable hasData = true;
         while hasData do
             let len = reader.ReadBlock(buf, 0, buf.Length)
-            file.Write(buf.[0..len - 1]);
+            file.Write(buf.[0..len - 1])
             hasData <- len = buf.Length
 
     let saveTable recType filename tableName =
