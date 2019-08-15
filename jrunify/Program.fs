@@ -51,9 +51,11 @@ let jrunify dbConnStr outPath
         c.Open()
         c
 
-    let c = newConn ()
-    loadCisCoords c cisCoords
-    c.Close()
+    measureTime "Loading CIS coordinates" (fun () ->
+        let c = newConn ()
+        loadCisCoords c cisCoords
+        c.Close()
+    )
 
     [
         async {
@@ -112,24 +114,13 @@ let jrunify dbConnStr outPath
 
 [<EntryPoint>]
 let main args =
-    if args.Length = 0 then
-        printf "%s" docstring
-        0
-    else
-        try
-            let docopt = Docopt(docstring)
-            let args = docopt.Parse(args)
-
-            jrunify (argValue args "--connstr")
-                    (argValue args "--out")
-                    (optArgValue args "--jdf-bus")
-                    (optArgValue args "--jdf-mhd")
-                    (optArgValue args "--czptt-szdc")
-                    (optArgValue args "--cis-stop-list")
-                    (optArgValue args "--cis-coords")
-                    (optArgValue args "--dpmlj-gtfs")
-            0
-        with
-        | ArgvException(msg) ->
-            printfn "%s" msg
-            1
+    withProcessedArgs docstring args (fun args ->
+        jrunify (argValue args "--connstr")
+                (argValue args "--out")
+                (optArgValue args "--jdf-bus")
+                (optArgValue args "--jdf-mhd")
+                (optArgValue args "--czptt-szdc")
+                (optArgValue args "--cis-stop-list")
+                (optArgValue args "--cis-coords")
+                (optArgValue args "--dpmlj-gtfs")
+        0)

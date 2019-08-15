@@ -162,6 +162,21 @@ let argValues (args: Arguments.Dictionary) name =
     | _ -> raise (ArgvException (sprintf "Expected %A to be Arguments"
                                          args.[name]))
 
+let withProcessedArgs docstring (args: string array) fn =
+    if args.Length = 0 then
+        printfn "%s" docstring
+        0
+    else
+        try
+            let docopt = Docopt(docstring)
+            let args = docopt.Parse(args)
+
+            fn args
+        with
+        | ArgvException(msg) ->
+            printfn "%s" msg
+            1
+
 let measureTime msg func =
     let sw = Stopwatch.StartNew()
     func()

@@ -35,9 +35,7 @@ let inOutFiles inpath outpath =
 
 [<EntryPoint>]
 let main (args: string array) =
-    try
-        let docopt = Docopt(docstring)
-        let args = docopt.Parse(args)
+    withProcessedArgs docstring args (fun args ->
         if argFlagSet args "jdf-to-gtfs" then
             let jdfPar = Jdf.jdfBatchDirParser ()
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
@@ -81,7 +79,4 @@ let main (args: string array) =
             dbConn.Close()
         else printfn "%s" docstring
         0
-    with
-    | ArgvException(msg) ->
-        printfn "%s" msg
-        1
+    )

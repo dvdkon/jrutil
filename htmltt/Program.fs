@@ -19,10 +19,7 @@ Usage:
 
 [<EntryPoint>]
 let main argv =
-    try
-        let docopt = Docopt(docstring)
-        let args = docopt.Parse(argv)
-
+    withProcessedArgs docstring argv (fun args ->
         let dbConn = getPostgresqlConnection (argValue args "<db-connstr>")
         dbConn.Open()
 
@@ -35,7 +32,4 @@ let main argv =
             dbConn.Close()
             0
         else failwith "Unreachable"
-    with
-    | ArgvException(msg) ->
-        printfn "%s" msg
-        1
+    )
