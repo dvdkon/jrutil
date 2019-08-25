@@ -177,7 +177,15 @@ let saveGtfsSqlSchema (conn: NpgsqlConnection) (schema: string) outpath =
     saveTable typeof<Stop> "stops.txt" "stops"
     saveTable typeof<Route> "routes.txt" "routes"
     saveTable typeof<Trip> "trips.txt" "trips"
-    saveTable typeof<StopTime> "stop_times.txt" "stoptimes"
+    save typeof<StopTime> "stop_times.txt" (sprintf """(
+            SELECT tripid,
+                   -- Convert days into just hours
+                   date_part('epoch', arrivaltime) * '1s'::interval,
+                   date_part('epoch', departuretime) * '1s'::interval,
+                   stopid, stopsequence, headsign, pickuptype, dropofftype,
+                   shapedisttraveled, timepoint, stopzoneids
+            FROM %s.stoptimes
+        )""" schema)
     save typeof<CalendarEntry> "calendar.txt" (sprintf """(
             SELECT id,
                    CASE WHEN weekdayservice[0] THEN 1 ELSE 0 END,
