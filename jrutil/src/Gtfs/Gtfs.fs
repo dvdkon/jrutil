@@ -188,13 +188,13 @@ let saveGtfsSqlSchema (conn: NpgsqlConnection) (schema: string) outpath =
         )""" schema)
     save typeof<CalendarEntry> "calendar.txt" (sprintf """(
             SELECT id,
-                   CASE WHEN weekdayservice[0] THEN 1 ELSE 0 END,
                    CASE WHEN weekdayservice[1] THEN 1 ELSE 0 END,
                    CASE WHEN weekdayservice[2] THEN 1 ELSE 0 END,
                    CASE WHEN weekdayservice[3] THEN 1 ELSE 0 END,
                    CASE WHEN weekdayservice[4] THEN 1 ELSE 0 END,
                    CASE WHEN weekdayservice[5] THEN 1 ELSE 0 END,
                    CASE WHEN weekdayservice[6] THEN 1 ELSE 0 END,
+                   CASE WHEN weekdayservice[7] THEN 1 ELSE 0 END,
                    to_char(startdate, 'YYYYMMDD'),
                    to_char(enddate, 'YYYYMMDD')
             FROM %s.calendar
