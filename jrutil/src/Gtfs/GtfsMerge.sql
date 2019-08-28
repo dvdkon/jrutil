@@ -47,7 +47,7 @@ IMMUTABLE LANGUAGE SQL AS $$
     SELECT COALESCE(
         new_id,
         CASE WHEN id_is_stable(old_id) THEN old_id
-             ELSE '#feednum/' || old_id
+             ELSE '#feednum:' || old_id
         END);
 $$;
 
@@ -68,7 +68,7 @@ BEGIN
                   WHERE id_is_stable(old.id)
                   UNION ALL
                   SELECT old.id,
-                         COALESCE(new.id, '#feednum/' || old.id),
+                         COALESCE(new.id, '#feednum:' || old.id),
                          new.id IS NULL,
                          %3$I(old, new)
                   FROM #in.%2$I AS old
@@ -177,10 +177,10 @@ SELECT create_idmap_table('calendar_idmap');
 -- TODO: Don't insert calendar entries used only for non-inserted trips
 INSERT INTO calendar_idmap
     SELECT DISTINCT ON (old_id) old_id, new_id, should_insert FROM (
-        SELECT id AS old_id, '#feednum/' || id AS new_id, true AS should_insert
+        SELECT id AS old_id, '#feednum:' || id AS new_id, true AS should_insert
         FROM #in.calendar
         UNION ALL
-        SELECT id, '#feednum/' || id, true
+        SELECT id, '#feednum:' || id, true
         FROM #in.calendarexceptions
     ) AS ids;
 
