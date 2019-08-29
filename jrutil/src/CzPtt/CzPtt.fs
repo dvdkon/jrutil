@@ -116,14 +116,30 @@ let gtfsTripId czptt =
     let trainIdentifier = getIdentifierByType czptt "TR"
     sprintf "CZPTTT-%s-%s" trainIdentifier.Core trainIdentifier.Variant
 
+let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
+    // This is kind of a heuristic, since the conversion code uses .Value on
+    // optional elements, this isn't perfect. Unfortunately, location elements
+    // don't quite conform to the spec (as far as I can see) and also fall into
+    // two categories - "full" (usable for GTFS converion) and "partial"
+    // (not meant for end-user outputs, hopefully)
+    match loc.TrafficType with
+    | Some tt ->
+        (trafficTypes.[tt] <> "Sv") &&
+        loc.PrimaryLocationName.IsSome &&
+        match loc.LocationSubsidiaryIdentification with
+        | Some lsi ->
+            lsi.LocationSubsidiaryCode.LocationSubsidiaryTypeCode = "1"
+        | None -> loc.TimingAtLocation.IsSome
+    | None -> false
+
 let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
 
     // Information about the train is stored in each CZPTTLocation element.
-    // This is not explicitly stated in the specification, but each file
-    // only contains data about one trip. This means we can simply take the
-    // first element and get the data from there.
-    let firstLocation = info.CzpttLocations.[0]
+    // This is not explicitly stated in the specification, but each file only
+    // contains data about one trip (TODO: Verify). This means we can simply
+    // take the first *valid* element and get the data from there.
+    let firstLocation = info.CzpttLocations |> Seq.find isValidGtfsStop
 
     let prefix =
         match (firstLocation.CommercialTrafficType,
@@ -166,65 +182,53 @@ let gtfsStopId (loc: CzPttXml.CzpttLocation) =
              |> Option.map (fun p -> "-" + p)
              |> Option.defaultValue "")
 
-
-let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
-    // This is kind of a heuristic, since the conversion code uses .Value on
-    // optional elements, this isn't perfect. Unfortunately, location elements
-    // don't quite conform to the spec (as far as I can see) and also fall into
-    // two categories - "full" (usable for GTFS converion) and "partial"
-    // (not meant for end-user outputs, hopefully)
-    match loc.LocationSubsidiaryIdentification with
-    | Some lsi -> lsi.LocationSubsidiaryCode.LocationSubsidiaryTypeCode = "1"
-    | None -> loc.TimingAtLocation.IsSome
-
 let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
     info.CzpttLocations
+    |> Array.filter isValidGtfsStop
     |> Array.collect (fun loc ->
-        if not <| isValidGtfsStop loc then [||]
-        else
-            let createStop locType station platform = {
-                id = if locType = Station
-                     then gtfsStationId loc
-                     else gtfsStopId loc
-                code = None
-                name = loc.PrimaryLocationName |> Option.defaultValue ""
-                description = None
-                lat = None
-                lon = None
-                // Train routes can still have zones when joined into an
-                // integrated transport system, just this format doesn't have
-                // them.
-                zoneId = None
-                url = None
-                locationType = Some locType
-                parentStation = station
-                // TODO: It may be possible to get the timezone of a station by
-                // looking at the arrival/departure times' time zone. This will
-                // have to be combined with some logic that knows about daylight
-                // saving time, since the time zone is stored as an offset from
-                // UTC. Or we could just assign a time zone per country and not
-                // care about Russia. Or maybe GTFS accepts timezone info as a
-                // UTC offset?
-                timezone =
-                    if locType = Station then Some "Europe/Prague" else None
-                // Attributes are missing from this format, unfortunately.
-                wheelchairBoarding = None
-                platformCode = platform
-            }
+        let createStop locType station platform = {
+            id = if locType = Station
+                 then gtfsStationId loc
+                 else gtfsStopId loc
+            code = None
+            name = loc.PrimaryLocationName |> Option.defaultValue ""
+            description = None
+            lat = None
+            lon = None
+            // Train routes can still have zones when joined into an
+            // integrated transport system, just this format doesn't have
+            // them.
+            zoneId = None
+            url = None
+            locationType = Some locType
+            parentStation = station
+            // TODO: It may be possible to get the timezone of a station by
+            // looking at the arrival/departure times' time zone. This will
+            // have to be combined with some logic that knows about daylight
+            // saving time, since the time zone is stored as an offset from
+            // UTC. Or we could just assign a time zone per country and not
+            // care about Russia. Or maybe GTFS accepts timezone info as a
+            // UTC offset?
+            timezone =
+                if locType = Station then Some "Europe/Prague" else None
+            // Attributes are missing from this format, unfortunately.
+            wheelchairBoarding = None
+            platformCode = platform
+        }
 
-            match loc.LocationSubsidiaryIdentification with
-            | Some lsi ->
-                let platformCode = lsi.LocationSubsidiaryCode.Value
-                let station = createStop Station None None
-                let platform =
-                    createStop
-                        Stop
-                        (gtfsStationId loc |> Some)
-                        (Some platformCode)
-                [| station; platform |]
-            | None ->
-                [| createStop Stop None None |]
+        match loc.LocationSubsidiaryIdentification with
+        | Some lsi ->
+            let platformCode = lsi.LocationSubsidiaryCode.Value
+            let station = createStop Station None None
+            let platform =
+                createStop
+                    Stop
+                    (gtfsStationId loc |> Some)
+                    (Some platformCode)
+            [| station; platform |]
+        | None ->
+            [| createStop Stop None None |]
     )
     // Deal with stops being driven through multiple times
     |> Array.groupBy (fun s -> s.id)
@@ -258,33 +262,32 @@ let timingToTimeSpan (timing: CzPttXml.Timing) =
 
 let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
-    info.CzpttLocations |> Array.mapi (fun i loc ->
-        if not <| isValidGtfsStop loc then None
-        else
-            let findTime name =
-                loc.TimingAtLocation.Value.Timings
-                |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
-                |> Option.map timingToTimeSpan
+    info.CzpttLocations
+    |> Array.filter isValidGtfsStop
+    |> Array.mapi (fun i loc ->
+        let findTime name =
+            loc.TimingAtLocation.Value.Timings
+            |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
+            |> Option.map timingToTimeSpan
 
-            let arrTime = findTime "ALA"
-            let depTime = findTime "ALD"
+        let arrTime = findTime "ALA"
+        let depTime = findTime "ALD"
 
-            let stopTime: StopTime = {
-                tripId = gtfsTripId czptt
-                arrivalTime = arrTime |> Option.orElse depTime
-                departureTime = depTime |> Option.orElse arrTime
-                stopId = gtfsStopId loc
-                stopSequence = i
-                headsign = None
-                pickupType = None
-                dropoffType = None
-                shapeDistTraveled = None
-                timepoint = Some Exact
-                stopZoneIds = None
-            }
-            Some stopTime
+        let stopTime: StopTime = {
+            tripId = gtfsTripId czptt
+            arrivalTime = arrTime |> Option.orElse depTime
+            departureTime = depTime |> Option.orElse arrTime
+            stopId = gtfsStopId loc
+            stopSequence = i
+            headsign = None
+            pickupType = None
+            dropoffType = None
+            shapeDistTraveled = None
+            timepoint = Some Exact
+            stopZoneIds = None
+        }
+        stopTime
     )
-    |> Array.choose id
 
 let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
