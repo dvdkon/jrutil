@@ -39,7 +39,7 @@ type TripStop = {
     routeStopId: int64
     stopId: int64
     stopPostId: int64 option
-    stopPostNum: int option
+    stopPostNum: string option
     [<CsvSpread(2)>]
     attributes: int option array
     kilometer: decimal option

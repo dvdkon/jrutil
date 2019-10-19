@@ -79,15 +79,15 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
 
 let jdfToGtfsDb =
     let jdfParser = Jdf.jdfBatchDirParser ()
-    fun (conn: DbConnection) inPath ->
+    fun (conn: DbConnection) stopIdsCis inPath ->
         cleanGtfsTables conn
         let jdf = jdfParser inPath
         let jdf = fixupJdf jdf
-        let gtfs = JdfToGtfs.getGtfsFeed jdf
+        let gtfs = JdfToGtfs.getGtfsFeed stopIdsCis jdf
         Gtfs.sqlInsertGtfsFeed conn gtfs
         ()
 
-let processJdf conn group path =
+let processJdf conn stopIdsCis group path =
     let schemaMerged = sprintf "%s_merged" group
     let schemaTemp = sprintf "%s_temp" group
     let schemaIntermediate = sprintf "%s_intermediate" group
@@ -105,7 +105,7 @@ let processJdf conn group path =
         printfn "Processing %s: %s" group jdfPath
         try
             setSchema conn schemaIntermediate
-            jdfToGtfsDb conn jdfPath
+            jdfToGtfsDb conn stopIdsCis jdfPath
             setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
         with

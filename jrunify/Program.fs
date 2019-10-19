@@ -62,7 +62,7 @@ let jrunify dbConnStr outPath
             jdfBusPath |> Option.iter (fun jdfBusPath ->
                 measureTime "Processing jdfbus" (fun () ->
                     let c = newConn ()
-                    processJdf c "jdfbus" jdfBusPath
+                    processJdf c false "jdfbus" jdfBusPath
                     c.Close()
                 )
             )
@@ -71,7 +71,7 @@ let jrunify dbConnStr outPath
             jdfMhdPath |> Option.iter (fun jdfMhdPath ->
                 measureTime "Processing jdfmhd" (fun () ->
                     let c = newConn ()
-                    processJdf c "jdfmhd" jdfMhdPath
+                    processJdf c false "jdfmhd" jdfMhdPath
                     c.Close()
                 )
             )

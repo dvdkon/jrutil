@@ -45,7 +45,8 @@ let main (args: string array) =
                 printfn "Processing %s" inpath
                 try
                     let jdf = jdfPar inpath
-                    let gtfs = JdfToGtfs.getGtfsFeed jdf
+                    // TODO: Allow choice for stopIdsCis
+                    let gtfs = JdfToGtfs.getGtfsFeed false jdf
                     gtfsSer out gtfs
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e

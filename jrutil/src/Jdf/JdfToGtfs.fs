@@ -13,7 +13,6 @@ open System.Text.RegularExpressions
 // Details of accessibility attributes
 // Transfer attributes
 // "Stop exclusivity" attributes (can't go A->C, or C->B, but B->C is fine)
-// StopPosts
 // TripGroups
 // And probably even more things. These are just the ones that are likely
 // to become a problem.
@@ -21,8 +20,17 @@ open System.Text.RegularExpressions
 let jdfAgencyId id idDistinction =
     sprintf "JDFA-%s-%d" id idDistinction
 
-let jdfStopId id =
-    sprintf "JDFS-%d" id
+let jdfStopId cis id =
+    if cis
+    // Stop IDs which are global (from the CIS database)
+    then sprintf "-CISS-%d" id
+    // Stop IDs which are local to the file
+    else sprintf "JDFS-%d" id
+
+let jdfStopPostId cis stopId stopPostId =
+    if cis
+    then sprintf "-CISS-%d-%d" stopId stopPostId
+    else sprintf "JDFS-%d-%d" stopId stopPostId
 
 let jdfRouteId id idDistinction =
     sprintf "-CISR-%s-%d" id idDistinction
@@ -79,40 +87,53 @@ let convertToGtfsAgency: JdfModel.Agency -> GtfsModel.Agency = fun jdfAgency ->
         email = jdfAgency.email
     }
 
-let getGtfsStops: JdfModel.JdfBatch -> GtfsModel.Stop array = fun jdfBatch ->
-    // This doesn't deal with JDF StopPosts yet, but it'll likely use
-    // the "Station platforms" extension
-    jdfBatch.stops
-    |> Array.map (fun jdfStop ->
-    {
-        id = jdfStopId jdfStop.id
-        code = None
-        name = getStopName jdfStop
-        description = None
-        lat = None
-        lon = None
-        // This is just a list of all zones this stop is in
-        zoneId = Jdf.stopZone jdfBatch jdfStop
-        url = None
-        locationType = Some GtfsModel.Stop
-        parentStation = None
-        // TODO: Try to guess from jdfStop.country
-        timezone = Some "Europe/Prague"
+let getGtfsStops stopIdsCis (jdfBatch: JdfModel.JdfBatch) =
+    let gtfsStops =
+        jdfBatch.stops |> Array.map (fun jdfStop ->
+        {
+            id = jdfStopId stopIdsCis jdfStop.id
+            code = None
+            name = getStopName jdfStop
+            description = None
+            lat = None
+            lon = None
+            // This is just a list of all zones this stop is in
+            zoneId = Jdf.stopZone jdfBatch jdfStop
+            url = None
+            locationType = Some GtfsModel.Stop
+            parentStation = None
+            // TODO: Try to guess from jdfStop.country
+            timezone = Some "Europe/Prague"
 
-        wheelchairBoarding =
-            // This doesn't use "2" ("not possible"), because there's no
-            // corresponding JDF attribute
-            if jdfStop.attributes
-               |> Jdf.parseAttributes jdfBatch
-               |> Set.contains JdfModel.WheelchairAccessible
-            then Some 1
-            else Some 0
+            wheelchairBoarding =
+                // This doesn't use "2" ("not possible"), because there's no
+                // corresponding JDF attribute
+                if jdfStop.attributes
+                   |> Jdf.parseAttributes jdfBatch
+                   |> Set.contains JdfModel.WheelchairAccessible
+                then Some 1
+                else Some 0
 
-        platformCode = None
+            platformCode = None
 
-        // TODO: Think of the best way to convey other JDF attributes
-        // A column of 0/1 for each or a "set of strings" column?
-    })
+            // TODO: Think of the best way to convey other JDF attributes
+            // A column of 0/1 for each or a "set of strings" column?
+        }: GtfsModel.Stop)
+    let gtfsStopsById = Map <| seq { for s in gtfsStops -> s.id, s }
+    let gtfsStopPosts =
+        jdfBatch.stopPosts |> Array.map (fun jdfStopPost ->
+            let parentStop = gtfsStopsById.[jdfStopId stopIdsCis jdfStopPost.stopId]
+            { parentStop with
+
+                id = jdfStopPostId stopIdsCis
+                                   jdfStopPost.stopId
+                                   jdfStopPost.stopPostId
+                platformCode =
+                    jdfStopPost.postName
+                    |> Option.orElse (Some (string jdfStopPost.stopPostId))
+            }: GtfsModel.Stop)
+
+    Array.concat [ gtfsStops; gtfsStopPosts ]
 
 let getGtfsRoutes: JdfModel.JdfBatch -> GtfsModel.Route array = fun jdfBatch ->
     jdfBatch.routes
@@ -202,7 +223,7 @@ let getGtfsCalendarExceptions:
     let designationNumRegex = new Regex(@"\d\d")
     fun jdfBatch ->
         jdfBatch.routeTimes
-        |> Array.mapi (fun i jdfRouteTime ->
+        |> Array.map (fun jdfRouteTime ->
             if designationNumRegex.IsMatch(jdfRouteTime.designation) then
                 let id = jdfTripId jdfRouteTime.routeId
                                    jdfRouteTime.routeDistinction
@@ -274,7 +295,7 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
         })
     trips
 
-let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
+let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
     let timeToTimeSpan (time: Utils.Time) =
         new TimeSpan(time.hour, time.minute, time.second)
 
@@ -386,7 +407,11 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
                                        jdfTripStop.tripId
                     arrivalTime = arrTime |> Option.orElse depTime
                     departureTime = depTime |> Option.orElse arrTime
-                    stopId = jdfStopId jdfTripStop.stopId
+                    stopId =
+                        match jdfTripStop.stopPostId with
+                        | Some sp ->
+                            jdfStopPostId stopIdCis jdfTripStop.stopId sp
+                        | None -> jdfStopId stopIdCis jdfTripStop.stopId
                     stopSequence = i
                     headsign = None
                     pickupType =
@@ -408,13 +433,15 @@ let getGtfsStopTimes (jdfBatch: JdfModel.JdfBatch) =
         |> Array.choose id
     )
 
-let getGtfsFeed (jdfBatch: JdfModel.JdfBatch) =
+// Some JDF feeds have only local IDs for stops, some have global IDs for the
+// whole CIS. Set stopIdsCis accordingly.
+let getGtfsFeed stopIdsCis (jdfBatch: JdfModel.JdfBatch) =
     let feed: GtfsModel.GtfsFeed = {
         agencies = jdfBatch.agencies |> Array.map convertToGtfsAgency
-        stops = getGtfsStops jdfBatch
+        stops = getGtfsStops stopIdsCis jdfBatch
         routes = getGtfsRoutes jdfBatch
         trips = getGtfsTrips jdfBatch
-        stopTimes = getGtfsStopTimes jdfBatch
+        stopTimes = getGtfsStopTimes stopIdsCis jdfBatch
         calendar = getGtfsCalendar jdfBatch |> Some
         calendarExceptions = getGtfsCalendarExceptions jdfBatch |> Some
         feedInfo = None

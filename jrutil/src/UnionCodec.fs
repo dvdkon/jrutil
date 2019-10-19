@@ -9,6 +9,7 @@ open Microsoft.FSharp.Reflection
 open JrUtil.Utils
 
 [<AllowNullLiteral>]
+[<AttributeUsage(AttributeTargets.All, AllowMultiple=true)>]
 type StrValueAttribute(value: string) =
     inherit Attribute()
     member this.Value = value

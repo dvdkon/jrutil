@@ -116,7 +116,8 @@ type AttributeRef = {
 }
 
 type CompanyType =
-    | [<StrValue("1")>] Corporation
+    // XXX: "" and "0" are here to parse bad batches
+    | [<StrValue("1")>] [<StrValue("0")>] [<StrValue("")>] Corporation
     | [<StrValue("2")>] NaturalPerson
 
 type Agency = {
@@ -241,7 +242,8 @@ type TripStop = {
     routeStopId: int64
     stopId: int64
     stopPostId: int64 option
-    stopPostNum: int option
+    // Standard says this should be an int, but it's a string in practice
+    stopPostNum: string option
     [<CsvSpread(3)>]
     attributes: int option array
     kilometer: decimal option
