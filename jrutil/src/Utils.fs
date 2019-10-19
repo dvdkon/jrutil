@@ -182,3 +182,15 @@ let measureTime msg func =
     func()
     sw.Stop()
     printfn "%s took %A" msg sw.Elapsed
+
+let findPathCaseInsensitive dirPath (filename: string) =
+    let files =
+        Directory.GetFiles(dirPath)
+        |> Array.filter
+            (fun f -> Path.GetFileName(f).ToLower() = filename.ToLower())
+    match files.Length with
+    | 1 -> Some files.[0]
+    | 0 -> None
+    | _ ->
+        failwithf "Multiple files found when looking for %s in %s (case insensitive)"
+                  filename dirPath

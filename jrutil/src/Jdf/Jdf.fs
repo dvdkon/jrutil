@@ -3,6 +3,7 @@
 
 module JrUtil.Jdf
 
+open JrUtil.Utils
 open JrUtil.JdfParser
 open JrUtil.JdfModel
 open JrUtil.Jdf110To111
@@ -34,17 +35,21 @@ let stopZone batch (stop: Stop) =
 
 let jdfBatchDirVersion path =
     let versionFile =
-        File.ReadAllText(Path.Combine(path, "VerzeJDF.txt")).Trim()
+        File.ReadAllText(
+            (findPathCaseInsensitive path "VerzeJDF.txt") |> Option.get
+        ).Trim()
     (new Regex("^\"([0-9.]+)\"[;,]")).Match(versionFile).Groups.[1].Value
 
 let fileParser name =
+    // TODO: Is this necessary?
     let parser = getJdfFileParser
-    fun path -> parser (Path.Combine(path, name))
+    fun path -> parser ((findPathCaseInsensitive path name) |> Option.get)
 let fileParserOrEmpty name =
     let parser = getJdfFileParser
     fun path ->
-        let p = Path.Combine(path, name)
-        if File.Exists(p) then parser p else [||]
+        match findPathCaseInsensitive path name with
+        | Some p -> parser p
+        | None -> [||]
 
 let jdf111BatchDirParser () =
     let versionParser = fileParser "VerzeJDF.txt"
