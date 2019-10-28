@@ -22,13 +22,8 @@ let cleanAndSetSchema conn schemaName =
 
 let cleanGtfsTables conn =
     let cleanSql = """
-    DELETE FROM stopTimes;
-    DELETE FROM trips;
-    DELETE FROM calendar;
-    DELETE FROM calendarExceptions;
-    DELETE FROM routes;
-    DELETE FROM stops;
-    DELETE FROM agencies;
+    TRUNCATE stopTimes, trips, calendar, calendarExceptions, routes,
+             stops, agencies;
     """
     executeSql conn cleanSql []
 
@@ -51,3 +46,13 @@ let convertZones conn =
     let scriptPath = __SOURCE_DIRECTORY__ + "/ConvertZones.sql"
     let script = File.ReadAllText(scriptPath)
     executeSql conn script []
+
+let handleErrors description func =
+    try
+        func()
+    with
+    | :? PostgresException as e ->
+        printfn "Error while %s:\nSQL error:\n%s\n"
+                 description e.Message
+    | e ->
+        printfn "Error while %s :\n%A" description e

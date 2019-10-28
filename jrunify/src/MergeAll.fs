@@ -17,13 +17,8 @@ let mergeAll conn =
         new MergedFeed(conn, "merged", TripMergeStrategy.WithRoute, true)
     ["dpmlj"; "jdfbus_merged"; "jdfmhd_merged"; "czptt_merged"]
     |> List.iter (fun schema ->
-        try
+        handleErrors (sprintf "merging %s" schema) (fun () ->
             cleanAndSetSchema conn "merge_temp"
             mergedFeed.InsertFeed schema
-        with
-        | :? PostgresException as e ->
-            printfn "Error while merging %s:\nSQL error at %s:%s:%d:\n%s\n"
-                    schema e.File e.Line e.Position e.Message
-        | e ->
-            printfn "Error while merging %s:\n%A" schema e
+        )
     )

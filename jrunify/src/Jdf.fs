@@ -103,17 +103,12 @@ let processJdf conn stopIdsCis group path =
     Directory.EnumerateDirectories(path)
     |> Seq.iter (fun jdfPath ->
         printfn "Processing %s: %s" group jdfPath
-        try
+        handleErrors (sprintf "processing %s %s" group jdfPath) (fun () ->
             setSchema conn schemaIntermediate
             jdfToGtfsDb conn stopIdsCis jdfPath
             setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
-        with
-        | :? PostgresException as e ->
-            printfn "Error while processing %s:\nSQL error at %s:%s:%d:\n%s"
-                    jdfPath e.File e.Line e.Position e.Message
-        | e ->
-            printfn "Error while processing %s:\n%A" jdfPath e
+        )
     )
 
     applyCisCoords conn schemaMerged

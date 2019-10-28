@@ -20,7 +20,7 @@ let loadCisStopList (conn: NpgsqlConnection) path =
     writer.Write(File.ReadAllText(path))
 
 let processDpmljGtfs conn path =
-    try
+    handleErrors "processing DPMLJ GTFS" (fun () ->
         cleanAndSetSchema conn "dpmlj"
         Gtfs.sqlCreateGtfsTablesNoConstrs conn
         Gtfs.sqlLoadGtfsFeed conn path
@@ -54,9 +54,4 @@ let processDpmljGtfs conn path =
         // Different prefixes per city will also be needed.
         // That'll probably have to wait for OSM integration
         normaliseStopNames conn "cis_stops.stops" "Liberec"
-    with
-    | :? PostgresException as e ->
-        printfn "Error while processing DPMLJ GTFS:\nSQL error at %s:%s:%d:\n%s\n"
-                e.File e.Line e.Position e.Message
-    | e ->
-        printfn "Error while processing DPMLJ GTFS:\n%A" e
+    )

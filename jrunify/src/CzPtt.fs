@@ -31,7 +31,7 @@ let processCzPtt conn path =
     Directory.EnumerateFiles(path, "*.xml", SearchOption.AllDirectories)
     |> Seq.iter (fun czpttFile ->
         printfn "Processing czptt: %s" czpttFile
-        try
+        handleErrors (sprintf "processing czptt %s" czpttFile) (fun () ->
             setSchema conn schemaIntermediate
             cleanGtfsTables conn
             let czptt = CzPtt.parseFile czpttFile
@@ -40,10 +40,5 @@ let processCzPtt conn path =
             executeSql conn fixupScript []
             setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
-        with
-        | :? PostgresException as e ->
-            printfn "Error while processing %s:\nSQL error at %s:%s:%d:\n%s\n"
-                    czpttFile e.File e.Line e.Position e.Message
-        | e ->
-            printfn "Error while processing %s:\n%A" czpttFile e
+        )
     )
