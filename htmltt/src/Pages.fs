@@ -43,6 +43,18 @@ let pageTemplate title_ contents =
         ]
     ]
 
+let routesTable (routes: Route seq) =
+    table2 ["ID"; "Short name"; "Long name"; "Description"; "Type"] [
+        for route in routes ->
+        linkTr ("/route/" + (urlEncode route.id)) [] [
+            str route.id
+            optStr route.shortName
+            optStr route.longName
+            optStr route.description
+            str route.routeType
+        ]
+    ]
+
 let agenciesPage conn =
     let agencies = sqlQueryRec<Agency> conn "SELECT * FROM agencies" []
 
@@ -67,16 +79,7 @@ let agencyPage conn agencyId =
     pageTemplate ("Agency – " + agency.name)
     <| div [] [
         h2 [] [str "Routes"]
-        table2 ["ID"; "Short name"; "Long name"; "Description"; "Type"] [
-            for route in routes ->
-            linkTr ("/route/" + (urlEncode route.id)) [] [
-                str route.id
-                optStr route.shortName
-                optStr route.longName
-                optStr route.description
-                str route.routeType
-            ]
-        ]
+        routesTable routes
     ]
 
 let routePage conn routeId =
@@ -294,4 +297,44 @@ let routePage conn routeId =
                             stopTimeToTd trip.[stopIndex]])]
             ]
         ]
+    ]
+
+let stopsPage conn =
+    let stops = sqlQueryRec<Stop> conn "SELECT * FROM stops" []
+
+    pageTemplate "Stops"
+    <| div [] [
+        h1 [] [str "Stops"]
+        table2 ["ID"; "Code"; "Lat"; "Lon"; "Name"; "Type"; "Platform"] [
+            for stop in stops ->
+            linkTr ("/stop/" + (urlEncode stop.id)) [] [
+                str stop.id
+                optStr stop.code
+                optStr (stop.lat |> Option.map string)
+                optStr (stop.lon |> Option.map string)
+                str stop.name
+                optStr (stop.locationType |> Option.map string)
+                optStr stop.platformCode
+            ]
+        ]
+    ]
+
+let stopPage conn stopId =
+    let stop =
+        sqlQueryRec<Stop> conn "SELECT * FROM stops WHERE id = @id"
+                          ["id", stopId] |> Seq.exactlyOne
+
+    let routes =
+        sqlQueryRec<Route> conn """
+            SELECT routes.* FROM routes
+            WHERE EXISTS (
+                SELECT FROM trips
+                INNER JOIN stoptimes ON stoptimes.tripid = trips.id
+                WHERE trips.routeid = routes.id AND stoptimes.stopid = @stopid)
+        """ ["stopid", stopId]
+
+    pageTemplate ("Stop – " + stop.name)
+    <| div [] [
+        h2 [] [str "Routes"]
+        routesTable routes
     ]

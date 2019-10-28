@@ -7,22 +7,24 @@ module HtmlTt.Server
 
 open Giraffe
 open Microsoft.AspNetCore.Hosting
-open Microsoft.AspNetCore.HttpOverrides.Internal
 open Microsoft.Extensions.Logging
+open System.Net
 
 open HtmlTt.Pages
 
-let runServer dbConn bindAddr =
+let runServer dbConn (bindAddr: string) =
     let routes = choose [
         route "/agencies" >=> htmlView (agenciesPage dbConn)
         routef "/agency/%s" (fun agencyId ->
             htmlView (agencyPage dbConn agencyId))
         routef "/route/%s" (fun routeId -> htmlView (routePage dbConn routeId))
+        route "/stops" >=> htmlView (stopsPage dbConn)
+        routef "/stop/%s" (fun stopId -> htmlView (stopPage dbConn stopId))
     ]
 
     WebHostBuilder()
         .ConfigureKestrel(fun kestrel ->
-            let success, endpoint = IPEndPointParser.TryParse(bindAddr)
+            let success, endpoint = IPEndPoint.TryParse(bindAddr)
             if not success
             then failwithf "Invalid bind address: %s" bindAddr
             kestrel.Listen(endpoint)
