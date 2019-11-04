@@ -5,6 +5,8 @@ module JrUnify.Utils
 
 open System.IO
 
+open Npgsql
+
 open JrUtil.SqlRecordStore
 
 let setSchema conn schemaName =

@@ -292,8 +292,10 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
 let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
     let cal = info.PlannedCalendar
-    let fromDate = cal.ValidityPeriod.StartDateTime
+    // TODO: Maybe rather move models from DateTime to DateTimeOffset?
+    let fromDate = cal.ValidityPeriod.StartDateTime.LocalDateTime
     let toDate = cal.ValidityPeriod.EndDateTime
+                 |> Option.map (fun dto -> dto.LocalDateTime)
     let days = dateTimeRange fromDate (toDate |> Option.defaultValue fromDate)
     assert (days.Length = cal.BitmapDays.Length)
     days
@@ -312,8 +314,10 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
 let gtfsFeedInfo (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
     let cal = info.PlannedCalendar
-    let fromDate = cal.ValidityPeriod.StartDateTime |> dateTimeToDate
-    let toDate = cal.ValidityPeriod.EndDateTime |> Option.map dateTimeToDate
+    let fromDate = cal.ValidityPeriod.StartDateTime.LocalDateTime
+                   |> dateTimeToDate
+    let toDate = cal.ValidityPeriod.EndDateTime
+                 |> Option.map (fun dto -> dateTimeToDate dto.LocalDateTime)
     let feedInfo = {
         publisherName = "JrUtil"
         publisherUrl = "https://gitlab.com/dvdkon/jrutil"

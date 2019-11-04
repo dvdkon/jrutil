@@ -16,8 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="giraffe" Version="3.5.1" />
-    <PackageReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="giraffe" Version="4.0.1" />
   </ItemGroup>
 
 </Project>
