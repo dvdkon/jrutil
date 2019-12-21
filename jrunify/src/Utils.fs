@@ -9,19 +9,6 @@ open Npgsql
 
 open JrUtil.SqlRecordStore
 
-let setSchema conn schemaName =
-    executeSql conn (sprintf "SET search_path TO %s, public" schemaName) []
-
-let cleanAndSetSchema conn schemaName =
-    let sql =
-        sprintf """
-                DROP SCHEMA IF EXISTS %s CASCADE;
-                CREATE SCHEMA IF NOT EXISTS %s;
-                SET search_path TO %s, public;
-                """
-                schemaName schemaName schemaName
-    executeSql conn sql []
-
 let cleanGtfsTables conn =
     let cleanSql = """
     TRUNCATE stopTimes, trips, calendar, calendarExceptions, routes,

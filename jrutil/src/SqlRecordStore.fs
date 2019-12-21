@@ -22,17 +22,16 @@ open JrUtil.ReflectionUtils
 // column names. It just relies on code being sane and no type/field having
 // unwanted characters in their names.
 
-// Most of the code is trying to be somewhat database portable, but there are
-// places where that's just not possible and being specific to one database
-// (PostgreSQL in this case) is inevitable. Other parts of the project are
-// specific to PostgreSQL, so DB portability isn't really a priority.
+// Nowadays this module is pretty much PostgreSQL specific
 
 type SqlRow(columnNames: string seq, cols: obj array) =
     member this.ColumnNames = columnNames
     member this.Cols = cols
     member this.Item(columnName) =
-        let i = columnNames |> Seq.findIndex ((=) columnName)
-        cols.[i]
+        match columnNames |> Seq.tryFindIndex ((=) columnName) with
+        | None -> failwithf "Column \"%s\" not found. Columns: %A"
+                            columnName columnNames
+        | Some i -> cols.[i]
     member this.Item(columnIndex) =
         cols.[columnIndex]
 
@@ -42,6 +41,7 @@ let getPostgresqlConnection connstr =
 let rec sqlAdoTypeFor t =
     if t = typeof<string> then NpgsqlDbType.Text
     else if t = typeof<int> then NpgsqlDbType.Integer
+    else if t = typeof<int64> then NpgsqlDbType.Bigint
     else if t = typeof<float> then NpgsqlDbType.Real
     else if t = typeof<decimal> then NpgsqlDbType.Numeric
     else if t = typeof<bool> then NpgsqlDbType.Boolean
@@ -57,7 +57,7 @@ let rec sqlAdoTypeFor t =
     else failwithf "Could not get SQL parameter type for %A" t
 
 let rec sqlPrepareValue value =
-    if value = null then box DBNull.Value
+    if isNull value then box DBNull.Value
     else
         let t = value.GetType()
         if typeIsOption t then
@@ -76,7 +76,7 @@ let createSqlCommand (conn: DbConnection) sql (paramSeq: (string * obj) seq) =
     let sqlParams = paramSeq |> Seq.map (fun (name, value) ->
         let value = sqlPrepareValue value
         let adoType = sqlAdoTypeFor (value.GetType())
-        let param = new NpgsqlParameter(name, adoType)
+        let param = NpgsqlParameter(name, adoType)
         param.Value <- value
         param)
     cmd.Parameters.AddRange(Seq.toArray sqlParams)
@@ -96,7 +96,7 @@ let sqlQuery conn sql paramSeq =
     while reader.Read() do
         let cols = Array.zeroCreate reader.FieldCount
         reader.GetValues(cols) |> ignore
-        rows.Add(new SqlRow(colNames, cols))
+        rows.Add(SqlRow(colNames, cols))
     reader.Close()
     rows
 
@@ -121,9 +121,9 @@ let createSqlInserter = memoize <| fun recType ->
                           (sqlIdent table) columnsStr paramsStr
         executeSql conn sql ps
 
-let sqlInsert conn table o =
-    let inserter = createSqlInserter (o.GetType())
-    inserter table conn o
+let sqlInsert<'a> conn table (os: 'a seq) =
+    let inserter = createSqlInserter typeof<'a>
+    os |> Seq.iter (fun o -> inserter table conn o)
 
 let rec parseSqlValue tgtType value =
     if typeIsOption tgtType then
@@ -238,7 +238,7 @@ let sqlCopyInText (conn: NpgsqlConnection)
 // Note that this just does textual replacements, there's no escaping
 // and SQLi protection
 let compileSqlTemplate =
-    let refRegex = new Regex(@"(?<!\$)#([a-zA-Z_]+)(?=[^a-zA-Z_$])")
+    let refRegex = Regex(@"(?<!\$)#([a-zA-Z_]+)(?=[^a-zA-Z_$])")
     fun sql ->
         let templateStr = refRegex.Replace(sql, @"{{$1}}")
         let template = Template.Parse(templateStr)
@@ -248,11 +248,24 @@ let compileSqlTemplate =
                        |> Seq.map (fun x -> x.ToString())
                        |> String.concat "\n")
         fun (vars: (string * obj) seq) ->
-            let context = new TemplateContext()
+            let context = TemplateContext()
             context.StrictVariables <- true
-            let globals = new ScriptObject()
+            let globals = ScriptObject()
             vars |> Seq.iter (fun (k, v) ->
                 globals.Add(k, v)
             )
             context.PushGlobal(globals)
             template.Render(context)
+
+let setSchema conn schemaName =
+    executeSql conn (sprintf "SET search_path TO %s, public" schemaName) []
+
+let cleanAndSetSchema conn schemaName =
+    let sql =
+        sprintf """
+                DROP SCHEMA IF EXISTS %s CASCADE;
+                CREATE SCHEMA IF NOT EXISTS %s;
+                SET search_path TO %s, public;
+                """
+                schemaName schemaName schemaName
+    executeSql conn sql []

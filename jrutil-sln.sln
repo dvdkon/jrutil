@@ -17,6 +17,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "jrunify", "jrunify\jrunify.
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "htmltt", "htmltt\htmltt.fsproj", "{914FF423-9663-48B3-B167-3D98115785BC}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "georeport", "georeport\georeport.fsproj", "{45DD4820-3849-47B6-8E21-FE2A46B215E1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -90,6 +92,18 @@ Global
 		{914FF423-9663-48B3-B167-3D98115785BC}.Release|x64.Build.0 = Release|Any CPU
 		{914FF423-9663-48B3-B167-3D98115785BC}.Release|x86.ActiveCfg = Release|Any CPU
 		{914FF423-9663-48B3-B167-3D98115785BC}.Release|x86.Build.0 = Release|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Debug|x64.Build.0 = Debug|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Debug|x86.Build.0 = Debug|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|x64.ActiveCfg = Release|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|x64.Build.0 = Release|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|x86.ActiveCfg = Release|Any CPU
+		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{D7102706-956F-4B9D-91B9-669125406CBE} = {B830DE06-3ECD-449D-92E3-99A0E822E22C}

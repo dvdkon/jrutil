@@ -1,0 +1,150 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.55.7 8b86ff77",
+  "osm3s": {
+    "timestamp_osm_base": "2019-11-01T13:44:02Z",
+    "timestamp_areas_base": "2019-11-01T13:11:02Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 24589182,
+  "lat": 49.9494991,
+  "lon": 14.6779555,
+  "tags": {
+    "name": "Strančice",
+    "operator": "cz:SŽDC",
+    "railway": "station",
+    "railway:ref": "550061"
+  }
+},
+{
+  "type": "node",
+  "id": 33530472,
+  "lat": 49.8834847,
+  "lon": 14.8571180,
+  "tags": {
+    "name": "Stříbrná Skalice",
+    "note": "nz",
+    "railway": "halt"
+  }
+},
+{
+  "type": "node",
+  "id": 34208544,
+  "lat": 49.8700182,
+  "lon": 14.8062504,
+  "tags": {
+    "name": "Chocerady",
+    "railway": "halt",
+    "railway:ref": "559369"
+  }
+},
+{
+  "type": "node",
+  "id": 52738317,
+  "lat": 49.8749040,
+  "lon": 14.8143272,
+  "tags": {
+    "name": "Vlkovec",
+    "railway": "halt"
+  }
+},
+{
+  "type": "node",
+  "id": 274841257,
+  "lat": 49.8786217,
+  "lon": 14.8754223,
+  "tags": {
+    "name": "Plužiny",
+    "railway": "halt"
+  }
+},
+{
+  "type": "node",
+  "id": 477076657,
+  "lat": 49.8724206,
+  "lon": 14.7719378,
+  "tags": {
+    "name": "Hvězdonice",
+    "railway": "station"
+  }
+},
+{
+  "type": "node",
+  "id": 834661267,
+  "lat": 49.8795817,
+  "lon": 14.7334377,
+  "tags": {
+    "name": "Zlenice",
+    "railway": "halt"
+  }
+},
+{
+  "type": "node",
+  "id": 834661312,
+  "lat": 49.8861155,
+  "lon": 14.8350283,
+  "tags": {
+    "name": "Samechov",
+    "railway": "halt"
+  }
+},
+{
+  "type": "node",
+  "id": 2864079480,
+  "lat": 49.9331230,
+  "lon": 14.7066051,
+  "tags": {
+    "name": "Mnichovice",
+    "name:cs": "Mnichovice",
+    "name:de": "Mnichowitz",
+    "name:ru": "Мниховице",
+    "operator": "cz:SŽDC",
+    "public_transport": "stop_position",
+    "railway": "halt",
+    "railway:ref": "550160",
+    "train": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 3935761955,
+  "lat": 49.8970963,
+  "lon": 14.7276172,
+  "tags": {
+    "name": "Senohraby",
+    "operator": "cz:SŽDC",
+    "railway": "station",
+    "railway:ref": "550269"
+  }
+},
+{
+  "type": "node",
+  "id": 5677840926,
+  "lat": 49.9097930,
+  "lon": 14.7206495,
+  "tags": {
+    "name": "Mirošovice u Prahy",
+    "operator": "cz:SŽDC",
+    "railway": "halt",
+    "ref:sr70": "550368"
+  }
+},
+{
+  "type": "node",
+  "id": 5677840927,
+  "lat": 49.8684501,
+  "lon": 14.7139523,
+  "tags": {
+    "name": "Čtyřkoly",
+    "operator": "cz:SŽDC",
+    "railway": "halt",
+    "railway:ref": "554162"
+  }
+}
+
+  ]
+}

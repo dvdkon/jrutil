@@ -7,6 +7,7 @@ open Npgsql
 
 open JrUtil
 open JrUtil.GtfsMerge
+open JrUtil.SqlRecordStore
 
 open JrUnify.Utils
 
