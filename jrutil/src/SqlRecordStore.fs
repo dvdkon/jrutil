@@ -4,7 +4,6 @@
 module JrUtil.SqlRecordStore
 
 open System
-open System.Data
 open System.Data.Common
 open System.Collections.Generic
 open System.Text.RegularExpressions

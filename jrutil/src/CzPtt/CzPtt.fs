@@ -368,20 +368,11 @@ let gtfsFeedInfo (czptt: CzPttXml.CzpttcisMessage) =
     feedInfo
 
 let gtfsAgency (czptt: CzPttXml.CzpttcisMessage) =
-    // The returned list is annoying to match to CzPtt, since it contains
-    // multiple entries per "EvCisloEU", which is the only ID contained in
-    // CzPtt. This can result in wildly wrong agency information in
-    // the resultant GTFS.
-    let companiesResp = KadrEnumWs.requestCompanyList()
-    let companies =
-        companiesResp
-         .Body
-         .SeznamSpolecnostiResponse
-         .SeznamSpolecnostiResult
-         .Spolecnosts
     let trainIdentifier = getIdentifierByType czptt "TR"
     let agencyNum = trainIdentifier.Company
-    let agency = companies |> Array.find (fun c -> c.EvCisloEu = agencyNum)
+    let agency =
+        KadrEnumWs.companyForEvCisloEu agencyNum
+        |> Option.get
     let gtfsAgency: Agency = {
         id = Some <| gtfsAgencyId czptt
         name = agency.ObchodNazev

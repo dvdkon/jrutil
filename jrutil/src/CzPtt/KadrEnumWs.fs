@@ -23,8 +23,6 @@ let makeSoapRequest endpoint body =
         body=TextRequest body
     )
 
-let mutable companyListCache: CompanyListXml.Envelope option = None
-
 let requestCompanyList = memoizeVoidFunc (fun () ->
     let body =
         """<?xml version="1.0" encoding="utf-8"?>
@@ -41,3 +39,24 @@ let requestCompanyList = memoizeVoidFunc (fun () ->
         """
     let strResp = makeSoapRequest "SeznamSpolecnosti" body
     CompanyListXml.Parse(strResp))
+
+let companyForEvCisloEu evCisloEu =
+    let companiesResp = requestCompanyList()
+    let companies =
+        companiesResp
+         .Body
+         .SeznamSpolecnostiResponse
+         .SeznamSpolecnostiResult
+         .Spolecnosts
+    let matching =
+        companies
+        |> Seq.filter (fun c -> c.EvCisloEu = evCisloEu)
+        // Try to get the most applicable company first
+        |> Seq.sortByDescending (fun c ->
+            let lic = c.Licence
+            [lic.VerejnaDopr; lic.PrapravaOsob; lic.DrahaCelostatni]
+            |> Seq.filter id
+            |> Seq.length
+        )
+    let best = Seq.tryHead matching
+    best
