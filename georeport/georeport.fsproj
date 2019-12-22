@@ -6,6 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="src/GeoReport.fs" />
+    <Compile Include="src/HtmlPage.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
@@ -15,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="FSharp.Data" Version="3.3.2" />
+    <PackageReference Include="giraffe" Version="4.0.1" />
   </ItemGroup>
 
 </Project>
