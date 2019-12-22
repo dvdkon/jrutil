@@ -96,7 +96,7 @@ let processJdf conn stopIdsCis group path =
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        new MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, false)
+        MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, false)
     cleanAndSetSchema conn schemaIntermediate
     Gtfs.sqlCreateGtfsTables conn
 

@@ -220,7 +220,7 @@ let getGtfsCalendarExceptions:
             | None -> startDate.Value
         Utils.dateRange startDate.Value endDate
 
-    let designationNumRegex = new Regex(@"\d\d")
+    let designationNumRegex = Regex(@"\d\d")
     fun jdfBatch ->
         jdfBatch.routeTimes
         |> Array.map (fun jdfRouteTime ->
@@ -297,7 +297,7 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
 
 let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
     let timeToTimeSpan (time: Utils.Time) =
-        new TimeSpan(time.hour, time.minute, time.second)
+        TimeSpan(time.hour, time.minute, time.second)
 
     jdfBatch.tripStops
     // We have to deal with stop times for each trip separately,
@@ -330,7 +330,7 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
              else id) jdfTripStops
 
         let mutable lastTimeDT = None
-        let mutable dayTimeSpan = new TimeSpan()
+        let mutable dayTimeSpan = TimeSpan()
 
         jdfTripStops
         |> Array.mapi (fun i jdfTripStop ->
@@ -360,7 +360,7 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
                         | Some lt ->
                             if lt > dt
                             then dayTimeSpan <- dayTimeSpan
-                                              + (new TimeSpan(24, 0, 0))
+                                              + (TimeSpan(24, 0, 0))
                         | None -> ()
                         lastTimeDT <- Some dt
                         let ts = timeToTimeSpan dt

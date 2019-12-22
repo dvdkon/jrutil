@@ -28,8 +28,8 @@ let getJdfParser<'r> =
     // This, however, means that this CSV-esque format can be parsed by regex!
     let rowParser = getRowParser<'r> jdfColParserFor
     fun text ->
-        let lines = (new Regex(";\\r\\n")).Split(text)
-        let colRegex = new Regex("\",\"")
+        let lines = Regex(";\\r\\n").Split(text)
+        let colRegex = Regex("\",\"")
         lines
         |> Array.filter (fun line -> line <> "")
         |> Array.map (fun line ->

@@ -67,6 +67,7 @@
         <xs:element ref="Identifiers"/>
         <xs:element ref="CZPTTCreation"/>
         <xs:element ref="CZPTTInformation"/>
+        <xs:element minOccurs="0" ref="NetworkSpecificParameter"/>
       </xs:sequence>
     </xs:complexType>
   </xs:element>
@@ -78,7 +79,7 @@
     </xs:complexType>
   </xs:element>
   <xs:element name="PlannedTransportIdentifiers" type="TransportIdentifier"/>
-  <xs:element name="CZPTTCreation" type="xs:dateTime"/>
+  <xs:element name="CZPTTCreation" type="xs:date"/>
   <xs:element name="CZPTTInformation">
     <xs:complexType>
       <xs:sequence>
@@ -110,8 +111,8 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  <xs:element name="StartDateTime" type="xs:dateTime"/>
-  <xs:element name="EndDateTime" type="xs:dateTime"/>
+  <xs:element name="StartDateTime" type="xs:date"/>
+  <xs:element name="EndDateTime" type="xs:date"/>
   <xs:element name="CZPTTLocation">
     <xs:complexType>
       <xs:sequence>
@@ -243,4 +244,14 @@
       </xs:restriction>
     </xs:simpleType>
   </xs:element>
+  <xs:element name="NetworkSpecificParameter">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element minOccurs="0" maxOccurs="unbounded" ref="Name"/>
+        <xs:element minOccurs="0" maxOccurs="unbounded" ref="Value"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="Name" type="xs:string"/>
+  <xs:element name="Value" type="xs:string"/>
 </xs:schema>

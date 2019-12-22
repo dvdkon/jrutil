@@ -15,7 +15,7 @@ let mergeAll conn =
     cleanAndSetSchema conn "merged"
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        new MergedFeed(conn, "merged", TripMergeStrategy.WithRoute, true)
+        MergedFeed(conn, "merged", TripMergeStrategy.WithRoute, true)
     ["dpmlj"; "jdfbus_merged"; "jdfmhd_merged"; "czptt_merged"]
     |> List.iter (fun schema ->
         handleErrors (sprintf "merging %s" schema) (fun () ->

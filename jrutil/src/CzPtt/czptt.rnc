@@ -36,14 +36,14 @@ start =
 			}+
 		},
 
-		element CZPTTCreation { xsd:dateTime },
+		element CZPTTCreation { xsd:date },
 
 		element CZPTTInformation {
 			element PlannedCalendar {
 				element BitmapDays { xsd:string { pattern="[10]+" } },
 				element ValidityPeriod {
-					element StartDateTime { xsd:dateTime },
-					element EndDateTime { xsd:dateTime }?
+					element StartDateTime { xsd:date },
+					element EndDateTime { xsd:date }?
 				}
 			},
 
@@ -89,5 +89,10 @@ start =
 					}
 				}*
 			}+
-		}
+		},
+
+		element NetworkSpecificParameter {
+			element Name { xsd:string }*,
+			element Value { xsd:string }*
+		}?
 	}

@@ -24,7 +24,7 @@ let processCzPtt conn path =
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        new MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, true)
+        MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, true)
     cleanAndSetSchema conn schemaIntermediate
     Gtfs.sqlCreateGtfsTables conn
 

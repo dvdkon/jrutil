@@ -18,7 +18,7 @@ let rec gtfsColParserFor colType =
         fun instr ->
             let nums = instr.Split(":") |> Array.map int
             if nums.Length = 3
-            then new TimeSpan(nums.[0], nums.[1], nums.[2]) |> box
+            then TimeSpan(nums.[0], nums.[1], nums.[2]) |> box
             else raise (CsvParseException
                          (sprintf "Invalid value for TimeSpan: %s" instr))
     else

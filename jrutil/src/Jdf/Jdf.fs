@@ -38,7 +38,7 @@ let jdfBatchDirVersion path =
         File.ReadAllText(
             (findPathCaseInsensitive path "VerzeJDF.txt") |> Option.get
         ).Trim()
-    (new Regex("^\"([0-9.]+)\"[;,]")).Match(versionFile).Groups.[1].Value
+    (Regex("^\"([0-9.]+)\"[;,]")).Match(versionFile).Groups.[1].Value
 
 let fileParser name =
     // TODO: Is this necessary?

@@ -13,7 +13,12 @@ open System
 open System.Globalization
 open JrUtil
 
-// TODO: Workaround for path resolution issues!
+// TODO: Unused data:
+// Some TrainActivities (Doesn't wait for connection...)
+
+// Note that some files will error out. This is fine, as long as they don't
+// describe an actual train. Some files seem to be "broken" (TODO: Why?)
+
 type CzPttXml = XmlProvider<Schema=const(__SOURCE_DIRECTORY__ + "/czptt.xsd")>
 
 type LocationType =
@@ -24,6 +29,25 @@ type LocationType =
     | [<StrValue("05")>] Interchange
     | [<StrValue("06")>] HandoverAndInterchange
     | [<StrValue("07")>] StateBorder
+
+type TrainActivity =
+    | [<StrValue("0001")>] Stops
+    | [<StrValue("0026")>] CustomsStop
+    | [<StrValue("0027")>] OtherStop
+    | [<StrValue("0028")>] EmbarkOnly
+    | [<StrValue("0029")>] DisembarkOnly
+    | [<StrValue("0030")>] RequestStop
+    | [<StrValue("0031")>] DepartsAtArrivalTime
+    | [<StrValue("0032")>] DepartsAfterDisembark
+    | [<StrValue("0033")>] NoConnectionWait
+    | [<StrValue("CZ01")>] StopsAfterStationOpened
+    | [<StrValue("CZ02")>] WaitsLessThanHalfMinute
+    // TODO: Will these ever be in static data?
+    | [<StrValue("CZ03")>] HandicappedEmbark
+    | [<StrValue("CZ04")>] HandicappedDisembark
+    | [<StrValue("CZ05")>] WaitForDelayed
+    | [<StrValue("0002")>] InternalStop
+    | [<StrValue("CZ13")>] UnpublishedStop
 
 // Traffic types could be a union, but that would make creating train names
 // harder. (Each case would need to have two string values - the one used
@@ -58,6 +82,7 @@ let commercialTrafficTypes =
         ("9003", ("LEO Expres", "LE"))
         ("9004", ("Regiojet", "RJ"))
         ("9005", ("Arriva Expres", "AEx"))
+        ("9006", ("Leo Expres Tenders", "LET"))
     ]
 
 let parseFile (path: string) =
@@ -116,21 +141,22 @@ let gtfsTripId czptt =
     let trainIdentifier = getIdentifierByType czptt "TR"
     sprintf "CZPTTT-%s-%s" trainIdentifier.Core trainIdentifier.Variant
 
+let activities (loc: CzPttXml.CzpttLocation) =
+    loc.TrainActivities
+    |> Seq.map ((fun ta -> ta.TrainActivityType) >> parseUnion<TrainActivity>)
+
 let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
-    // This is kind of a heuristic, since the conversion code uses .Value on
-    // optional elements, this isn't perfect. Unfortunately, location elements
-    // don't quite conform to the spec (as far as I can see) and also fall into
-    // two categories - "full" (usable for GTFS converion) and "partial"
-    // (not meant for end-user outputs, hopefully)
-    match loc.TrafficType with
-    | Some tt ->
-        (trafficTypes.[tt] <> "Sv") &&
-        loc.PrimaryLocationName.IsSome &&
-        match loc.LocationSubsidiaryIdentification with
-        | Some lsi ->
-            lsi.LocationSubsidiaryCode.LocationSubsidiaryTypeCode = "1"
-        | None -> loc.TimingAtLocation.IsSome
-    | None -> false
+    // Only use stops with some activity in GTFS and without internal activities
+    // XXX: Maybe it might be useful to include all stops in some cases?
+    loc.TrainActivities.Length > 0
+    && not (activities loc |> Seq.contains InternalStop)
+    && not (activities loc |> Seq.contains UnpublishedStop)
+
+let networkSpecificParams (czptt: CzPttXml.CzpttcisMessage) =
+    czptt.NetworkSpecificParameter
+    |> Option.map (fun nsps ->
+        Seq.zip nsps.Names nsps.Values |> Map)
+    |> Option.defaultValue (Map [])
 
 let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
@@ -139,7 +165,10 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     // This is not explicitly stated in the specification, but each file only
     // contains data about one trip (TODO: Verify). This means we can simply
     // take the first *valid* element and get the data from there.
-    let firstLocation = info.CzpttLocations |> Seq.find isValidGtfsStop
+    let firstLocation =
+        match info.CzpttLocations |> Seq.tryFind isValidGtfsStop with
+        | Some fl -> fl
+        | None -> failwith "Invalid CZPTT - no valid stops"
 
     let prefix =
         match (firstLocation.CommercialTrafficType,
@@ -150,7 +179,9 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     // Name may end up being empty, but this should never happen in a normal
     // dataset.
     let name =
-        [Some prefix; firstLocation.OperationalTrainNumber]
+        [Some prefix
+         firstLocation.OperationalTrainNumber
+         networkSpecificParams czptt |> Map.tryFind "CZTrainName"]
         |> List.choose id
         |> String.concat " "
 
@@ -256,7 +287,7 @@ let timingToTimeSpan (timing: CzPttXml.Timing) =
     let timeStr = timing.Time.Split("+").[0]
     let time = TimeSpan.ParseExact(timeStr, @"hh\:mm\:ss\.fffffff",
                                    CultureInfo.InvariantCulture)
-    let dayOffset = new TimeSpan(int timing.Offset, 0, 0, 0)
+    let dayOffset = TimeSpan(int timing.Offset, 0, 0, 0)
     time + dayOffset
 
 
@@ -273,6 +304,12 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
         let arrTime = findTime "ALA"
         let depTime = findTime "ALD"
 
+        let hasActivity a = activities loc |> Seq.contains a
+        let service =
+            if hasActivity RequestStop
+            then CoordinationWithDriver
+            else RegularlyScheduled
+
         let stopTime: StopTime = {
             tripId = gtfsTripId czptt
             arrivalTime = arrTime |> Option.orElse depTime
@@ -280,8 +317,12 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
             stopId = gtfsStopId loc
             stopSequence = i
             headsign = None
-            pickupType = None
-            dropoffType = None
+            pickupType =
+                Some (if hasActivity DisembarkOnly then NoService
+                      else service)
+            dropoffType =
+                Some (if hasActivity EmbarkOnly then NoService
+                      else service)
             shapeDistTraveled = None
             timepoint = Some Exact
             stopZoneIds = None
@@ -292,10 +333,8 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
 let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
     let cal = info.PlannedCalendar
-    // TODO: Maybe rather move models from DateTime to DateTimeOffset?
-    let fromDate = cal.ValidityPeriod.StartDateTime.LocalDateTime
+    let fromDate = cal.ValidityPeriod.StartDateTime
     let toDate = cal.ValidityPeriod.EndDateTime
-                 |> Option.map (fun dto -> dto.LocalDateTime)
     let days = dateTimeRange fromDate (toDate |> Option.defaultValue fromDate)
     assert (days.Length = cal.BitmapDays.Length)
     days
@@ -314,10 +353,10 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
 let gtfsFeedInfo (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
     let cal = info.PlannedCalendar
-    let fromDate = cal.ValidityPeriod.StartDateTime.LocalDateTime
+    let fromDate = cal.ValidityPeriod.StartDateTime
                    |> dateTimeToDate
     let toDate = cal.ValidityPeriod.EndDateTime
-                 |> Option.map (fun dto -> dateTimeToDate dto.LocalDateTime)
+                 |> Option.map dateTimeToDate
     let feedInfo = {
         publisherName = "JrUtil"
         publisherUrl = "https://gitlab.com/dvdkon/jrutil"
