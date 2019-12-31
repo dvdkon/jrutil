@@ -1,12 +1,8 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv2 or later
 // (c) 2019 David Koňařík
 
-open System
-open System.IO
-
 open Giraffe.GiraffeViewEngine
 
-open JrUtil
 open JrUtil.Utils
 open JrUtil.SqlRecordStore
 open GeoReport.Processing
@@ -25,7 +21,7 @@ Options:
     --rail-ext-sources=PATH   Folder with external geodata sources for railway stops
     --other-ext-sources=PATH  Folder with external geodata sources for non-railway stops
     --overpass-url=URL        URL of OSM Overpass API instance (optional)
-    --cache-dir               Overpass result cache directory (default /tmp)
+    --cache-dir               Overpass result cache directory [default: /tmp]
 
 External sources should be in CSV format, with columns being lat,lon,stop name.
 Railway stops CSV has columns sr70,name
@@ -49,11 +45,7 @@ let main argv =
         let otherStopsPath = argValue args "--other-stops"
         let railExtSourcesDir = argValue args "--rail-ext-sources"
         let otherExtSourcesDir = argValue args "--other-ext-sources"
-        let cacheDir =
-            match optArgValue args "--cache-dir" with
-            | Some "" -> None
-            | None -> Some "/tmp"
-            | cd -> cd
+        let cacheDir = argValue args "--cache-dir"
 
         let dbConnStrMod = (argValue args "--connstr") + ";CommandTimeout=0"
         let conn = getPostgresqlConnection dbConnStrMod

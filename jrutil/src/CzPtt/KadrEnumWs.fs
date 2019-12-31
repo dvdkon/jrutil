@@ -3,7 +3,6 @@
 
 module JrUtil.KadrEnumWs
 
-open System
 open FSharp.Data
 
 open JrUtil.Utils
@@ -53,10 +52,12 @@ let companyForEvCisloEu evCisloEu =
         |> Seq.filter (fun c -> c.EvCisloEu = evCisloEu)
         // Try to get the most applicable company first
         |> Seq.sortByDescending (fun c ->
-            let lic = c.Licence
-            [lic.VerejnaDopr; lic.PrapravaOsob; lic.DrahaCelostatni]
-            |> Seq.filter id
-            |> Seq.length
+            c.Licence
+            |> Option.map (fun lic ->
+                [lic.VerejnaDopr; lic.PrapravaOsob; lic.DrahaCelostatni]
+                |> Seq.filter id
+                |> Seq.length)
+            |> Option.defaultValue 0
         )
     let best = Seq.tryHead matching
     best

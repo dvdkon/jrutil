@@ -9,7 +9,6 @@
           <Pobocka ID="1" InterniCislo="string" Nazev="string" Mesto="string" Ulice="string" Psc="string" StatID="1" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01" />
         </Spolecnost>
         <Spolecnost ID="1" EvCislo="string" EvCisloEU="string" ObchodNazev="string" ZkrObchodNazev="string" AdresaSidlo="string" MestoSidlo="string" UliceSidlo="string" PscSidlo="string" IC="string" DIC="string" StatSidloID="1" StatRegistraceID="1" TypSpolecnostiID="1" Jmeno="string" Adresa="string" Poznamka="string" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01">
-          <Licence CisloLicence="string" VerejnaDopr="true" NeverejnaDopr="true" PrapravaOsob="true" PrapravaVeci="true" Nostalgie="true" ZkouskyVozidel="true" DrahaCelostatni="true" DrahaRegionalni="true" Eurolicence="true" />
           <Pobocka ID="1" InterniCislo="string" Nazev="string" Mesto="string" Ulice="string" Psc="string" StatID="1" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01" />
           <Pobocka ID="1" InterniCislo="string" Nazev="string" Mesto="string" Ulice="string" Psc="string" StatID="1" PlatnostOd="2001-01-01" PlatnostDo="2001-01-01" Aktualizace="2001-01-01" />
         </Spolecnost>

@@ -1,3 +1,6 @@
+// This file is part of JrUtil and is licenced under the GNU GPLv2 or later
+// (c) 2019 David Koňařík
+
 module GeoReport.HtmlPage
 
 open Giraffe.GiraffeViewEngine
@@ -35,6 +38,12 @@ a {
 
 .matches-by-type {
     margin-bottom: 10px;
+}
+
+.more-matches {
+    border: 1px solid #aaa;
+    background-color: #eee;
+    border-radius: 2px;
 }
 
 .match-none {

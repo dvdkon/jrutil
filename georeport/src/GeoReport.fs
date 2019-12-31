@@ -1,15 +1,16 @@
+// This file is part of JrUtil and is licenced under the GNU GPLv2 or later
+// (c) 2019 David Koňařík
+
 module GeoReport.Processing
 
 open System
 open System.IO
-open System.Text
-open System.Security.Cryptography
 
 open FSharp.Data
 
 open JrUtil.SqlRecordStore
+open JrUtil.GeoData.Osm
 
-let czechRepBBox = "48.195,12.000,51.385,18.951"
 let similarityThreshold = 0.8
 
 type StopMatchType =
@@ -25,7 +26,6 @@ type StopMatch = {
 }
 
 type OtherStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../samples/osm_other_stops.json")>
-type RailwayStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../samples/osm_railway_stops.json")>
 type Sr70Stops = CsvProvider<HasHeaders = false, Schema = "sr70(int), name(string)">
 type StopsSource = CsvProvider<HasHeaders = false, Schema = "name(string), lat(float), lon(float)">
 type StopsSr70Source = CsvProvider<HasHeaders = false, Schema = "sr70(int), name(string), lat(float), lon(float)">
@@ -35,31 +35,6 @@ let readStopNamesCsv path =
     |> Array.map (fun line ->
         assert ((Seq.head line) = '"' && (Seq.last line) = '"')
         line.[1..(line.Length - 2)])
-
-let queryOverpass overpassUrl cacheDir (query: string) =
-    let sendRequest () =
-        Http.RequestString(
-            overpassUrl,
-            httpMethod = "POST",
-            body = FormValues ["data", query],
-            timeout = 1000000,
-            responseEncodingOverride = "UTF-8")
-    match cacheDir with
-    | Some cd ->
-        let queryBytes = Encoding.Default.GetBytes(query)
-        let queryHash =
-            Convert.ToBase64String((new SHA256Managed())
-                                    .ComputeHash(queryBytes))
-             .Replace("/", "-")
-        let filename =
-            "georeport_cache_" + queryHash
-        let path = Path.Combine(cd, filename)
-        if File.Exists(path) then File.ReadAllText(path)
-        else
-            let result = sendRequest()
-            File.WriteAllText(path, result)
-            result
-    | None -> sendRequest()
 
 let topMatches matches =
     let matchPriority = function
@@ -137,14 +112,7 @@ let loadStopListsToSql conn railStopsPath otherStopsPath =
          |> Seq.map (fun name -> [| name |]))
 
 let loadOsmDataToSql conn overpassUrl cacheDir =
-    let railStopsOsm =
-        queryOverpass overpassUrl cacheDir ("[bbox:" + czechRepBBox + """]
-            [out:json][timeout:100];
-            ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
-            node["railway"~"halt|station"][!"subway"](area.cz);
-            out;
-        """)
-        |> RailwayStops.Parse
+    let railStopsOsm = getCzRailStops overpassUrl cacheDir
 
     let otherStopsOsm =
         // TODO: Think about eliminating the need to set maxsize so high
@@ -167,14 +135,11 @@ let loadOsmDataToSql conn overpassUrl cacheDir =
     sqlCopyInText conn "railstops_osm" [| false; false; false; false; false |]
         (railStopsOsm.Elements
          |> Seq.map (fun rso -> [|
-            rso.Tags.Name
+            czRailStopName rso
             string rso.Id
             string rso.Lat
             string rso.Lon
-            (rso.Tags.RefSr70
-             |> Option.orElse rso.Tags.RailwayRef
-             |> Option.map (fun x -> x.ToString())
-             |> Option.defaultValue "")
+            normalisedSr70 rso
          |]))
 
     sqlCopyInText conn "otherstops_osm" [| false; false; false; false |]

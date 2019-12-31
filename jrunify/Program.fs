@@ -25,21 +25,23 @@ Usage:
     jrunify.exe --connstr=CONNSTR --out=OUT [options]
 
 Options:
-    --connstr=CONNSTR              Npgsql connection string
-    --out=OUTPATH                  Output directory
-    --jdf-bus=PATH                 JDF BUS directory (extracted)
-    --jdf-mhd=PATH                 JDF MHD directory (extracted)
-    --czptt-szdc=PATH              CZPTT SŽDC directory (extracted)
-    --cis-stop-list=PATH           CIS "zastavky.csv"
-    --cis-coords=PATH              CSV file with coordinates of CIS stops
-    --dpmlj-gtfs=PATH              GTFS from DPMLJ (extracted)
+    --connstr=CONNSTR     Npgsql connection string
+    --out=OUTPATH         Output directory
+    --jdf-bus=PATH        JDF BUS directory (extracted)
+    --jdf-mhd=PATH        JDF MHD directory (extracted)
+    --czptt-szdc=PATH     CZPTT SŽDC directory (extracted)
+    --cis-stop-list=PATH  CIS "zastavky.csv"
+    --cis-coords=PATH     CSV file with coordinates of CIS stops
+    --dpmlj-gtfs=PATH     GTFS from DPMLJ (extracted)
+    --overpass-url=URL    OSM Overpass API URL
+    --cache-dir=PATH      Overpass result cache directory [default: /tmp]
 
 This program creates numerous schemas in the given database
 """
 
 let jrunify dbConnStr outPath
             jdfBusPath jdfMhdPath czpttSzdcPath cisStopList cisCoords
-            dpmljGtfsPath =
+            dpmljGtfsPath overpassUrl cacheDir =
     // Dirty hack to make sure there's no command timeout
     let dbConnStrMod = dbConnStr + ";CommandTimeout=0"
     let newConn () =
@@ -80,7 +82,8 @@ let jrunify dbConnStr outPath
             czpttSzdcPath |> Option.iter (fun czpttSzdcPath ->
                 measureTime "Processing czptt" (fun () ->
                     let c = newConn ()
-                    processCzPtt c czpttSzdcPath
+                    processCzPtt c (Option.get overpassUrl) cacheDir
+                                 czpttSzdcPath
                     c.Close()
                 )
             )
@@ -123,4 +126,6 @@ let main args =
                 (optArgValue args "--cis-stop-list")
                 (optArgValue args "--cis-coords")
                 (optArgValue args "--dpmlj-gtfs")
+                (optArgValue args "--overpass-url")
+                (argValue args "--cache-dir")
         0)

@@ -19,6 +19,8 @@ open JrUtil
 // Note that some files will error out. This is fine, as long as they don't
 // describe an actual train. Some files seem to be "broken" (TODO: Why?)
 
+exception CzPttInvalidException of string
+
 type CzPttXml = XmlProvider<Schema=const(__SOURCE_DIRECTORY__ + "/czptt.xsd")>
 
 type LocationType =
@@ -168,7 +170,8 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     let firstLocation =
         match info.CzpttLocations |> Seq.tryFind isValidGtfsStop with
         | Some fl -> fl
-        | None -> failwith "Invalid CZPTT - no valid stops"
+        | None ->
+            raise (CzPttInvalidException "Invalid CZPTT - no valid stops")
 
     let prefix =
         match (firstLocation.CommercialTrafficType,

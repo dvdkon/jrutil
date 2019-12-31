@@ -9,16 +9,26 @@ open Npgsql
 open JrUtil
 open JrUtil.GtfsMerge
 open JrUtil.SqlRecordStore
+open JrUtil.GeoData
+open JrUtil.Utils
 
 open JrUnify.Utils
 
-let processCzPtt conn path =
+let processCzPtt conn overpassUrl cacheDir path =
     // TODO: Filter out non-passenger trains (Sv)
     let fixupScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/FixupCzptt.sql")
 
     let schemaMerged = "czptt_merged"
     let schemaTemp = "czptt_temp"
     let schemaIntermediate = "czptt_intermediate"
+    let geodataSchema = "czptt_geodata"
+
+    measureTime "Loading czptt geodata" (fun () ->
+        cleanAndSetSchema conn geodataSchema
+        SqlCzptt.initTables conn
+        Osm.getCzRailStops overpassUrl cacheDir
+        |> Osm.czRailStopsToSql conn
+    )
 
     cleanAndSetSchema conn schemaTemp
     cleanAndSetSchema conn schemaMerged
@@ -41,4 +51,9 @@ let processCzPtt conn path =
             setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
         )
+    )
+
+    measureTime "Updating czptt geodata" (fun () ->
+        setSchema conn geodataSchema
+        SqlCzptt.sqlUpdateCzpttStops conn schemaMerged
     )
