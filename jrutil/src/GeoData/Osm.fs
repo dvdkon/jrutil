@@ -14,6 +14,7 @@ open JrUtil.SqlRecordStore
 
 let czechRepBBox = "48.195,12.000,51.385,18.951"
 
+type OtherStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../../samples/osm_other_stops.json")>
 type CzRailStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../../samples/osm_railway_stops.json")>
 
 // cacheDir = "" -- no caching
@@ -75,5 +76,34 @@ let czRailStopsToSql conn (data: CzRailStops.Root) =
             normalisedSr70 rso
             string rso.Lat
             string rso.Lon
+            "osm"
+         |]))
+
+let getCzOtherStops overpassUrl cacheDir =
+    // TODO: Think about eliminating the need to set maxsize so high
+    // Maybe divide the bbox?
+    queryOverpass overpassUrl cacheDir ("[bbox:" + czechRepBBox + """]
+        [out:json][timeout:100][maxsize:1073741824];
+        ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
+        (
+            node(area.cz)[highway=bus_stop];
+            node(area.cz)[public_transport=platform];
+            node(area.cz)[public_transport=pole];
+            node(area.cz)[railway=tram_stop];
+            node(area.cz)[public_transport=station];
+            node(area.cz)[amenity=bus_station];
+        );
+        out;
+    """)
+    |> OtherStops.Parse
+
+let otherStopsToSql conn (data: OtherStops.Root) =
+    sqlCopyInText conn "other_stops_geodata"
+        [| false; false; false; false |]
+        (data.Elements
+         |> Seq.map (fun stop -> [|
+            stop.Tags.Name
+            string stop.Lat
+            string stop.Lon
             "osm"
          |]))

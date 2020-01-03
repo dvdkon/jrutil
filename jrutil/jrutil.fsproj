@@ -32,7 +32,9 @@
     <Compile Include="src/CzPtt/KadrEnumWs.fs" />
     <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/GeoData/Osm.fs" />
+    <Compile Include="src/GeoData/ExternalCsv.fs" />
     <Compile Include="src/GeoData/SqlCzptt.fs" />
+    <Compile Include="src/GeoData/SqlOther.fs" />
     <Compile Include="src/Gtfs/GtfsMerge.fs" />
   </ItemGroup>
 

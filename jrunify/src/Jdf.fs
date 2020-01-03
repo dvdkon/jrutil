@@ -10,6 +10,7 @@ open Npgsql
 open JrUtil
 open JrUtil.GtfsMerge
 open JrUtil.SqlRecordStore
+open JrUtil.GeoData.SqlOther
 
 open JrUnify.Utils
 
@@ -106,6 +107,8 @@ let processJdf conn stopIdsCis group path =
         handleErrors (sprintf "processing %s %s" group jdfPath) (fun () ->
             setSchema conn schemaIntermediate
             jdfToGtfsDb conn stopIdsCis jdfPath
+            setSchema conn "cisjr_geodata"
+            applyOtherStopsGeodata conn schemaIntermediate
             setSchema conn schemaTemp
             mergedFeed.InsertFeed schemaIntermediate
         )

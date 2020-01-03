@@ -16,16 +16,6 @@ let cleanGtfsTables conn =
     """
     executeSql conn cleanSql []
 
-let normaliseStopNames conn stopsTable prefix =
-    let scriptPath = __SOURCE_DIRECTORY__ + "/NormaliseStopNames.sql"
-    let script = File.ReadAllText(scriptPath)
-    let template = compileSqlTemplate script
-    let sql = template ["tgtstops", stopsTable]
-    executeSql conn sql [
-        "prefix", box prefix
-        "threshold", box 0.7]
-    ()
-
 let deduplicateRoutes conn =
     let scriptPath = __SOURCE_DIRECTORY__ + "/DeduplicateRoutes.sql"
     let script = File.ReadAllText(scriptPath)

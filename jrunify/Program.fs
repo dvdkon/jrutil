@@ -1,16 +1,12 @@
 // This file is part of JrUnify and is licenced under the GNU GPLv3 or later
 // (c) 2019 David Koňařík
 
-open Docopt
-
 open System.IO
-open System.Data.Common
-open Npgsql
 
 open JrUtil
 open JrUtil.Utils
 open JrUtil.SqlRecordStore
-open JrUtil.GtfsMerge
+open JrUtil.GeoData
 
 open JrUnify.Jdf
 open JrUnify.CzPtt
@@ -30,18 +26,18 @@ Options:
     --jdf-bus=PATH        JDF BUS directory (extracted)
     --jdf-mhd=PATH        JDF MHD directory (extracted)
     --czptt-szdc=PATH     CZPTT SŽDC directory (extracted)
-    --cis-stop-list=PATH  CIS "zastavky.csv"
-    --cis-coords=PATH     CSV file with coordinates of CIS stops
     --dpmlj-gtfs=PATH     GTFS from DPMLJ (extracted)
     --overpass-url=URL    OSM Overpass API URL
     --cache-dir=PATH      Overpass result cache directory [default: /tmp]
+    --rail-coords=PATH   Directory with CSV external railway stop coords
+    --other-coords=PATH  Directory with CSV external non-railway stop coords
 
 This program creates numerous schemas in the given database
 """
 
 let jrunify dbConnStr outPath
-            jdfBusPath jdfMhdPath czpttSzdcPath cisStopList cisCoords
-            dpmljGtfsPath overpassUrl cacheDir =
+            jdfBusPath jdfMhdPath czpttSzdcPath dpmljGtfsPath overpassUrl
+            cacheDir railCoordsDir otherCoordsDir=
     // Dirty hack to make sure there's no command timeout
     let dbConnStrMod = dbConnStr + ";CommandTimeout=0"
     let newConn () =
@@ -53,9 +49,15 @@ let jrunify dbConnStr outPath
         c.Open()
         c
 
-    measureTime "Loading CIS coordinates" (fun () ->
+    measureTime "Loading CISJR OSM geodata" (fun () ->
         let c = newConn ()
-        loadCisCoords c cisCoords
+        cleanAndSetSchema c "cisjr_geodata"
+        SqlOther.initTables c
+        overpassUrl |> Option.iter (fun opu ->
+            Osm.getCzOtherStops opu cacheDir |> Osm.otherStopsToSql c)
+        otherCoordsDir |> Option.iter (fun rcd ->
+            Directory.EnumerateFiles(rcd)
+            |> Seq.iter (ExternalCsv.loadOtherStopsToSql c))
         c.Close()
     )
 
@@ -82,7 +84,7 @@ let jrunify dbConnStr outPath
             czpttSzdcPath |> Option.iter (fun czpttSzdcPath ->
                 measureTime "Processing czptt" (fun () ->
                     let c = newConn ()
-                    processCzPtt c (Option.get overpassUrl) cacheDir
+                    processCzPtt c overpassUrl cacheDir
                                  czpttSzdcPath
                     c.Close()
                 )
@@ -91,10 +93,6 @@ let jrunify dbConnStr outPath
         async {
             dpmljGtfsPath |> Option.iter (fun dpmljGtfsPath ->
                 let c = newConn ()
-                measureTime "Reading CIS stop list" (fun () ->
-                    loadCisStopList c (Option.get cisStopList)
-                )
-
                 measureTime "Processing DPMLJ GTFS" (fun () ->
                     processDpmljGtfs c dpmljGtfsPath
                 )
@@ -123,9 +121,9 @@ let main args =
                 (optArgValue args "--jdf-bus")
                 (optArgValue args "--jdf-mhd")
                 (optArgValue args "--czptt-szdc")
-                (optArgValue args "--cis-stop-list")
-                (optArgValue args "--cis-coords")
                 (optArgValue args "--dpmlj-gtfs")
                 (optArgValue args "--overpass-url")
                 (argValue args "--cache-dir")
+                (optArgValue args "--rail-coords")
+                (optArgValue args "--other-coords")
         0)

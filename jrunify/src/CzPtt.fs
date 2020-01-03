@@ -26,8 +26,9 @@ let processCzPtt conn overpassUrl cacheDir path =
     measureTime "Loading czptt geodata" (fun () ->
         cleanAndSetSchema conn geodataSchema
         SqlCzptt.initTables conn
-        Osm.getCzRailStops overpassUrl cacheDir
-        |> Osm.czRailStopsToSql conn
+        overpassUrl |> Option.iter (fun opu ->
+            Osm.getCzRailStops opu cacheDir
+            |> Osm.czRailStopsToSql conn)
     )
 
     cleanAndSetSchema conn schemaTemp
@@ -55,5 +56,5 @@ let processCzPtt conn overpassUrl cacheDir path =
 
     measureTime "Updating czptt geodata" (fun () ->
         setSchema conn geodataSchema
-        SqlCzptt.sqlUpdateCzpttStops conn schemaMerged
+        SqlCzptt.applyCzpttStopsGeodata conn schemaMerged
     )

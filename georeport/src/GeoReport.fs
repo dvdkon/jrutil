@@ -10,6 +10,7 @@ open FSharp.Data
 
 open JrUtil.SqlRecordStore
 open JrUtil.GeoData.Osm
+open JrUtil.GeoData.ExternalCsv
 
 let similarityThreshold = 0.8
 
@@ -25,10 +26,7 @@ type StopMatch = {
     lon: float
 }
 
-type OtherStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../samples/osm_other_stops.json")>
 type Sr70Stops = CsvProvider<HasHeaders = false, Schema = "sr70(int), name(string)">
-type StopsSource = CsvProvider<HasHeaders = false, Schema = "name(string), lat(float), lon(float)">
-type StopsSr70Source = CsvProvider<HasHeaders = false, Schema = "sr70(int), name(string), lat(float), lon(float)">
 
 let readStopNamesCsv path =
     File.ReadAllLines(path)
@@ -105,7 +103,10 @@ let loadStopListsToSql conn railStopsPath otherStopsPath =
 
     sqlCopyInText conn "railstops" [| false; false |]
         (railStops.Rows
-         |> Seq.map (fun rs -> [| rs.Name; string rs.Sr70 |]))
+         |> Seq.map (fun rs -> [|
+             rs.Name
+             (let sr70 = string rs.Sr70
+              if sr70.Length > 5 then sr70.[..4] else sr70)|]))
 
     sqlCopyInText conn "otherstops" [| false |]
         (otherStops
@@ -113,24 +114,7 @@ let loadStopListsToSql conn railStopsPath otherStopsPath =
 
 let loadOsmDataToSql conn overpassUrl cacheDir =
     let railStopsOsm = getCzRailStops overpassUrl cacheDir
-
-    let otherStopsOsm =
-        // TODO: Think about eliminating the need to set maxsize so high
-        // Maybe divide the bbox?
-        queryOverpass overpassUrl cacheDir ("[bbox:" + czechRepBBox + """]
-            [out:json][timeout:100][maxsize:1073741824];
-            ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
-            (
-                node(area.cz)[highway=bus_stop];
-                node(area.cz)[public_transport=platform];
-                node(area.cz)[public_transport=pole];
-                node(area.cz)[railway=tram_stop];
-                node(area.cz)[public_transport=station];
-                node(area.cz)[amenity=bus_station];
-            );
-            out;
-        """)
-        |> OtherStops.Parse
+    let otherStopsOsm = getCzOtherStops overpassUrl cacheDir
 
     sqlCopyInText conn "railstops_osm" [| false; false; false; false; false |]
         (railStopsOsm.Elements
@@ -156,7 +140,7 @@ let loadExternalDataToSql conn railExtSourcesDir otherExtSourcesDir =
     |> Seq.iter (fun path ->
             sqlCopyInText
                 conn "railstops_external" [| false; false; false; false; true |]
-                (StopsSr70Source.Load(Path.GetFullPath(path)).Rows
+                (CzRailStops.Load(Path.GetFullPath(path)).Rows
                  |> Seq.map (fun s -> [|
                      s.Name
                      Path.GetFileNameWithoutExtension(path)
@@ -169,7 +153,7 @@ let loadExternalDataToSql conn railExtSourcesDir otherExtSourcesDir =
     |> Seq.iter (fun path ->
             sqlCopyInText
                 conn "otherstops_external" [| false; false; false; false |]
-                (StopsSource.Load(Path.GetFullPath(path)).Rows
+                (OtherStops.Load(Path.GetFullPath(path)).Rows
                  |> Seq.map (fun s -> [|
                      s.Name
                      Path.GetFileNameWithoutExtension(path)
