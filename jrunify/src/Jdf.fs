@@ -14,28 +14,6 @@ open JrUtil.GeoData.SqlOther
 
 open JrUnify.Utils
 
-let loadCisCoords (conn: NpgsqlConnection) pathOpt =
-    cleanAndSetSchema conn "cis_coords"
-    executeSql conn """
-        CREATE TABLE stop_coords (
-            stop_name text PRIMARY KEY,
-            lat numeric, lon numeric);
-        """ []
-    // Leave an empty table if pathOpt is None
-    pathOpt |> Option.iter (fun path ->
-        use writer =
-            conn.BeginTextImport("COPY stop_coords FROM STDIN (FORMAT CSV)")
-        writer.Write(File.ReadAllText(path)))
-
-let applyCisCoords (conn: NpgsqlConnection) gtfsSchema =
-    setSchema conn (gtfsSchema + ",cis_coords")
-    executeSql conn """
-        UPDATE stops AS s
-        SET lat = c.lat, lon = c.lon
-        FROM stop_coords AS c
-        WHERE c.stop_name = s.name
-        """ []
-
 let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
     // Some JDF files (only v1.9?) have multiple agencies with IČO set to 0
     // (because they're not Czech and therefore don't have one). As it's used
@@ -49,8 +27,7 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
         |> Array.filter (fun a -> a.id = "0" && a.idDistinction = 0)
     // This process only applies to cases where the agencies aren't
     // distinguished further by "idDistinction"
-    if (zeroAgencies
-        |> Array.length) > 1 then
+    if (zeroAgencies |> Array.length) > 1 then
         let names = zeroAgencies |> Array.map (fun a -> a.name)
         let addresses = zeroAgencies |> Array.map (fun a -> a.officeAddress)
         let phoneNums = zeroAgencies |> Array.map (fun a -> a.officePhoneNum)
@@ -113,5 +90,3 @@ let processJdf conn stopIdsCis group path =
             mergedFeed.InsertFeed schemaIntermediate
         )
     )
-
-    applyCisCoords conn schemaMerged

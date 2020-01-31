@@ -23,6 +23,7 @@ exception CzPttInvalidException of string
 
 type CzPttXml = XmlProvider<Schema=const(__SOURCE_DIRECTORY__ + "/czptt.xsd")>
 
+// TODO: Handle unknown cases in enum?
 type LocationType =
     | [<StrValue("01")>] Origin
     | [<StrValue("02")>] Intermediate
@@ -42,6 +43,11 @@ type TrainActivity =
     | [<StrValue("0031")>] DepartsAtArrivalTime
     | [<StrValue("0032")>] DepartsAfterDisembark
     | [<StrValue("0033")>] NoConnectionWait
+    | [<StrValue("0035")>] Preheating
+    | [<StrValue("0040")>] PassWithoutStop
+    // XXX: Not yet in data
+    | [<StrValue("0043")>] JoinedTrains
+    | [<StrValue("0044")>] Connection
     | [<StrValue("CZ01")>] StopsAfterStationOpened
     | [<StrValue("CZ02")>] WaitsLessThanHalfMinute
     // TODO: Will these ever be in static data?

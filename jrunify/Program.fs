@@ -49,7 +49,7 @@ let jrunify dbConnStr outPath
         c.Open()
         c
 
-    measureTime "Loading CISJR OSM geodata" (fun () ->
+    measureTime "Loading CISJR geodata" (fun () ->
         let c = newConn ()
         cleanAndSetSchema c "cisjr_geodata"
         SqlOther.initTables c

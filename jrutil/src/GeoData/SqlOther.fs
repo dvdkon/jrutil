@@ -18,9 +18,9 @@ let initTables conn =
         CREATE INDEX ON other_stops_geodata USING GIST (name gist_trgm_ops);
     """ []
 
-let applyOtherStopsGeodata conn gtfs_schema =
+let applyOtherStopsGeodata conn gtfsSchema =
     let template = compileSqlTemplate (File.ReadAllText(__SOURCE_DIRECTORY__ + "/ApplyOtherStopsGeodata.sql"))
     let sql = template [
-        "gtfs", box gtfs_schema
+        "gtfs", box gtfsSchema
     ]
     executeSql conn sql []

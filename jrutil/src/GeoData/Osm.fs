@@ -83,7 +83,7 @@ let getCzOtherStops overpassUrl cacheDir =
     // TODO: Think about eliminating the need to set maxsize so high
     // Maybe divide the bbox?
     queryOverpass overpassUrl cacheDir ("[bbox:" + czechRepBBox + """]
-        [out:json][timeout:100][maxsize:1073741824];
+        [out:json][timeout:10000][maxsize:1073741824];
         ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
         (
             node(area.cz)[highway=bus_stop];
