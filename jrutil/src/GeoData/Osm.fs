@@ -24,7 +24,7 @@ let queryOverpass overpassUrl cacheDir (query: string) =
             overpassUrl,
             httpMethod = "POST",
             body = FormValues ["data", query],
-            timeout = 1000000,
+            timeout = 3600000,
             responseEncodingOverride = "UTF-8")
     match cacheDir with
     | "" -> sendRequest()
