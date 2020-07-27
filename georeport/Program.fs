@@ -49,12 +49,16 @@ let main argv =
 
         let dbConnStrMod = (argValue args "--connstr") + ";CommandTimeout=0"
         let conn = getPostgresqlConnection dbConnStrMod
+        eprintfn "Connecting to database..."
         conn.Open()
         cleanAndSetSchema conn "georeport"
         initSqlTables conn
 
+        eprintfn "Loading stop lists"
         loadStopListsToSql conn railStopsPath otherStopsPath
+        eprintfn "Loading OSM data"
         loadOsmDataToSql conn overpassUrl cacheDir
+        eprintfn "Loading external data"
         loadExternalDataToSql conn railExtSourcesDir otherExtSourcesDir
 
         let railStopMatches = getRailStopsMatches conn

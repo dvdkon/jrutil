@@ -117,7 +117,7 @@ let loadOsmDataToSql conn overpassUrl cacheDir =
     let otherStopsOsm = getCzOtherStops overpassUrl cacheDir
 
     sqlCopyInText conn "railstops_osm" [| false; false; false; false; false |]
-        (railStopsOsm.Elements
+        (railStopsOsm
          |> Seq.map (fun rso -> [|
             czRailStopName rso
             string rso.Id
@@ -127,7 +127,7 @@ let loadOsmDataToSql conn overpassUrl cacheDir =
          |]))
 
     sqlCopyInText conn "otherstops_osm" [| false; false; false; false |]
-        (otherStopsOsm.Elements
+        (otherStopsOsm
          |> Seq.map (fun oso -> [|
              oso.Tags.Name
              string oso.Id
@@ -195,6 +195,7 @@ let getRailStopsMatches conn =
                 FROM railstops AS rs
                 INNER JOIN railstops_osm AS rso
                     ON rs.name % rso.name
+                ORDER BY rs.name <-> rso.name
             """ []
             |> rowToOsmMatch OsmMatchByName
 
@@ -204,10 +205,14 @@ let getRailStopsMatches conn =
                 INNER JOIN railstops_external AS rse
                     ON rs.sr70 = rse.sr70
                 UNION
-                SELECT rs.name, source, lat, lon
-                FROM railstops AS rs
-                INNER JOIN railstops_external AS rse
-                    ON rs.name % rse.name
+                -- ORDER BY doesn't work on one query in a UNION
+                SELECT * FROM (
+                    SELECT rs.name, source, lat, lon
+                    FROM railstops AS rs
+                    INNER JOIN railstops_external AS rse
+                        ON rs.name % rse.name
+                    ORDER BY rs.name <-> rse.name
+                ) AS i
             """ []
             |> rowToExternalMatch
         ]
@@ -234,6 +239,7 @@ let getOtherStopsMatches conn =
                 FROM otherstops AS os
                 INNER JOIN otherstops_osm AS oso
                     ON os.name % oso.name
+                ORDER BY os.name <-> oso.name
             """ []
             |> rowToOsmMatch OsmMatchByName
 
@@ -242,6 +248,7 @@ let getOtherStopsMatches conn =
                 FROM otherstops AS os
                 INNER JOIN otherstops_external AS ose
                     ON os.name % ose.name
+                ORDER BY os.name <-> ose.name
             """ []
             |> rowToExternalMatch
         ]
