@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2020 David Koňařík
 
 module JrUtil.Utils
 
@@ -9,6 +9,7 @@ open System.Diagnostics
 open System.Globalization
 open System.Collections.Concurrent
 open Docopt
+open Serilog
 
 #nowarn "0342"
 
@@ -181,7 +182,7 @@ let measureTime msg func =
     let sw = Stopwatch.StartNew()
     func()
     sw.Stop()
-    printfn "%s took %A" msg sw.Elapsed
+    Log.Information("{Section} took {Time}", msg, sw.Elapsed)
 
 let findPathCaseInsensitive dirPath (filename: string) =
     let files =
@@ -194,3 +195,12 @@ let findPathCaseInsensitive dirPath (filename: string) =
     | _ ->
         failwithf "Multiple files found when looking for %s in %s (case insensitive)"
                   filename dirPath
+
+let setupLogging logFile () =
+    let mutable loggerFactory =
+        LoggerConfiguration()
+         .Destructure.FSharpTypes()
+         .WriteTo.Console()
+    logFile |> Option.iter (fun lf ->
+        loggerFactory <- loggerFactory.WriteTo.File(lf))
+    Log.Logger <- loggerFactory.CreateLogger()

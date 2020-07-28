@@ -18,7 +18,7 @@ let mergeAll conn =
         MergedFeed(conn, "merged", TripMergeStrategy.WithRoute, true)
     ["dpmlj"; "jdfbus_merged"; "jdfmhd_merged"; "czptt_merged"]
     |> List.iter (fun schema ->
-        handleErrors (sprintf "merging %s" schema) (fun () ->
+        handleErrors "merging {Schema}" [| schema |] (fun () ->
             cleanAndSetSchema conn "merge_temp"
             mergedFeed.InsertFeed schema
         )

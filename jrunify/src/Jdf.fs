@@ -6,6 +6,7 @@ module JrUnify.Jdf
 open System.IO
 open System.Data.Common
 open Npgsql
+open Serilog
 
 open JrUtil
 open JrUtil.GtfsMerge
@@ -80,13 +81,14 @@ let processJdf conn stopIdsCis group path =
 
     Directory.EnumerateDirectories(path)
     |> Seq.iter (fun jdfPath ->
-        printfn "Processing %s: %s" group jdfPath
-        handleErrors (sprintf "processing %s %s" group jdfPath) (fun () ->
-            setSchema conn schemaIntermediate
-            jdfToGtfsDb conn stopIdsCis jdfPath
-            setSchema conn "cisjr_geodata"
-            applyOtherStopsGeodata conn schemaIntermediate
-            setSchema conn schemaTemp
-            mergedFeed.InsertFeed schemaIntermediate
-        )
+        Log.Information("Converting {Group} {File}", group, jdfPath)
+        handleErrors "Converting {Group} {File}" [| group; jdfPath |]
+            (fun () ->
+                setSchema conn schemaIntermediate
+                jdfToGtfsDb conn stopIdsCis jdfPath
+                setSchema conn "cisjr_geodata"
+                applyOtherStopsGeodata conn schemaIntermediate
+                setSchema conn schemaTemp
+                mergedFeed.InsertFeed schemaIntermediate
+            )
     )

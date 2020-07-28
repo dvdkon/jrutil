@@ -20,7 +20,7 @@ let loadCisStopList (conn: NpgsqlConnection) path =
     writer.Write(File.ReadAllText(path))
 
 let processDpmljGtfs conn path =
-    handleErrors "processing DPMLJ GTFS" (fun () ->
+    handleErrors "processing DPMLJ GTFS" [||] (fun () ->
         cleanAndSetSchema conn "dpmlj"
         Gtfs.sqlCreateGtfsTablesNoConstrs conn
         Gtfs.sqlLoadGtfsFeed conn path

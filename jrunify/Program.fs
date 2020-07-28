@@ -2,6 +2,7 @@
 // (c) 2019 David Koňařík
 
 open System.IO
+open Serilog
 
 open JrUtil
 open JrUtil.Utils
@@ -23,6 +24,7 @@ Usage:
 Options:
     --connstr=CONNSTR     Npgsql connection string
     --out=OUTPATH         Output directory
+    --logfile=FILE        Path to log file
     --jdf-bus=PATH        JDF BUS directory (extracted)
     --jdf-mhd=PATH        JDF MHD directory (extracted)
     --czptt-szdc=PATH     CZPTT SŽDC directory (extracted)
@@ -35,9 +37,13 @@ Options:
 This program creates numerous schemas in the given database
 """
 
-let jrunify dbConnStr outPath
+let jrunify dbConnStr outPath logFile
             jdfBusPath jdfMhdPath czpttSzdcPath dpmljGtfsPath overpassUrl
             cacheDir railCoordsDir otherCoordsDir=
+    setupLogging logFile ()
+
+    Log.Information("Starting JrUnify")
+
     // Dirty hack to make sure there's no command timeout
     let dbConnStrMod = dbConnStr + ";CommandTimeout=0"
     let newConn () =
@@ -45,7 +51,7 @@ let jrunify dbConnStr outPath
         c.Notice.Add(fun ev ->
             let n = ev.Notice
             if n.Severity <> "NOTICE" then
-                printfn "SQL notice: %s" n.MessageText)
+                Log.Information("SQL notice: {Message}", n.MessageText))
         c.Open()
         c
 
@@ -118,6 +124,7 @@ let main args =
     withProcessedArgs docstring args (fun args ->
         jrunify (argValue args "--connstr")
                 (argValue args "--out")
+                (optArgValue args "--logfile")
                 (optArgValue args "--jdf-bus")
                 (optArgValue args "--jdf-mhd")
                 (optArgValue args "--czptt-szdc")

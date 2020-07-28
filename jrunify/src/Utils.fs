@@ -1,11 +1,12 @@
 // This file is part of JrUnify and is licenced under the GNU GPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2020 David Koňařík
 
 module JrUnify.Utils
 
 open System.IO
 
 open Npgsql
+open Serilog
 
 open JrUtil.SqlRecordStore
 
@@ -26,12 +27,12 @@ let convertZones conn =
     let script = File.ReadAllText(scriptPath)
     executeSql conn script []
 
-let handleErrors description func =
+let handleErrors formatStr formatParams func =
     try
         func()
     with
     | :? PostgresException as e ->
-        printfn "Error while %s:\nSQL error:\n%s\n"
-                 description e.Message
+        Log.Error(sprintf "Error while %s:\nSQL error:\n{SqlError}" formatStr,
+                  Array.append formatParams [| e.Message |])
     | e ->
-        printfn "Error while %s :\n%A" description e
+        Log.Error(e, sprintf "Error while %s" formatStr, formatParams)

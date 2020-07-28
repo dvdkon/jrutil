@@ -5,6 +5,7 @@ module JrUnify.CzPtt
 
 open System.IO
 open Npgsql
+open Serilog
 
 open JrUtil
 open JrUtil.GtfsMerge
@@ -41,8 +42,8 @@ let processCzPtt conn overpassUrl cacheDir path =
 
     Directory.EnumerateFiles(path, "*.xml", SearchOption.AllDirectories)
     |> Seq.iter (fun czpttFile ->
-        printfn "Processing czptt: %s" czpttFile
-        handleErrors (sprintf "processing czptt %s" czpttFile) (fun () ->
+        Log.Information("Processing czptt {File}", czpttFile)
+        handleErrors "Processing czptt {File}" [| czpttFile |] (fun () ->
             setSchema conn schemaIntermediate
             cleanGtfsTables conn
             let czptt = CzPtt.parseFile czpttFile
