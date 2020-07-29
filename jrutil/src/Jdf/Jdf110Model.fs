@@ -3,10 +3,11 @@
 
 module JrUtil.Jdf110Model
 
-open JrUtil
-open JrUtil.Utils
-open JrUtil.CsvParser
 open System
+open NodaTime
+
+open JrUtil
+open JrUtil.CsvParser
 
 // This file is basically just parts of the JdfModel.fs file copypasted here
 // with some changes to reflect JDF 1.10
@@ -25,10 +26,10 @@ type Route = {
     usesStopPosts: bool
     reserved1: string option
     licenceNum: string option
-    licenceValidFrom: Date option
-    licenceValidTo: Date option
-    timetableValidFrom: Date
-    timetableValidTo: Date option
+    licenceValidFrom: LocalDate option
+    licenceValidTo: LocalDate option
+    timetableValidFrom: LocalDate
+    timetableValidTo: LocalDate option
     agencyDistinction: int
     idDistinction: int
 }

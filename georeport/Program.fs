@@ -48,9 +48,8 @@ let main argv =
         let cacheDir = argValue args "--cache-dir"
 
         let dbConnStrMod = (argValue args "--connstr") + ";CommandTimeout=0"
-        let conn = getPostgresqlConnection dbConnStrMod
         eprintfn "Connecting to database..."
-        conn.Open()
+        let conn = getPostgresqlConnection dbConnStrMod
         cleanAndSetSchema conn "georeport"
         initSqlTables conn
 

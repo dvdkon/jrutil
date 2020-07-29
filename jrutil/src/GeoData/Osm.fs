@@ -22,13 +22,14 @@ type CzRailStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../../samples/osm
 // cacheDir = "" -- no caching
 let queryOverpass overpassUrl cacheDir (query: string) =
     let rec sendRequest () =
-        let resp = Http.Request(
-            overpassUrl,
-            httpMethod = "POST",
-            body = FormValues ["data", query],
-            timeout = 3600000,
-            responseEncodingOverride = "UTF-8",
-            silentHttpErrors = true)
+        let resp =
+            Http.Request(
+                overpassUrl,
+                httpMethod = "POST",
+                body = FormValues ["data", query],
+                timeout = 3600000,
+                responseEncodingOverride = "UTF-8",
+                silentHttpErrors = true)
         // We're rate limited, wait a while and try again
         if resp.StatusCode = 429 then
             Thread.Sleep(60000)
@@ -79,11 +80,10 @@ let czRailStopName (stop: CzRailStops.Element) =
     |> Option.orElse stop.Tags.NameCs
     |> Option.defaultValue "" // TODO: Log stops without name
 
-let czRailStopsToSql conn (data: CzRailStops.Root) =
+let czRailStopsToSql conn (data: CzRailStops.Element seq) =
     sqlCopyInText conn "czptt_stops_geodata"
         [| false; true; false; false; false |]
-        (data.Elements
-         |> Seq.map (fun rso -> [|
+        (data |> Seq.map (fun rso -> [|
             czRailStopName rso
             normalisedSr70 rso
             string rso.Lat
@@ -122,11 +122,10 @@ let getCzOtherStops overpassUrl cacheDir =
     }
     |> Seq.concat
 
-let otherStopsToSql conn (data: OtherStops.Root) =
+let otherStopsToSql conn (data: OtherStops.Element seq) =
     sqlCopyInText conn "other_stops_geodata"
         [| false; false; false; false |]
-        (data.Elements
-         |> Seq.map (fun stop -> [|
+        (data |> Seq.map (fun stop -> [|
             stop.Tags.Name
             string stop.Lat
             string stop.Lon

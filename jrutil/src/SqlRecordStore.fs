@@ -8,7 +8,9 @@ open System.Data.Common
 open System.Collections.Generic
 open System.Text.RegularExpressions
 open Microsoft.FSharp.Reflection
+open NodaTime
 open Npgsql
+open Npgsql.NodaTime
 open NpgsqlTypes
 open Scriban
 open Scriban.Runtime
@@ -34,8 +36,13 @@ type SqlRow(columnNames: string seq, cols: obj array) =
     member this.Item(columnIndex) =
         cols.[columnIndex]
 
+NpgsqlConnection.GlobalTypeMapper.UseNodaTime() |> ignore
+
 let getPostgresqlConnection connstr =
-    new NpgsqlConnection(connstr)
+    let conn = new NpgsqlConnection(connstr)
+    conn.Open()
+    conn.TypeMapper.UseNodaTime() |> ignore // TODO: Shouldn't be necessary
+    conn
 
 let rec sqlAdoTypeFor t =
     if t = typeof<string> then NpgsqlDbType.Text
@@ -45,24 +52,65 @@ let rec sqlAdoTypeFor t =
     else if t = typeof<decimal> then NpgsqlDbType.Numeric
     else if t = typeof<bool> then NpgsqlDbType.Boolean
     else if t = typeof<DateTime> then NpgsqlDbType.Timestamp
-    else if t = typeof<Date> then NpgsqlDbType.Unknown
-    else if t = typeof<Time> then NpgsqlDbType.Unknown
-    else if t = typeof<TimeSpan> then NpgsqlDbType.Interval
+    else if t = typeof<LocalDate> then NpgsqlDbType.Date
+    else if t = typeof<LocalTime> then NpgsqlDbType.Time
+    else if t = typeof<Period> then NpgsqlDbType.Interval
     else if t = typeof<DBNull> then NpgsqlDbType.Unknown
+    else if typeIsOption t then
+        let innerType = t.GetGenericArguments().[0]
+        sqlAdoTypeFor innerType
     else if FSharpType.IsUnion(t) then NpgsqlDbType.Text
     else if t.IsArray then
         let innerAdoType = sqlAdoTypeFor (t.GetElementType())
         NpgsqlDbType.Array ||| innerAdoType
     else failwithf "Could not get SQL parameter type for %A" t
 
-let rec sqlPrepareValue value =
-    if isNull value then box DBNull.Value
+let sqlTypeFor (type_: Type) =
+    let rec sqlTypeForNonOptional t =
+        if t = typeof<string> then "TEXT"
+        else if t = typeof<int> then "INTEGER"
+        else if t = typeof<float> then "FLOAT"
+        else if t = typeof<decimal> then "DECIMAL"
+        else if t = typeof<bool> then "BOOLEAN"
+        else if t = typeof<DateTime> then "TIMESTAMP"
+        else if t = typeof<LocalDate> then "DATE"
+        else if t = typeof<LocalTime> then "TIME"
+        else if t = typeof<Period> then "INTERVAL"
+        // Sometimes non-nullablity can't be expressed in SQL, so just
+        // give up and use the inner type directly.
+        else if typeIsOption t then
+            let innerType = t.GetGenericArguments().[0]
+            sqlTypeForNonOptional innerType
+        else if FSharpType.IsUnion(t) then "TEXT"
+        else if t.IsArray then
+            let innerType = t.GetElementType()
+            sprintf "%s[]" (sqlTypeForNonOptional innerType)
+        else failwithf "Could not get SQL type for %A" t
+
+    let (t, isOption) =
+        if typeIsOption type_ then
+            let innerType = type_.GetGenericArguments().[0]
+            (innerType, true)
+        else (type_, false)
+
+    (sqlTypeForNonOptional t) + if isOption then "" else " NOT NULL"
+
+let rec createSqlValuePreparer t =
+    if typeIsOption t then
+        let innerPreparer = createSqlValuePreparer t.GenericTypeArguments.[0]
+        let valueProp = t.GetProperty("Value")
+        fun value ->
+            if isNull value || optionCaseGetter value <> optionSomeCase.Tag
+            then box DBNull.Value
+            else innerPreparer (valueProp.GetValue(value))
     else
-        let t = value.GetType()
-        if typeIsOption t then
-            sqlPrepareValue <| t.GetProperty("Value").GetValue(value)
-        else if FSharpType.IsUnion(t) then getUnionSerializer t value |> box
-        else box value
+        fun value ->
+            if isNull value then box DBNull.Value
+            else box value
+
+let getSqlValuePreparer = memoize createSqlValuePreparer
+
+let sqlPrepareValue<'a> (value: 'a) = getSqlValuePreparer typeof<'a> (box value)
 
 /// Takes an identifier and makes it lowercase, so that it can be
 /// used in quotes by automatic scripts and without quotes in standard
@@ -102,28 +150,7 @@ let sqlQuery conn sql paramSeq =
 let sqlQueryOne conn sql paramSeq =
     let cmd = createSqlCommand conn sql paramSeq
     cmd.ExecuteScalar()
-
-let createSqlInserter = memoize <| fun recType ->
-    assert FSharpType.IsRecord(recType)
-    let fieldsGetter = FSharpValue.PreComputeRecordReader recType
-    let columnsStr =
-        FSharpType.GetRecordFields(recType)
-        |> Seq.map (fun f -> sprintf "\"%s\"" (sqlIdent f.Name))
-        |> String.concat ", "
-    fun table (conn: DbConnection) (o: obj) ->
-        let fields = fieldsGetter o
-        let ps =
-            [ for (i, v) in fields |> Seq.indexed -> (sprintf "@%d" i, v) ]
-        let paramsStr =
-            ps |> Seq.map (fun (n, _) -> n) |> String.concat ", "
-        let sql = sprintf """INSERT INTO "%s" (%s) VALUES (%s)"""
-                          (sqlIdent table) columnsStr paramsStr
-        executeSql conn sql ps
-
-let sqlInsert<'a> conn table (os: 'a seq) =
-    let inserter = createSqlInserter typeof<'a>
-    os |> Seq.iter (fun o -> inserter table conn o)
-
+    
 let rec parseSqlValue tgtType value =
     if typeIsOption tgtType then
         let someCtor, noneCtor = getOptionConstructors tgtType
@@ -137,7 +164,7 @@ let rec parseSqlValue tgtType value =
         getUnionParser tgtType (unbox value)
     else value
 
-let createSqlRecQuerier = memoize <| fun (recType: Type) ->
+let getSqlRecQuerier = memoize <| fun (recType: Type) ->
     assert FSharpType.IsRecord(recType)
     let constructor = FSharpValue.PreComputeRecordConstructor(recType)
     let fields = FSharpType.GetRecordFields(recType)
@@ -163,37 +190,28 @@ let createSqlRecQuerier = memoize <| fun (recType: Type) ->
             constructor(vals))
 
 let sqlQueryRec<'a> conn sql paramSeq =
-    createSqlRecQuerier typeof<'a> conn sql paramSeq |> Seq.cast<'a>
+    getSqlRecQuerier typeof<'a> conn sql paramSeq |> Seq.cast<'a>
 
-let sqlTypeFor (type_: Type) =
-    let rec sqlTypeForNonOptional t =
-        if t = typeof<string> then "TEXT"
-        else if t = typeof<int> then "INTEGER"
-        else if t = typeof<float> then "FLOAT"
-        else if t = typeof<decimal> then "DECIMAL"
-        else if t = typeof<bool> then "BOOLEAN"
-        else if t = typeof<DateTime> then "TIMESTAMP"
-        else if t = typeof<Date> then "DATE"
-        else if t = typeof<Time> then "TIME"
-        else if t = typeof<TimeSpan> then "INTERVAL"
-        // Sometimes non-nullablity can't be expressed in SQL, so just
-        // give up and use the inner type directly.
-        else if typeIsOption t then
-            let innerType = t.GetGenericArguments().[0]
-            sqlTypeForNonOptional innerType
-        else if FSharpType.IsUnion(t) then "TEXT"
-        else if t.IsArray then
-            let innerType = t.GetElementType()
-            sprintf "%s[]" (sqlTypeForNonOptional innerType)
-        else failwithf "Could not get SQL type for %A" t
+let getSqlInserter = memoize <| fun recType ->
+    assert FSharpType.IsRecord(recType)
+    let fieldsGetter = FSharpValue.PreComputeRecordReader recType
+    let columnsStr =
+        FSharpType.GetRecordFields(recType)
+        |> Seq.map (fun f -> sprintf "\"%s\"" (sqlIdent f.Name))
+        |> String.concat ", "
+    fun table (conn: DbConnection) (o: obj) ->
+        let fields = fieldsGetter o
+        let ps =
+            [ for (i, v) in fields |> Seq.indexed -> (sprintf "@%d" i, v) ]
+        let paramsStr =
+            ps |> Seq.map (fun (n, _) -> n) |> String.concat ", "
+        let sql = sprintf """INSERT INTO "%s" (%s) VALUES (%s)"""
+                          (sqlIdent table) columnsStr paramsStr
+        executeSql conn sql ps
 
-    let (t, isOption) =
-        if typeIsOption type_ then
-            let innerType = type_.GetGenericArguments().[0]
-            (innerType, true)
-        else (type_, false)
-
-    (sqlTypeForNonOptional t) + if isOption then "" else " NOT NULL"
+let sqlInsert<'a> conn table (os: 'a seq) =
+    let inserter = getSqlInserter typeof<'a>
+    os |> Seq.iter (fun o -> inserter table conn o)
 
 let recordSqlColsNullable recType =
     FSharpType.GetRecordFields(recType)
@@ -232,6 +250,49 @@ let sqlCopyInText (conn: NpgsqlConnection)
             |> String.concat "\t"
         writer.Write(rowStr + "\n");
     )
+
+let getSqlInCopier = memoize <| fun (recType: Type) ->
+    let rec createCopyInValuePreparer t =
+        if typeIsOption t then
+            let innerPreparer =
+                createCopyInValuePreparer t.GenericTypeArguments.[0]
+            let valueProp = t.GetProperty("Value")
+            fun value ->
+                if isNull value || optionCaseGetter value <> optionSomeCase.Tag
+                then box DBNull.Value
+                else innerPreparer (valueProp.GetValue(value))
+        elif FSharpType.IsUnion(t) then
+            let serializer = getUnionSerializer t
+            serializer >> box
+        else
+            fun value ->
+                if isNull value then box DBNull.Value
+                else box <| value
+    let getCopyInValuePreparer = memoize createCopyInValuePreparer
+
+    assert FSharpType.IsRecord(recType)
+    let fieldsGetter = FSharpValue.PreComputeRecordReader recType
+    let columnWriters =
+        FSharpType.GetRecordFields(recType)
+        |> Seq.mapi (fun i f ->
+            let sqlType = sqlAdoTypeFor f.PropertyType
+            let preparer = getCopyInValuePreparer f.PropertyType
+            fun (writer: NpgsqlBinaryImporter) (data: obj array) ->
+                let prepared = preparer data.[i]
+                if prepared = box DBNull.Value then
+                    writer.WriteNull()
+                else
+                    writer.Write<obj>(prepared, sqlType)
+        )
+    fun table (conn: NpgsqlConnection) (objs: obj array) ->
+        let query = sprintf "COPY \"%s\" FROM STDIN (FORMAT BINARY)"
+                            (sqlIdent table)
+        use writer = conn.BeginBinaryImport(query)
+        for o in objs do
+            let fields = fieldsGetter o
+            writer.StartRow()
+            columnWriters |> Seq.iter (fun cw -> cw writer fields)
+        writer.Complete()
 
 // A wrapper over Scriban that replaces "#ident" with "{{ident}}"
 // Note that this just does textual replacements, there's no escaping

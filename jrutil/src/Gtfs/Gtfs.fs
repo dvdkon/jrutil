@@ -123,13 +123,13 @@ let sqlCreateGtfsTables conn =
     sqlCreateGtfsConstrs conn
 
 let sqlInsertGtfsFeed =
-    // TODO: Use COPY
-    let inserter t tableName =
-        let i = createSqlInserter t
-        fun (conn: DbConnection) -> Array.iter (fun x -> i tableName conn x)
+    let inserter t table =
+        let i = getSqlInCopier t table
+        // XXX: box |> unbox to get obj array from 'a array
+        fun conn os -> i conn (os |> box |> unbox)
     let optionInserter t tableName =
-        let i = inserter t tableName
-        fun conn -> Option.iter (i conn)
+        let i = getSqlInCopier t tableName
+        fun conn -> Option.iter (fun os -> i conn (os |> box |> unbox))
 
     let agenciesInserter = inserter typeof<Agency> "agencies"
     let stopsInserter = inserter typeof<Stop> "stops"
@@ -140,7 +140,7 @@ let sqlInsertGtfsFeed =
     let calendarExceptionsInserter =
         optionInserter typeof<CalendarException> "calendarExceptions"
 
-    fun (conn: DbConnection) feed ->
+    fun (conn: NpgsqlConnection) feed ->
         agenciesInserter conn feed.agencies
         stopsInserter conn feed.stops
         routesInserter conn feed.routes

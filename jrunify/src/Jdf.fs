@@ -58,7 +58,7 @@ let fixupJdf (jdfBatch: JdfModel.JdfBatch) =
 
 let jdfToGtfsDb =
     let jdfParser = Jdf.jdfBatchDirParser ()
-    fun (conn: DbConnection) stopIdsCis inPath ->
+    fun (conn: NpgsqlConnection) stopIdsCis inPath ->
         cleanGtfsTables conn
         let jdf = jdfParser inPath
         let jdf = fixupJdf jdf

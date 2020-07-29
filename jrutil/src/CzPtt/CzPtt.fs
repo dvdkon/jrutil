@@ -3,14 +3,15 @@
 
 module JrUtil.CzPtt
 
+open System
 open System.IO
+open System.Globalization
 open FSharp.Data
+open NodaTime
 
 open JrUtil.Utils
 open JrUtil.UnionCodec
 open JrUtil.GtfsModel
-open System
-open System.Globalization
 open JrUtil
 
 // TODO: Unused data:
@@ -19,7 +20,8 @@ open JrUtil
 // Note that some files will error out. This is fine, as long as they don't
 // describe an actual train. Some files seem to be "broken" (TODO: Why?)
 
-exception CzPttInvalidException of string
+exception CzPttInvalidException of msg: string
+with override this.Message = this.msg
 
 type CzPttXml = XmlProvider<Schema=const(__SOURCE_DIRECTORY__ + "/czptt.xsd")>
 
@@ -291,12 +293,11 @@ let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
     }
     trip
 
-let timingToTimeSpan (timing: CzPttXml.Timing) =
+let timingToPeriod (timing: CzPttXml.Timing) =
     // The timezone information should be dealt with by setting stops' timezones
     let timeStr = timing.Time.Split("+").[0]
-    let time = TimeSpan.ParseExact(timeStr, @"hh\:mm\:ss\.fffffff",
-                                   CultureInfo.InvariantCulture)
-    let dayOffset = TimeSpan(int timing.Offset, 0, 0, 0)
+    let time = parsePeriod @"hh\:mm\:ss\.fffffff" timeStr
+    let dayOffset = Period.FromDays(int timing.Offset)
     time + dayOffset
 
 
@@ -308,7 +309,7 @@ let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
         let findTime name =
             loc.TimingAtLocation.Value.Timings
             |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
-            |> Option.map timingToTimeSpan
+            |> Option.map timingToPeriod
 
         let arrTime = findTime "ALA"
         let depTime = findTime "ALD"
@@ -350,7 +351,7 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     |> List.mapi (fun i date ->
         let calException: CalendarException = {
             id = gtfsTripId czptt
-            date = date |> dateTimeToDate
+            date = LocalDate.FromDateTime(date)
             exceptionType =
                 if cal.BitmapDays.[i] = '1'
                 then ServiceAdded
@@ -362,10 +363,9 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
 let gtfsFeedInfo (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation
     let cal = info.PlannedCalendar
-    let fromDate = cal.ValidityPeriod.StartDateTime
-                   |> dateTimeToDate
+    let fromDate = LocalDate.FromDateTime(cal.ValidityPeriod.StartDateTime)
     let toDate = cal.ValidityPeriod.EndDateTime
-                 |> Option.map dateTimeToDate
+                 |> Option.map (fun dt -> LocalDate.FromDateTime(dt))
     let feedInfo = {
         publisherName = "JrUtil"
         publisherUrl = "https://gitlab.com/dvdkon/jrutil"

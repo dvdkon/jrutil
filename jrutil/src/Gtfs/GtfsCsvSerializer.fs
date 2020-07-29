@@ -5,14 +5,12 @@ module JrUtil.GtfsCsvSerializer
 
 open System
 open Microsoft.FSharp.Reflection
+open NodaTime
 
 open JrUtil.ReflectionUtils
 open JrUtil.UnionCodec
 open JrUtil.GtfsModelMeta
 
-let optionSomeCase =
-    FSharpType.GetUnionCases(typedefof<_ option>)
-    |> Array.find (fun uc -> uc.Name = "Some")
 let rec getFormatter fieldType =
     if fieldType = typeof<string> then (fun x -> [| unbox x |])
     else if fieldType = typeof<int> then (fun x -> [| sprintf "%d" (unbox x) |])
@@ -27,10 +25,10 @@ let rec getFormatter fieldType =
         fun x ->
             let dt: DateTime = unbox x
             [| dt.ToString("yyyyMMdd") |]
-    else if fieldType = typeof<TimeSpan> then
+    else if fieldType = typeof<Period> then
         fun x ->
-            let ts: TimeSpan = unbox x
-            [| sprintf "%02d:%02d:%02d" (int ts.TotalHours)
+            let ts: Period = unbox x
+            [| sprintf "%02d:%02d:%02d" (ts.Hours + (int64 ts.Days * 24L))
                                         ts.Minutes
                                         ts.Seconds |]
     else if typeIsOption fieldType then

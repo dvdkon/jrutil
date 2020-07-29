@@ -2,6 +2,7 @@
 // (c) 2020 David Koňařík
 
 module JrUtil.Utils
+open NodaTime
 
 open System
 open System.IO
@@ -40,89 +41,56 @@ let fileLinesSeq filename = seq {
     while not file.EndOfStream do yield file.ReadLine()
 }
 
-[<CustomComparison>]
-[<StructuralEquality>]
-[<StructuredFormatDisplay("{year}-{month}-{day}")>]
-type Date = {
-    year: int
-    month: int
-    day: int
-}
-with
-    interface IComparable with
-        member this.CompareTo obj2 =
-            match obj2 with
-            | :? Date as date2 ->
-                this.year.CompareTo date2.year
-                |> chainCompare (this.month.CompareTo date2.month)
-                |> chainCompare (this.day.CompareTo date2.day)
-            | _ -> failwithf "Tried to compare Date with %A" obj2
+/// A custom parallel map that lets the user specify the number of processing
+/// threads used
+let parmap<'a, 'b> threadCount func (inputs: 'a seq) = (seq {
+    let enumerator = inputs.GetEnumerator()
+    let next() =
+        lock enumerator (fun () ->
+            if enumerator.MoveNext() then Some enumerator.Current else None)
+    let outputQueue = new BlockingCollection<'b>() 
+    let processingTask =
+        [for _ in 1..threadCount ->
+            async {
+                while (match next() with
+                       | Some i ->
+                           outputQueue.Add(func i)
+                           true
+                       | None -> false) do ()
+            }]
+        |> Async.Parallel
+        |> Async.StartAsTask
+    async {
+        processingTask.Wait()
+        outputQueue.CompleteAdding()
+    } |> Async.Start
+    while not outputQueue.IsCompleted do
+        // seq expressions can't contain try with directly, but can
+        // as a subexpression...
+        yield (try Some <| outputQueue.Take()
+               with :? InvalidOperationException -> None)
+} |> Seq.choose id)
 
-let dateTimeToDate (dt: DateTime) = {
-    year = dt.Year
-    month = dt.Month
-    day = dt.Day
-}
-
-// Used DateTime to parse and the converts the result to Date
+// Used DateTime to parse and the converts the result to LocalDate
 let parseDate format str =
-    DateTime.ParseExact(str, format, CultureInfo.InvariantCulture)
-    |> dateTimeToDate
-
-[<CustomComparison>]
-[<StructuralEquality>]
-[<StructuredFormatDisplay("{hour}-{minute}-{seconf}")>]
-type Time = {
-    hour: int
-    minute: int
-    second: int
-}
-with
-    interface IComparable with
-        member this.CompareTo obj2 =
-            match obj2 with
-            | :? Time as time2 ->
-                this.hour.CompareTo time2.hour
-                |> chainCompare (this.minute.CompareTo time2.minute)
-                |> chainCompare (this.second.CompareTo time2.second)
-            | _ -> failwithf "Tried to compare Time with %A" obj2
-
-let dateTimeToTime (dt: DateTime) = {
-    hour = dt.Hour
-    minute = dt.Minute
-    second = dt.Second
-}
+    let dt = DateTime.ParseExact(str, format, CultureInfo.InvariantCulture)
+    LocalDate.FromDateTime(dt)
 
 let parseTime format str =
-    DateTime.ParseExact(str, format, CultureInfo.InvariantCulture)
-    |> dateTimeToTime
+    let dt = DateTime.ParseExact(str, format, CultureInfo.InvariantCulture)
+    LocalDateTime.FromDateTime(dt).TimeOfDay
 
-let isLeapYear year = (year % 4 = 0) && ((year % 400 = 0) || (year % 100 <> 0))
-let daysInMonths year =
-    let febDays = if isLeapYear year then 29 else 28
-    [|31; febDays; 31; 30; 31; 30; 31; 31; 30; 31; 30; 31|]
-let daysInMonth year month = (daysInMonths year).[month - 1]
-let dateAddDay date =
-    let dayOverflow = date.day + 1 > (daysInMonth date.year date.month)
-    let monthOverflow = dayOverflow && date.month + 1 > 12
-    { date with
-        day = if dayOverflow then 1 else date.day + 1
-        month =
-            if dayOverflow
-            then if monthOverflow
-                 then 1
-                 else date.month + 1
-            else date.month
-        year = if monthOverflow then date.year + 1 else date.year
-    }
+let parsePeriod (format: string) (str: string) =
+    let timespan =
+        TimeSpan.ParseExact(str, format, CultureInfo.InvariantCulture)
+    Period.FromMilliseconds(int64 timespan.TotalMilliseconds)
 
-let rec dateRange (startDate: Date) (endDate: Date) =
+let rec dateRange (startDate: LocalDate) (endDate: LocalDate) =
     // Create a list of Dates containing all days between startDate
     // and endDate *inclusive*
     if startDate <= endDate
-    then startDate :: (dateRange (dateAddDay startDate) endDate)
+    then startDate :: (dateRange (startDate.PlusDays(1)) endDate)
     else []
-
 
 let rec dateTimeRange (startDate: DateTime) (endDate: DateTime)  =
     // Create a list of DateTime objects containing all days between

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <!--
   This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-  (c) 2018 David Koňařík
+  (c) 2020 David Koňařík
   -->
 
   <PropertyGroup>
@@ -39,15 +39,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
     <PackageReference Include="FSharp.Data" Version="3.3.2" />
-    <PackageReference Include="Npgsql" Version="4.1.2" />
+    <PackageReference Include="Npgsql" Version="4.1.4" />
+    <PackageReference Include="Npgsql.NodaTime" Version="4.1.4" />
     <PackageReference Include="Scriban" Version="1.2.7" />
     <PackageReference Include="Serilog" Version="2.9.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
     <PackageReference Include="Destructurama.FSharp" Version="1.1.1-dev-00035" />
-    <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
+    <PackageReference Include="NodaTime" Version="3.0.0" />
   </ItemGroup>
 
   <ItemGroup>

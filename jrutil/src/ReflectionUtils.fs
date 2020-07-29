@@ -25,3 +25,7 @@ let getOptionConstructors = memoize <| fun (optType: Type) ->
     let someCtor = FSharpValue.PreComputeUnionConstructor(someCase)
     let noneCtor = FSharpValue.PreComputeUnionConstructor(noneCase)
     (someCtor, noneCtor)
+
+let optionSomeCase =
+    FSharpType.GetUnionCases(typedefof<_ option>)
+    |> Array.find (fun uc -> uc.Name = "Some")

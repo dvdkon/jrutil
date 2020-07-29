@@ -6,14 +6,15 @@ module JrUtil.JdfParser
 open System.IO
 open System.Text.RegularExpressions
 open System.Text
+open NodaTime
 
 open JrUtil.Utils
 open JrUtil.CsvParser
 
 let rec jdfColParserFor colType =
-    if colType = typeof<Date> then
+    if colType = typeof<LocalDate> then
         parseDate "ddMMyyyy" >> box
-    else if colType = typeof<Time> then
+    else if colType = typeof<LocalTime> then
         parseTime "HHmm" >> box
     else
         colParserForBase jdfColParserFor colType

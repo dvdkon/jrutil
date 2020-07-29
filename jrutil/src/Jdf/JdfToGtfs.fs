@@ -3,9 +3,11 @@
 
 module JrUtil.JdfToGtfs
 
-open JrUtil
 open System
 open System.Text.RegularExpressions
+open NodaTime
+
+open JrUtil
 
 // Information that is lost in the conversion:
 // Textual notes about routes
@@ -212,7 +214,7 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
 
 let getGtfsCalendarExceptions:
         JdfModel.JdfBatch -> GtfsModel.CalendarException array =
-    let jdfDateRange (startDate: Utils.Date option) endDate =
+    let jdfDateRange (startDate: LocalDate option) endDate =
         assert startDate.IsSome
         let endDate =
             match endDate with
@@ -296,8 +298,9 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
     trips
 
 let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
-    let timeToTimeSpan (time: Utils.Time) =
-        TimeSpan(time.hour, time.minute, time.second)
+    let timeToPeriod (time: LocalTime) =
+        let secs = time.Hour * 3600 + time.Minute * 60 + time.Second
+        Period.FromSeconds(int64 secs)
 
     jdfBatch.tripStops
     // We have to deal with stop times for each trip separately,
@@ -330,7 +333,7 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
              else id) jdfTripStops
 
         let mutable lastTimeDT = None
-        let mutable dayTimeSpan = TimeSpan()
+        let mutable dayPeriod = Period.FromSeconds(0L)
 
         jdfTripStops
         |> Array.mapi (fun i jdfTripStop ->
@@ -359,12 +362,11 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
                         match lastTimeDT with
                         | Some lt ->
                             if lt > dt
-                            then dayTimeSpan <- dayTimeSpan
-                                              + (TimeSpan(24, 0, 0))
+                            then dayPeriod <- dayPeriod + Period.FromDays(1)
                         | None -> ()
                         lastTimeDT <- Some dt
-                        let ts = timeToTimeSpan dt
-                        ts + dayTimeSpan
+                        let ts = timeToPeriod dt
+                        ts + dayPeriod
                     )
 
                 let arrTime =

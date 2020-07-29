@@ -9,6 +9,7 @@
 module JrUtil.GtfsModel
 
 open System
+open NodaTime
 
 open JrUtil.Utils
 open JrUtil.UnionCodec
@@ -95,11 +96,11 @@ type TimePoint =
 
 type StopTime = {
     [<CsvFieldName("trip_id")>] tripId: string
-    // These two fields use TimeSpan, because it represents them better than
+    // These two fields use Period, because it represents them better than
     // plain DateTime. For example, handling trips that cross day
     // boundaries with DateTime would be awkward
-    [<CsvFieldName("arrival_time")>] arrivalTime: TimeSpan option
-    [<CsvFieldName("departure_time")>] departureTime: TimeSpan option
+    [<CsvFieldName("arrival_time")>] arrivalTime: Period option
+    [<CsvFieldName("departure_time")>] departureTime: Period option
     // Extension: Composite stops
     [<CsvFieldName("stop_id")>] stopId: string
     [<CsvFieldName("stop_sequence")>] stopSequence: int
@@ -118,8 +119,8 @@ type CalendarEntry = {
     [<CsvSpread([|"monday"; "tuesday"; "wednesday"; "thursday";
                   "friday"; "saturday"; "sunday"|])>]
         weekdayService: bool array
-    [<CsvFieldName("start_date")>] startDate: Date
-    [<CsvFieldName("end_date")>] endDate: Date
+    [<CsvFieldName("start_date")>] startDate: LocalDate
+    [<CsvFieldName("end_date")>] endDate: LocalDate
 }
 
 type ExceptionType =
@@ -128,7 +129,7 @@ type ExceptionType =
 
 type CalendarException = {
     [<CsvFieldName("service_id")>] id: string
-    [<CsvFieldName("date")>] date: Date
+    [<CsvFieldName("date")>] date: LocalDate
     [<CsvFieldName("exception_type")>] exceptionType: ExceptionType
 }
 
@@ -136,8 +137,8 @@ type FeedInfo = {
     [<CsvFieldName("feed_publisher_name")>] publisherName: string
     [<CsvFieldName("feed_publisher_url")>] publisherUrl: string
     [<CsvFieldName("feed_lang")>] lang: string
-    [<CsvFieldName("feed_start_date")>] startDate: Date option
-    [<CsvFieldName("feed_end_date")>] endDate: Date option
+    [<CsvFieldName("feed_start_date")>] startDate: LocalDate option
+    [<CsvFieldName("feed_end_date")>] endDate: LocalDate option
     [<CsvFieldName("feed_version")>] version: string option
 }
 

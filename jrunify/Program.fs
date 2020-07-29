@@ -52,7 +52,6 @@ let jrunify dbConnStr outPath logFile
             let n = ev.Notice
             if n.Severity <> "NOTICE" then
                 Log.Information("SQL notice: {Message}", n.MessageText))
-        c.Open()
         c
 
     measureTime "Loading CISJR geodata" (fun () ->

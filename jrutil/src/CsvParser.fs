@@ -12,8 +12,8 @@ open Microsoft.FSharp.Reflection
 open JrUtil.ReflectionUtils
 open JrUtil.UnionCodec
 
-exception CsvParseException of msg: string with
-    override this.Message = this.msg
+exception CsvParseException of msg: string
+with override this.Message = this.msg
 
 // Unfortunately needed due to reflection methods returning null
 [<AllowNullLiteral>]

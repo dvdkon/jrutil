@@ -6,10 +6,11 @@ module JrUtil.Jdf110To111
 // The F# compiler hates lists in parentheses
 #nowarn "0058"
 
+open NodaTime
+
 open JrUtil
 open JrUtil.AutoCopy
 open JrUtil.Utils
-open System
 
 let jdf110To111Converter () =
     let routeAC =
@@ -17,9 +18,9 @@ let jdf110To111Converter () =
             "oneWay", constant false >> box
             "timetableValidTo", (fun (r: Jdf110Model.Route) ->
                 (match r.timetableValidTo with
-                 | Some date -> date
+                 | Some date -> box date
                  // This is just an arbitrary large date
-                 | None -> {year = 3000; month = 1; day = 1}) |> box)
+                 | None -> LocalDate(3000, 1, 1) |> box))
         ])
     let tripStopAC =
         getAutoCopier<Jdf110Model.TripStop, JdfModel.TripStop> (nameGetters [

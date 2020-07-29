@@ -3,10 +3,10 @@
 
 module JrUtil.Jdf109Model
 
+open NodaTime
+
 open JrUtil
-open JrUtil.Utils
 open JrUtil.CsvParser
-open System
 
 type JdfVersion = {
     version: string
@@ -34,10 +34,10 @@ type Route = {
     routeType: JdfModel.RouteType
     reserved1: string option
     licenceNum: string option
-    licenceValidFrom: Date option
-    licenceValidTo: Date option
-    timetableValidFrom: Date
-    timetableValidTo: Date option
+    licenceValidFrom: LocalDate option
+    licenceValidTo: LocalDate option
+    timetableValidFrom: LocalDate
+    timetableValidTo: LocalDate option
 }
 
 type Trip = {
@@ -84,8 +84,8 @@ type RouteTime = {
     id: int64
     designation: string // TODO: What is this?
     timeType: JdfModel.RouteTimeType option
-    dateFrom: Date option
-    dateTo: Date option
+    dateFrom: LocalDate option
+    dateTo: LocalDate option
     note: string option
 }
 
@@ -97,8 +97,8 @@ type AgencyAlternation = {
     attributes: int option array
     timeType: string option
     reserved1: string option
-    dateFrom: Date option
-    dateTo: Date option
+    dateFrom: LocalDate option
+    dateTo: LocalDate option
 }
 
 type AlternateRouteName = {

@@ -1,10 +1,11 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2020 David Koňařík
 
 module JrUtil.GtfsParser
 
 open System
 open Microsoft.FSharp.Reflection
+open NodaTime
 
 open JrUtil.Utils
 open JrUtil.ReflectionUtils
@@ -12,15 +13,16 @@ open JrUtil.CsvParser
 open JrUtil.GtfsModelMeta
 
 let rec gtfsColParserFor colType =
-    if colType = typeof<Date> then
+    if colType = typeof<LocalDate> then
         parseDate "yyyyMMdd" >> box
-    else if colType = typeof<TimeSpan> then
+    else if colType = typeof<Period> then
         fun instr ->
-            let nums = instr.Split(":") |> Array.map int
-            if nums.Length = 3
-            then TimeSpan(nums.[0], nums.[1], nums.[2]) |> box
+            let nums = instr.Split(":") |> Array.map int64
+            if nums.Length = 3 then
+                let secs = nums.[0] * 3600L + nums.[1] * 60L + nums.[2]
+                Period.FromSeconds(secs) |> box
             else raise (CsvParseException
-                         (sprintf "Invalid value for TimeSpan: %s" instr))
+                         (sprintf "Invalid value for Period: %s" instr))
     else
         colParserForBase gtfsColParserFor colType
 

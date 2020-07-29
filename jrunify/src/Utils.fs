@@ -33,6 +33,6 @@ let handleErrors formatStr formatParams func =
     with
     | :? PostgresException as e ->
         Log.Error(sprintf "Error while %s:\nSQL error:\n{SqlError}" formatStr,
-                  Array.append formatParams [| e.Message |])
+                  Array.append formatParams [| box e.Message |])
     | e ->
         Log.Error(e, sprintf "Error while %s" formatStr, formatParams)

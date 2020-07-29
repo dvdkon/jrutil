@@ -5,7 +5,7 @@ module JrUtil.JdfModel
 
 open System
 open System.Text.RegularExpressions
-open System.Globalization
+open NodaTime
 
 open JrUtil.Utils
 open JrUtil.CsvParser
@@ -81,7 +81,7 @@ type JdfVersion = {
     duNum: int option // TODO: What is this exactly?
     region: string option
     batchId: string option
-    creationDate: Date option
+    creationDate: LocalDate option
     name: String option
 }
 
@@ -170,10 +170,10 @@ type Route = {
     oneWay: bool
     reserved1: string option
     licenceNum: string option
-    licenceValidFrom: Date option
-    licenceValidTo: Date option
-    timetableValidFrom: Date
-    timetableValidTo: Date
+    licenceValidFrom: LocalDate option
+    licenceValidTo: LocalDate option
+    timetableValidFrom: LocalDate
+    timetableValidTo: LocalDate
     agencyDistinction: int // forms a 2-field foreign key with agencyId
     idDistinction: int // forms a 2-field primary key with id
 }
@@ -227,7 +227,7 @@ type TripStopTime =
     // It means that the vehicle doesn't even pass the stop, because
     // it's routed differently
     | [<StrValue("<")>] NotPassing
-    | StopTime of Time
+    | StopTime of LocalTime
 
     with
     static member CsvParse(str) =
@@ -277,8 +277,8 @@ type RouteTime = {
     id: int64
     designation: string // TODO: What is this?
     timeType: RouteTimeType option
-    dateFrom: Date option
-    dateTo: Date option
+    dateFrom: LocalDate option
+    dateTo: LocalDate option
     note: string option
     routeDistinction: int
 }
@@ -307,8 +307,8 @@ type AgencyAlternation = {
     attributes: int option array
     timeType: string option
     reserved1: string option
-    dateFrom: Date option
-    dateTo: Date option
+    dateFrom: LocalDate option
+    dateTo: LocalDate option
     agencyDistinction: int
     routeDistinction: int
 }
