@@ -69,7 +69,6 @@ let main (args: string array) =
             let indir = argValue args "<GTFS-in-dir>"
 
             use dbConn = getPostgresqlConnection dbConnStr
-            dbConn.Open()
 
             try
                 Gtfs.sqlCreateGtfsTables dbConn

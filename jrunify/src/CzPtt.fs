@@ -3,9 +3,12 @@
 
 module JrUnify.CzPtt
 
+open System
 open System.IO
+open System.Threading
 open Npgsql
 open Serilog
+open Serilog.Context
 
 open JrUtil
 open JrUtil.GtfsMerge
@@ -15,13 +18,11 @@ open JrUtil.Utils
 
 open JrUnify.Utils
 
-let processCzPtt conn overpassUrl cacheDir path =
+let processCzPtt conn overpassUrl cacheDir path threadCount =
     // TODO: Filter out non-passenger trains (Sv)
     let fixupScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/FixupCzptt.sql")
 
     let schemaMerged = "czptt_merged"
-    let schemaTemp = "czptt_temp"
-    let schemaIntermediate = "czptt_intermediate"
     let geodataSchema = "czptt_geodata"
 
     measureTime "Loading czptt geodata" (fun () ->
@@ -32,28 +33,54 @@ let processCzPtt conn overpassUrl cacheDir path =
             |> Osm.czRailStopsToSql conn)
     )
 
-    cleanAndSetSchema conn schemaTemp
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
         MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, true)
-    cleanAndSetSchema conn schemaIntermediate
-    Gtfs.sqlCreateGtfsTables conn
 
-    Directory.EnumerateFiles(path, "*.xml", SearchOption.AllDirectories)
-    |> Seq.iter (fun czpttFile ->
-        Log.Information("Processing czptt {File}", czpttFile)
-        handleErrors "Processing czptt {File}" [| czpttFile |] (fun () ->
-            setSchema conn schemaIntermediate
-            cleanGtfsTables conn
-            let czptt = CzPtt.parseFile czpttFile
-            let gtfs = CzPtt.gtfsFeed czptt
-            Gtfs.sqlInsertGtfsFeed conn gtfs
-            executeSql conn fixupScript []
-            setSchema conn schemaTemp
-            mergedFeed.InsertFeed schemaIntermediate
-        )
-    )
+    let files = Directory.EnumerateFiles(path, "*.xml",
+                                         SearchOption.AllDirectories)
+    let enumerator = files.GetEnumerator()
+    let next() =
+        lock enumerator (fun () ->
+            if enumerator.MoveNext() then Some enumerator.Current else None)
+
+    [for _ in 1..threadCount ->
+        async {
+            let threadId = Thread.CurrentThread.ManagedThreadId
+            let schemaTemp = sprintf "czptt_temp_%d" threadId
+            let schemaIntermediate = sprintf "czptt_intermediate_%d" threadId
+            // Create a connection per thread
+            let threadConn = (conn :> ICloneable).Clone() :?> NpgsqlConnection
+            threadConn.Open()
+            cleanAndSetSchema threadConn schemaTemp
+            cleanAndSetSchema threadConn schemaIntermediate
+            Gtfs.sqlCreateGtfsTables threadConn
+
+            let processDir (czpttFile: string) =
+                use prop = LogContext.PushProperty("InputFile", czpttFile)
+                Log.Information("Processing czptt {File}", czpttFile)
+                handleErrors "Processing czptt {File}" [| czpttFile |] (fun () ->
+                    setSchema threadConn schemaIntermediate
+                    cleanGtfsTables threadConn
+                    let czptt = CzPtt.parseFile czpttFile
+                    let gtfs = CzPtt.gtfsFeed czptt
+                    Gtfs.sqlInsertGtfsFeed threadConn gtfs
+                    executeSql threadConn fixupScript []
+                    lock mergedFeed (fun () ->
+                        setSchema conn schemaTemp
+                        mergedFeed.InsertFeed schemaIntermediate)
+                )
+
+            while (match next() with
+                   | Some dir ->
+                       processDir dir
+                       true
+                   | None -> false) do ()
+        }]
+    |> Async.Parallel
+    |> Async.RunSynchronously
+    |> ignore
 
     measureTime "Updating czptt geodata" (fun () ->
         setSchema conn geodataSchema

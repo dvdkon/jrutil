@@ -11,6 +11,7 @@ open System.Globalization
 open System.Collections.Concurrent
 open Docopt
 open Serilog
+open Serilog.Formatting.Json
 
 #nowarn "0342"
 
@@ -43,12 +44,14 @@ let fileLinesSeq filename = seq {
 
 /// A custom parallel map that lets the user specify the number of processing
 /// threads used
+/// Each thread gets its next input from a queue, processes that input and then
+/// puts the output into the output queue
 let parmap<'a, 'b> threadCount func (inputs: 'a seq) = (seq {
     let enumerator = inputs.GetEnumerator()
     let next() =
         lock enumerator (fun () ->
             if enumerator.MoveNext() then Some enumerator.Current else None)
-    let outputQueue = new BlockingCollection<'b>() 
+    let outputQueue = new BlockingCollection<'b>()
     let processingTask =
         [for _ in 1..threadCount ->
             async {
@@ -70,6 +73,25 @@ let parmap<'a, 'b> threadCount func (inputs: 'a seq) = (seq {
         yield (try Some <| outputQueue.Take()
                with :? InvalidOperationException -> None)
 } |> Seq.choose id)
+
+// A version of parmap for side-effecting functions
+let pariter<'a> threadCount func (inputs: 'a seq) =
+    let enumerator = inputs.GetEnumerator()
+    let next() =
+        lock enumerator (fun () ->
+            if enumerator.MoveNext() then Some enumerator.Current else None)
+    let processingTask =
+        [for _ in 1..threadCount ->
+            async {
+                while (match next() with
+                       | Some i ->
+                           func i
+                           true
+                       | None -> false) do ()
+            }]
+        |> Async.Parallel
+        |> Async.StartAsTask
+    processingTask.Wait()
 
 // Used DateTime to parse and the converts the result to LocalDate
 let parseDate format str =
@@ -167,8 +189,10 @@ let findPathCaseInsensitive dirPath (filename: string) =
 let setupLogging logFile () =
     let mutable loggerFactory =
         LoggerConfiguration()
+         .MinimumLevel.Debug()
+         .Enrich.FromLogContext()
          .Destructure.FSharpTypes()
          .WriteTo.Console()
     logFile |> Option.iter (fun lf ->
-        loggerFactory <- loggerFactory.WriteTo.File(lf))
+        loggerFactory <- loggerFactory.WriteTo.File(JsonFormatter(), lf))
     Log.Logger <- loggerFactory.CreateLogger()

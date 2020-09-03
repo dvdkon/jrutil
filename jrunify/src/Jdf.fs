@@ -3,12 +3,15 @@
 
 module JrUnify.Jdf
 
+open System
 open System.IO
-open System.Data.Common
+open System.Threading
 open Npgsql
 open Serilog
+open Serilog.Context
 
 open JrUtil
+open JrUtil.Utils
 open JrUtil.GtfsMerge
 open JrUtil.SqlRecordStore
 open JrUtil.GeoData.SqlOther
@@ -66,29 +69,53 @@ let jdfToGtfsDb =
         Gtfs.sqlInsertGtfsFeed conn gtfs
         ()
 
-let processJdf conn stopIdsCis group path =
+let processJdf conn stopIdsCis group path threadCount =
     let schemaMerged = sprintf "%s_merged" group
-    let schemaTemp = sprintf "%s_temp" group
-    let schemaIntermediate = sprintf "%s_intermediate" group
-
-    cleanAndSetSchema conn schemaTemp
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
         MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, false)
-    cleanAndSetSchema conn schemaIntermediate
-    Gtfs.sqlCreateGtfsTables conn
 
-    Directory.EnumerateDirectories(path)
-    |> Seq.iter (fun jdfPath ->
-        Log.Information("Converting {Group} {File}", group, jdfPath)
-        handleErrors "Converting {Group} {File}" [| group; jdfPath |]
-            (fun () ->
-                setSchema conn schemaIntermediate
-                jdfToGtfsDb conn stopIdsCis jdfPath
-                setSchema conn "cisjr_geodata"
-                applyOtherStopsGeodata conn schemaIntermediate
-                setSchema conn schemaTemp
-                mergedFeed.InsertFeed schemaIntermediate
-            )
-    )
+    // Parsing, loading and converting the JDF is per-thread, merging it into
+    // the main merged feed is behind a lock and happens on the main connection
+    // TODO: Abstract this parallel iteration with setup
+    let dirs = Directory.EnumerateDirectories(path)
+    let enumerator = dirs.GetEnumerator()
+    let next() =
+        lock enumerator (fun () ->
+            if enumerator.MoveNext() then Some enumerator.Current else None)
+    [for _ in 1..threadCount ->
+        async {
+            let threadId = Thread.CurrentThread.ManagedThreadId
+            let schemaTemp = sprintf "%s_temp_%d" group threadId
+            let schemaIntermediate = sprintf "%s_intermediate_%d" group threadId
+            // Create a connection per thread
+            let threadConn = (conn :> ICloneable).Clone() :?> NpgsqlConnection
+            threadConn.Open()
+            cleanAndSetSchema threadConn schemaTemp
+            cleanAndSetSchema threadConn schemaIntermediate
+            Gtfs.sqlCreateGtfsTables threadConn
+
+            let processDir jdfPath =
+                use prop = LogContext.PushProperty("InputFile", jdfPath)
+                Log.Information("Converting {Group} {File}", group, jdfPath)
+                handleErrors "Converting {Group} {File}" [| group; jdfPath |]
+                    (fun () ->
+                        setSchema threadConn schemaIntermediate
+                        jdfToGtfsDb threadConn stopIdsCis jdfPath
+                        setSchema threadConn "cisjr_geodata"
+                        applyOtherStopsGeodata threadConn schemaIntermediate
+                        lock mergedFeed (fun () ->
+                            setSchema conn schemaTemp
+                            mergedFeed.InsertFeed schemaIntermediate)
+                    )
+
+            while (match next() with
+                   | Some dir ->
+                       processDir dir
+                       true
+                   | None -> false) do ()
+        }]
+    |> Async.Parallel
+    |> Async.RunSynchronously
+    |> ignore

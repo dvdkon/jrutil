@@ -16,6 +16,7 @@
     <Compile Include="src/AutoCopy.fs" />
     <Compile Include="src/CsvParser.fs" />
     <Compile Include="src/SqlRecordStore.fs" />
+    <Compile Include="src/Holidays.fs" />
     <Compile Include="src/Jdf/JdfParser.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
     <Compile Include="src/Jdf/Jdf110Model.fs" />

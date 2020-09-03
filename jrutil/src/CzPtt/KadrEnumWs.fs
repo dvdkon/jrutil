@@ -10,7 +10,7 @@ open JrUtil.Utils
 type CompanyListXml =
     XmlProvider<"samples/kadrenum/SeznamSpolecnostiResult.xml">
 
-let serviceUrl = "http://provoz.szdc.cz/kadrws/ciselniky.asmx"
+let serviceUrl = "http://provoz.spravazeleznic.cz/kadrws/ciselniky.asmx"
 
 let makeSoapRequest endpoint body =
     Http.RequestString(

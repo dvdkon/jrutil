@@ -24,6 +24,7 @@ Usage:
 Options:
     --connstr=CONNSTR     Npgsql connection string
     --out=OUTPATH         Output directory
+    --threadedness=N      Thread count multiplier [default: 1]
     --logfile=FILE        Path to log file
     --jdf-bus=PATH        JDF BUS directory (extracted)
     --jdf-mhd=PATH        JDF MHD directory (extracted)
@@ -37,7 +38,7 @@ Options:
 This program creates numerous schemas in the given database
 """
 
-let jrunify dbConnStr outPath logFile
+let jrunify dbConnStr outPath threadedness logFile
             jdfBusPath jdfMhdPath czpttSzdcPath dpmljGtfsPath overpassUrl
             cacheDir railCoordsDir otherCoordsDir=
     setupLogging logFile ()
@@ -71,7 +72,7 @@ let jrunify dbConnStr outPath logFile
             jdfBusPath |> Option.iter (fun jdfBusPath ->
                 measureTime "Processing jdfbus" (fun () ->
                     let c = newConn ()
-                    processJdf c false "jdfbus" jdfBusPath
+                    processJdf c false "jdfbus" jdfBusPath threadedness
                     c.Close()
                 )
             )
@@ -80,7 +81,7 @@ let jrunify dbConnStr outPath logFile
             jdfMhdPath |> Option.iter (fun jdfMhdPath ->
                 measureTime "Processing jdfmhd" (fun () ->
                     let c = newConn ()
-                    processJdf c false "jdfmhd" jdfMhdPath
+                    processJdf c false "jdfmhd" jdfMhdPath threadedness
                     c.Close()
                 )
             )
@@ -90,7 +91,7 @@ let jrunify dbConnStr outPath logFile
                 measureTime "Processing czptt" (fun () ->
                     let c = newConn ()
                     processCzPtt c overpassUrl cacheDir
-                                 czpttSzdcPath
+                                 czpttSzdcPath threadedness
                     c.Close()
                 )
             )
@@ -123,6 +124,7 @@ let main args =
     withProcessedArgs docstring args (fun args ->
         jrunify (argValue args "--connstr")
                 (argValue args "--out")
+                (argValue args "--threadedness" |> int)
                 (optArgValue args "--logfile")
                 (optArgValue args "--jdf-bus")
                 (optArgValue args "--jdf-mhd")
