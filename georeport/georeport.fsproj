@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FSharp.Data" Version="3.3.2" />
+    <PackageReference Include="FSharp.Data" Version="3.3.3" />
     <PackageReference Include="giraffe" Version="4.0.1" />
   </ItemGroup>
 

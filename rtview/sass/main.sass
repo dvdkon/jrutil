@@ -1,0 +1,46 @@
+body
+    margin-left: auto
+    margin-right: auto
+    padding-left: 10px
+    padding-right: 10px
+    margin-top: 24px
+    margin-bottom: 24px
+    max-width: 800px
+
+    background-color: #ffffff
+    font-family: sans-serif
+
+table
+    border-collapse: collapse
+    border-style: solid
+    border-width: 1px
+    border-color: #22b
+
+    display: block
+    max-width: fit-content
+    max-width: -moz-fit-content
+    overflow-x: auto
+
+    td
+        border-left-style: solid
+        border-right-style: solid
+        border-width: 1px
+        border-color: #99e
+
+        &:first-child
+            border-left-style: none
+        &:last-child
+            border-right-style: none
+
+        padding-top: 2px
+        padding-bottom: 2px
+        padding-left: 5px
+        padding-right: 5px
+
+    thead
+        background-color: #99e
+
+    tr:nth-child(even)
+        background-color: #eef
+
+@import "routes"

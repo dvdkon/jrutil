@@ -8,10 +8,8 @@
 
 module JrUtil.GtfsModel
 
-open System
 open NodaTime
 
-open JrUtil.Utils
 open JrUtil.UnionCodec
 open JrUtil.GtfsModelMeta
 

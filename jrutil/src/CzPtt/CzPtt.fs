@@ -133,24 +133,6 @@ let getIdentifierByType (czptt: CzPttXml.CzpttcisMessage) idt =
     czptt.Identifiers.PlannedTransportIdentifiers
     |> Array.find (fun ti -> ti.ObjectType = idt)
 
-let gtfsRouteId (czptt: CzPttXml.CzpttcisMessage) =
-    let trainIdentifier = getIdentifierByType czptt "TR"
-    "-CZPTTR-" + trainIdentifier.Core
-
-let gtfsAgencyId (czptt: CzPttXml.CzpttcisMessage) =
-    let trainIdentifier = getIdentifierByType czptt "TR"
-    let agencyNum = trainIdentifier.Company
-    sprintf "-CZPTTA-%s" agencyNum
-
-let gtfsStationId (loc: CzPttXml.CzpttLocation) =
-    sprintf "-CZPTTST-%s-%s"
-            loc.CountryCodeIso
-            (loc.LocationPrimaryCode |> Option.get)
-
-let gtfsTripId czptt =
-    let trainIdentifier = getIdentifierByType czptt "TR"
-    sprintf "CZPTTT-%s-%s" trainIdentifier.Core trainIdentifier.Variant
-
 let activities (loc: CzPttXml.CzpttLocation) =
     loc.TrainActivities
     |> Seq.map ((fun ta -> ta.TrainActivityType) >> parseUnion<TrainActivity>)
@@ -162,6 +144,57 @@ let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
     && not (activities loc |> Seq.contains InternalStop)
     && not (activities loc |> Seq.contains UnpublishedStop)
 
+// Information about the train is stored in each CZPTTLocation element.
+// This is not explicitly stated in the specification, but each file only
+// contains data about one trip (TODO: Verify). This means we can simply
+// take the first *valid* element and get the data from there.
+let firstValidLocation (czptt: CzPttXml.CzpttcisMessage) =
+    match czptt.CzpttInformation.CzpttLocations
+          |> Seq.tryFind isValidGtfsStop with
+    | Some fl -> fl
+    | None ->
+        raise (CzPttInvalidException "Invalid CZPTT - no valid stops")
+
+let trainTypePrefix (location: CzPttXml.CzpttLocation) =
+    match (location.CommercialTrafficType,
+           location.TrafficType) with
+    | (Some ctt, _) -> commercialTrafficTypes.[ctt] |> fst
+    | (_, Some tt) -> trafficTypes.[tt]
+    | _ -> ""
+
+let gtfsAgencyId (czptt: CzPttXml.CzpttcisMessage) =
+    let trainIdentifier = getIdentifierByType czptt "TR"
+    let agencyNum = trainIdentifier.Company
+    sprintf "-CZPTTA-%s" agencyNum
+
+let gtfsRouteId czptt =
+    let loc = firstValidLocation czptt
+    sprintf "-CZTRAINR-%s-%s"
+            (trainTypePrefix loc)
+            (Option.get loc.OperationalTrainNumber)
+
+let gtfsTripId czptt =
+    let loc = firstValidLocation czptt
+    sprintf "-CZTRAINT-%s-%s"
+            (trainTypePrefix loc)
+            (Option.get loc.OperationalTrainNumber)
+
+let gtfsStationId (loc: CzPttXml.CzpttLocation) =
+    sprintf "-SR80ST-%s-%s"
+            loc.CountryCodeIso
+            (loc.LocationPrimaryCode |> Option.get)
+
+let gtfsStopId (loc: CzPttXml.CzpttLocation) =
+    let platform =
+        loc.LocationSubsidiaryIdentification
+        |> Option.map (fun lsi -> lsi.LocationSubsidiaryCode.Value)
+    sprintf "-SR80S-%s-%s%s"
+            loc.CountryCodeIso
+            (loc.LocationPrimaryCode |> Option.get)
+            (platform
+             |> Option.map (fun p -> "-" + p)
+             |> Option.defaultValue "")
+
 let networkSpecificParams (czptt: CzPttXml.CzpttcisMessage) =
     czptt.NetworkSpecificParameter
     |> Option.map (fun nsps ->
@@ -169,28 +202,12 @@ let networkSpecificParams (czptt: CzPttXml.CzpttcisMessage) =
     |> Option.defaultValue (Map [])
 
 let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
-    let info = czptt.CzpttInformation
+    let firstLocation = firstValidLocation czptt
 
-    // Information about the train is stored in each CZPTTLocation element.
-    // This is not explicitly stated in the specification, but each file only
-    // contains data about one trip (TODO: Verify). This means we can simply
-    // take the first *valid* element and get the data from there.
-    let firstLocation =
-        match info.CzpttLocations |> Seq.tryFind isValidGtfsStop with
-        | Some fl -> fl
-        | None ->
-            raise (CzPttInvalidException "Invalid CZPTT - no valid stops")
-
-    let prefix =
-        match (firstLocation.CommercialTrafficType,
-               firstLocation.TrafficType) with
-        | (Some ctt, _) -> commercialTrafficTypes.[ctt] |> fst
-        | (_, Some tt) -> trafficTypes.[tt]
-        | _ -> ""
     // Name may end up being empty, but this should never happen in a normal
     // dataset.
     let name =
-        [Some prefix
+        [Some <| trainTypePrefix firstLocation
          firstLocation.OperationalTrainNumber
          networkSpecificParams czptt |> Map.tryFind "CZTrainName"]
         |> List.choose id
@@ -212,17 +229,6 @@ let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
     }
 
     route
-
-let gtfsStopId (loc: CzPttXml.CzpttLocation) =
-    let platform =
-        loc.LocationSubsidiaryIdentification
-        |> Option.map (fun lsi -> lsi.LocationSubsidiaryCode.Value)
-    sprintf "-CZPTTS-%s-%s%s"
-            loc.CountryCodeIso
-            (loc.LocationPrimaryCode |> Option.get)
-            (platform
-             |> Option.map (fun p -> "-" + p)
-             |> Option.defaultValue "")
 
 let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
     let info = czptt.CzpttInformation

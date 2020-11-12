@@ -21,7 +21,6 @@ Usage:
 let main argv =
     withProcessedArgs docstring argv (fun args ->
         let dbConn = getPostgresqlConnection (argValue args "<db-connstr>")
-        dbConn.Open()
 
         if argFlagSet args "generate" then
             printfn "Not implemented yet"

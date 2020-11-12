@@ -1,4 +1,4 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv2 or later
+// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
 // (c) 2019 David Koňařík
 
 module GeoReport.HtmlPage

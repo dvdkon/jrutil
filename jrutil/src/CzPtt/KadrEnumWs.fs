@@ -17,7 +17,7 @@ let makeSoapRequest endpoint body =
         serviceUrl,
         httpMethod="POST",
         headers=[
-            "Content-Type", "text/xml; charset=utf-8";
+            "Content-Type", "text/xml; charset=utf-8"
             "SOAPAction", "http://provoz.szdc.cz/kadr/" + endpoint],
         body=TextRequest body
     )

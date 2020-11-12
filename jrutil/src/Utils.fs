@@ -2,7 +2,6 @@
 // (c) 2020 David Koňařík
 
 module JrUtil.Utils
-open NodaTime
 
 open System
 open System.IO
@@ -12,6 +11,8 @@ open System.Collections.Concurrent
 open Docopt
 open Serilog
 open Serilog.Formatting.Json
+open NodaTime
+open NodaTime.Text
 
 #nowarn "0342"
 
@@ -99,8 +100,10 @@ let parseDate format str =
     LocalDate.FromDateTime(dt)
 
 let parseTime format str =
-    let dt = DateTime.ParseExact(str, format, CultureInfo.InvariantCulture)
-    LocalDateTime.FromDateTime(dt).TimeOfDay
+    let pattern = LocalTimePattern.Create(format, CultureInfo.InvariantCulture)
+    let res = pattern.Parse(str)
+    if res.Success then res.Value
+    else failwithf "Failed to parse time \"%s\" with pattern \"%s\"" str format
 
 let parsePeriod (format: string) (str: string) =
     let timespan =
@@ -120,6 +123,9 @@ let rec dateTimeRange (startDate: DateTime) (endDate: DateTime)  =
     if startDate <= endDate
     then startDate :: (dateTimeRange (startDate.AddDays(1.0)) endDate)
     else []
+
+let dateToday () =
+    LocalDate.FromDateTime(DateTime.Today)
 
 let constant x _ = x
 
@@ -170,9 +176,10 @@ let withProcessedArgs docstring (args: string array) fn =
 
 let measureTime msg func =
     let sw = Stopwatch.StartNew()
-    func()
+    let res = func()
     sw.Stop()
     Log.Information("{Section} took {Time}", msg, sw.Elapsed)
+    res
 
 let findPathCaseInsensitive dirPath (filename: string) =
     let files =

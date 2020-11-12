@@ -6,8 +6,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-	<Compile Include="src/Pages.fs" />
-	<Compile Include="src/Server.fs" />
+    <Compile Include="src/Pages.fs" />
+    <Compile Include="src/Server.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

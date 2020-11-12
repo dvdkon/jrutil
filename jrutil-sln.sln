@@ -19,6 +19,10 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "htmltt", "htmltt\htmltt.fsp
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "georeport", "georeport\georeport.fsproj", "{45DD4820-3849-47B6-8E21-FE2A46B215E1}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "rtcollect", "rtcollect\rtcollect.fsproj", "{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "rtview", "rtview\rtview.fsproj", "{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -104,6 +108,30 @@ Global
 		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|x64.Build.0 = Release|Any CPU
 		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|x86.ActiveCfg = Release|Any CPU
 		{45DD4820-3849-47B6-8E21-FE2A46B215E1}.Release|x86.Build.0 = Release|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Debug|x64.Build.0 = Debug|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Debug|x86.Build.0 = Debug|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Release|x64.ActiveCfg = Release|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Release|x64.Build.0 = Release|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Release|x86.ActiveCfg = Release|Any CPU
+		{89D0FF7E-E91D-4399-8CFD-4A86A01F24C6}.Release|x86.Build.0 = Release|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Debug|x64.Build.0 = Debug|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Debug|x86.Build.0 = Debug|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|x64.ActiveCfg = Release|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|x64.Build.0 = Release|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|x86.ActiveCfg = Release|Any CPU
+		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{D7102706-956F-4B9D-91B9-669125406CBE} = {B830DE06-3ECD-449D-92E3-99A0E822E22C}

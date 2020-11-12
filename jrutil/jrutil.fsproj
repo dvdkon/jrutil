@@ -37,11 +37,14 @@
     <Compile Include="src/GeoData/SqlCzptt.fs" />
     <Compile Include="src/GeoData/SqlOther.fs" />
     <Compile Include="src/Gtfs/GtfsMerge.fs" />
+    <Compile Include="src/RealTime/RealTimeModel.fs" />
+    <Compile Include="src/RealTime/RealTimeSql.fs" />
+    <Compile Include="src/Grapp.fs" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
-    <PackageReference Include="FSharp.Data" Version="3.3.2" />
+    <PackageReference Include="FSharp.Data" Version="3.3.3" />
     <PackageReference Include="Npgsql" Version="4.1.4" />
     <PackageReference Include="Npgsql.NodaTime" Version="4.1.4" />
     <PackageReference Include="Scriban" Version="1.2.7" />
