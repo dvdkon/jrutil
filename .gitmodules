@@ -1,3 +1,6 @@
 [submodule "thirdparty/docopt.fs"]
 	path = thirdparty/docopt.fs
 	url = https://github.com/dvdkon/docopt.fs
+[submodule "thirdparty/WebSharper.ECharts"]
+	path = thirdparty/WebSharper.ECharts
+	url = https://gitlab.com/dvdkon/websharper.echarts

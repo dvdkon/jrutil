@@ -23,6 +23,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "rtcollect", "rtcollect\rtco
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "rtview", "rtview\rtview.fsproj", "{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "WebSharper.ECharts", "thirdparty\WebSharper.ECharts\WebSharper.ECharts.fsproj", "{851FB605-795E-4A89-A151-06FE192A8882}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -132,9 +134,22 @@ Global
 		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|x64.Build.0 = Release|Any CPU
 		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|x86.ActiveCfg = Release|Any CPU
 		{DB36D8D8-A8D4-4A3E-9340-541A662B08CC}.Release|x86.Build.0 = Release|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Debug|x64.Build.0 = Debug|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Debug|x86.Build.0 = Debug|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Release|Any CPU.Build.0 = Release|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Release|x64.ActiveCfg = Release|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Release|x64.Build.0 = Release|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Release|x86.ActiveCfg = Release|Any CPU
+		{851FB605-795E-4A89-A151-06FE192A8882}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{D7102706-956F-4B9D-91B9-669125406CBE} = {B830DE06-3ECD-449D-92E3-99A0E822E22C}
 		{5EC2ECF6-ECE5-44F0-8E6F-32D7DCCFE426} = {D7102706-956F-4B9D-91B9-669125406CBE}
+		{851FB605-795E-4A89-A151-06FE192A8882} = {B830DE06-3ECD-449D-92E3-99A0E822E22C}
 	EndGlobalSection
 EndGlobal

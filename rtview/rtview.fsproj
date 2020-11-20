@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <Compile Include="src/Globals.fs" />
+    <Compile Include="src/Utils.fs" />
     <Compile Include="src/Routes.fs" />
     <Compile Include="src/Trip.fs" />
     <Compile Include="src/Main.fs" />
@@ -20,6 +21,14 @@
     <PackageReference Include="WebSharper.FSharp" Version="4.6.7.408" />
     <PackageReference Include="WebSharper.UI" Version="4.6.3.219" />
     <PackageReference Include="WebSharper.AspNetCore" Version="4.6.2.136" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- This can't be a ProjectReference, since then the editor would base
+    its autocomplete on the source, not the generated DLL -->
+    <Reference Include="WebSharper.ECharts">
+      <HintPath>../thirdparty/WebSharper.ECharts/bin/Release/netstandard2.0/WebSharper.ECharts.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

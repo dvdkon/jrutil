@@ -5,6 +5,8 @@ module RtView.Trip
 
 open WebSharper
 
+open RtView.Utils
+
 module Server =
     open RtView.ServerGlobals
     open JrUtil.SqlRecordStore
@@ -62,50 +64,105 @@ module Server =
         stopName: string
     }
 
+    [<JavaScript>]
+    type DelayChartLabel = {
+        x: float
+        label: string
+    }
+
+    [<JavaScript>]
+    type DelayChartData = {
+        data: DelayChartItem array
+        labels: DelayChartLabel array
+    }
+
     [<Remote>]
     let tripDelayChart (tripId: string) (startDate: string) () =
-        let items =
-            sqlQueryRec<DelayChartItem> dbConn.Value """
-SELECT * FROM (
-    -- Arrival delays
-    SELECT EXTRACT(EPOCH FROM shouldArriveAt - first_value(shouldDepartAt)
-                                  OVER (ORDER BY tripStopIndex)) AS x,
-           EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60 AS delay,
-           stopName
+        let out =
+            sqlQuery dbConn.Value """
+WITH stopHist AS (
+    SELECT *
     FROM stopHistoryWithNames
     WHERE tripId = @tripId
       AND tripStartDate = @startDate::date
+), data AS (
+    SELECT * FROM (
+        -- Arrival delays
+        SELECT EXTRACT(EPOCH FROM shouldArriveAt
+                                - first_value(shouldDepartAt)
+                                      OVER (ORDER BY tripStopIndex)) AS x,
+               EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60 AS delay,
+               stopName || ' (arr.)' AS stopName
+        FROM stopHist
+        UNION
+        -- Departure delays
+        SELECT
+            -- If scheduled arrival and departure are the same, shift departure by
+            -- not to get conflicting xs
+            EXTRACT(EPOCH FROM CASE
+                WHEN shouldDepartAt = shouldArriveAt THEN
+                    shouldDepartAt - first_value(shouldDepartAt)
+                        OVER (ORDER BY tripStopIndex) + '1sec'::INTERVAL
+                ELSE shouldDepartAt - first_value(shouldDepartAt)
+                    OVER (ORDER BY tripStopIndex)
+            END) AS x,
+            EXTRACT(EPOCH FROM departedAt - shouldDepartAt)/60 AS delay,
+            stopName || ' (dep.)' as stopName
+        FROM stopHist
+    ) AS i
+    WHERE x IS NOT NULL AND delay IS NOT NULL
+    ORDER BY x
+), labels AS (
+    (SELECT
+        0 AS x,
+        stopName  || ' (' || to_char(shouldDepartAt, 'HH24:MI')
+            || ')' AS label
+    FROM stopHist
+    ORDER BY tripStopIndex
+    LIMIT 1)
     UNION
-    -- Departure delays
-    SELECT
-        -- If scheduled arrival and departure are the same, shift departure by
-        -- not to get conflicting xs
-        EXTRACT(EPOCH FROM CASE
-            WHEN shouldDepartAt = shouldArriveAt THEN
-                shouldDepartAt - first_value(shouldDepartAt)
-                    OVER (ORDER BY tripStopIndex) + '1sec'::INTERVAL
-            ELSE shouldDepartAt - first_value(shouldDepartAt)
-                OVER (ORDER BY tripStopIndex)
-        END) AS x,
-        EXTRACT(EPOCH FROM departedAt - shouldDepartAt)/60 AS delay,
-        stopName
-    FROM stopHistoryWithNames
-    WHERE tripId = @tripId
-      AND tripStartDate = @startDate::date
-) AS i
-WHERE x IS NOT NULL AND delay IS NOT NULL
-ORDER BY x;
+    (SELECT
+        EXTRACT(EPOCH FROM shouldArriveAt - first_value(shouldDepartAt)
+            OVER (ORDER BY tripStopIndex)) AS x,
+        stopName  || ' (' || to_char(shouldArriveAt, 'HH24:MI') || ')' AS label
+    FROM stopHist
+    ORDER BY tripStopIndex DESC
+    LIMIT 1)
+    UNION
+    (SELECT
+        COALESCE(
+            EXTRACT(EPOCH FROM shouldArriveAt -
+                (SELECT min(shouldDepartAt) FROM stopHist)),
+            0) AS x,
+        stopName || ' (' || to_char(shouldArriveAt, 'HH24:MI') || ')' AS label
+    FROM stopHist
+    WHERE shouldDepartAt <> shouldArriveAt
+    ORDER BY shouldDepartAt - shouldArriveAt DESC
+    LIMIT 10)
+    ORDER BY x
+)
+SELECT
+    (SELECT json_agg(json_build_object(
+        'x', x, 'delay', delay, 'stopName', stopName))
+     FROM data) AS data,
+    (SELECT json_agg(json_build_object(
+        'x', x, 'label', label))
+     FROM labels) AS labels;
                 """ ["tripId", box tripId
                      "startDate", box startDate]
-            |> Seq.toArray
-        async { return items }
+            |> Seq.exactlyOne
+        let data =
+            Json.Deserialize<DelayChartItem array> (out.["data"] :?> string)
+        let labels =
+            Json.Deserialize<DelayChartLabel array> (out.["labels"] :?> string)
+        async { return { data = data; labels = labels } }
 
 [<JavaScript>]
 module Client =
     open WebSharper.UI
     open WebSharper.UI.Html
     open WebSharper.UI.Client
-    open WebSharper.ChartJs
+    open WebSharper.ECharts
 
     type ChartPoint = {
         x: float
@@ -136,37 +193,77 @@ module Client =
                 td [] [text (s.departureDelay |> Option.defaultValue "")]
             ]
 
-        let createDelayChart (el: JavaScript.Dom.Element)
-                             (data: Server.DelayChartItem array) =
-            let dataset = LineChartDataSet()
-            dataset.Label <- "Delay (minutes)"
-            dataset.Data <-
-                data
-                |> Array.map (fun i -> {x = i.x; y = i.delay})
-                |> box
+        let chartOpts (data: Server.DelayChartData) =
+            let seriesData =
+                data.data |> Array.map (fun i -> [|
+                    // TODO: Having to cast to float is actually a bug in WS
+                    // A param (X|Y)[] gets compiled to X[] and Y[]. We also
+                    // need obj[]
+                    i.x
+                    i.delay
+                    box i.stopName :?> float
+                |])
+            let ticks =
+                data.labels |> Array.map (fun l -> l.x)
+            let labelMap =
+                data.labels |> Array.map (fun l -> l.x, l.label) |> Map
 
-            let chartData = ChartData([| dataset |])
-            chartData.Labels <-
-                data |> Array.map (fun i -> i.stopName)
+            EChartOption()
+             .SetGrid([|
+                Grid()
+                 .SetContainLabel(true)
+             |])
+             .SetXAxis(
+                XAxis()
+                 .SetType("value")
+                 .SetAxisLabel(
+                    CartesianAxis_Label()
+                     // Actual nulls get converted to "null" by echarts
+                     .SetCustomValues(ticks)
+                     .SetFormatter(fun (v, _) ->
+                        // TODO: Why do I get invalid keys?
+                        labelMap |> Map.tryFind (float v) |> Option.defaultValue v
+                     )
+                     .SetRotate(80.)
+                 )
+                 .SetAxisTick(
+                    CartesianAxis_Tick()
+                     .SetCustomValues(ticks)
+                     .SetAlignWithLabel(true)
+                 )
+                 .SetMax(fun x -> x.Max)
+             )
+             .SetYAxis(
+                YAxis()
+                 .SetType("value")
+                 .SetMin(fun x -> if x.Min < -5. then x.Min - 1. else -5.)
+                 .SetMax(fun x -> if x.Max > 10. then x.Max + 1. else 10.)
+                 .SetInterval(5.)
+             )
+             .SetTooltip(
+                Tooltip()
+                 .SetShow(true)
+                 .SetTrigger("axis")
+                 .SetFormatter(fun (pars: Tooltip_Format array, ticket: string, callback: JavaScript.FuncWithArgs<(string * string),Unit>) ->
+                    let data = pars.[0].Data.Value :?> obj array
+                    sprintf "%s<br>Delay: %.0f min" (data.[2] :?> string) (data.[1] :?> float)
+                 )
+             )
+             .SetAxisPointer(
+                AxisPointer()
+                 .SetSnap(true)
+             )
+             .SetSeries([|
+                SeriesLine()
+                 .SetType("line")
+                 .SetData(seriesData)
+                 .SetShowSymbol(false)
+                 .SetSmooth(true)
+                 // TODO: Doesn't always work?
+                 .SetSmoothMonotone("x")
+             |])
 
-            // TODO: Why isn't there a convenient constructor for this?
-            let config = CommonChartConfig()
-            (*config.Scale <- Scales()
-            config.Scale.XAxes <- Scale()
-            config.Scale.XAxes.Ticks <- TickConfig()
-            config.Scale.XAxes.AfterBuildTicks <- fun _ ->
-                data |> Array.map (fun i -> i.x)*)
-
-            Chart(el, ChartCreate("scatter", chartData, config)) |> ignore
-
-        let delayChartElem =
-            canvas [on.afterRender (fun el ->
-                async {
-                    let! data = Server.tripDelayChart tripId tripStartDate ()
-                    createDelayChart el data
-                } |> Async.Start)] []
-
-        div [] [
+        div [attr.``class`` "trip-page"] [
             h1 [] [
                 tripName.View.Doc (fun n ->
                     text (sprintf "Trip %s on %s" n tripStartDate))]
@@ -184,5 +281,10 @@ module Client =
                     stops.View.DocSeqCached stopRow
                 ]
             ]
-            div [] [delayChartElem]
+            createChart "delay-chart" (fun c ->
+                async {
+                    let! data = Server.tripDelayChart tripId tripStartDate ()
+                    return chartOpts data
+                }
+            )
         ]
