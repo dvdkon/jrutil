@@ -3,4 +3,5 @@
 /db
 .fake
 .ionide
-/rtview/wwwroot/Content
+/rtview/wwwroot/Content/*
+!/rtview/wwwroot/Content/.gitkeep
