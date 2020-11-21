@@ -239,7 +239,8 @@ module Client =
                      .SetCustomValues(ticks)
                      .SetAlignWithLabel(true)
                  )
-                 .SetMax(fun x -> x.Max)
+                 .SetMin(fun x -> ticks |> Array.min)
+                 .SetMax(fun x -> ticks |> Array.max)
              )
              .SetYAxis(
                 YAxis()
