@@ -277,6 +277,29 @@ module Client =
                  .SetSmooth(false)
                  .SetSmoothMonotone("x")
              |])
+             .SetVisualMap([|
+                VisualMap_Piecewise()
+                 .SetType("piecewise")
+                 .SetShow(false)
+                 .SetDimension(1.)
+                 .SetPieces([|
+                    // +.2 to avoid problems with lines on boundary
+                    VisualMap_PiecesObject()
+                     .SetMax(-0.2)
+                     .SetColor("#1ae0d3")
+                    VisualMap_PiecesObject()
+                     .SetMin(-0.2)
+                     .SetMax(5.2)
+                     .SetColor("#1ae070")
+                    VisualMap_PiecesObject()
+                     .SetMin(5.2)
+                     .SetMax(10.2)
+                     .SetColor("#e0d31a")
+                    VisualMap_PiecesObject()
+                     .SetMin(10.2)
+                     .SetColor("#e01a28")
+                 |])
+             |])
 
         div [attr.``class`` "trip-page"] [
             h1 [] [

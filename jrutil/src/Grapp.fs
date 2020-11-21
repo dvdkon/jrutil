@@ -283,13 +283,14 @@ let fetchTrainRoute token nameIdMap trainId () =
 let fetchAllTrains indexData nameIdMap () =
     let trains = fetchAllTrainsSummary indexData ()
     trains |> Seq.choose (fun train ->
+        let trainName = train.Title.Trim()
         try
             fetchTrainDetail indexData.token nameIdMap train.Id ()
             |> Option.bind (fun detail ->
                 // We can't get the start day for a train without the full
                 // route, so just exclude them not to pollute the resultant data
                 if not detail.routePageAvailable then
-                    Log.Debug("Route page not available for {Train}", train.Title)
+                    Log.Debug("Route page not available for {Train}", trainName)
                     None
                 else
                     let route =
@@ -298,7 +299,7 @@ let fetchAllTrains indexData nameIdMap () =
                         route.[0].shouldDepartAt
                         |> Option.orElse route.[0].departedAt
                         |> Option.get
-                    let trainId = String.Join("-", train.Title.Split().[..1])
+                    let trainId = String.Join("-", trainName.Split().[..1])
                     Some {
                         tripId = sprintf "-CZTRAINT-%s" trainId
                         tripStartDate = startTime.Date
@@ -312,8 +313,8 @@ let fetchAllTrains indexData nameIdMap () =
                         delay = Some detail.delay
                         stopHistory = Some route
                         routeId = sprintf "-CZTRAINR-%s" trainId
-                        shortName = Some train.Title
-                        routeShortName = Some train.Title
+                        shortName = Some trainName
+                        routeShortName = Some trainName
                     })
         with e ->
             Log.Error(

@@ -1,2 +1,40 @@
-.route-heading,.trips-heading
-    cursor: pointer
+.routes-page
+    .controls
+        display: flex
+        flex-direction: row
+        flex-wrap: wrap
+        column-gap: 20px
+        row-gap: 20px
+
+        input
+            margin-left: 10px
+
+    li
+        padding-top: 5px
+        list-style: none
+
+    ul.route-list
+        padding-left: 0
+
+        .route-heading
+            cursor: pointer
+            .route-name
+                color: $link-color
+
+            .route-stops
+                padding-left: 10px
+                color: #999
+
+    ul.trips-list
+        list-style: inside
+
+        .trips-heading
+            cursor: pointer
+            color: $link-color
+        
+    ul.days-list
+        a
+            color: $link-color
+
+            &:visited
+                color: $link-color
