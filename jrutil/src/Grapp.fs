@@ -231,6 +231,9 @@ let fetchTrainRoute token nameIdMap trainId () =
         |> Array.pairwise
         |> Array.sumBy (fun (t1, t2) -> if t1 < t2 then 1 else 0)
 
+    // XXX: Sometimes there are stops that later disappear. No important ones,
+    // but it's curious nonetheless
+
     let (res, _, _, _, _, _) =
         undated
         |> Array.fold (fun (items, daysRT, daysTT, lastTimeRT, lastTimeTT, i)
@@ -253,9 +256,15 @@ let fetchTrainRoute token nameIdMap trainId () =
                 StopHistoryItem.stopId = item.stopId
                 tripStopIndex = i
                 timeZone = DateTimeZoneProviders.Tzdb.["Europe/Prague"]
-                arrivedAt = Option.map addDateRT item.arrivedAt
+                arrivedAt =
+                    // Don't save the projected times shown after the current
+                    // station
+                    if i > currentStationIdx then None
+                    else Option.map addDateRT item.arrivedAt
                 shouldArriveAt = Option.map addDateTT item.shouldArriveAt
-                departedAt = Option.map addDateRT item.departedAt
+                departedAt =
+                    if i > currentStationIdx then None
+                    else Option.map addDateRT item.departedAt
                 shouldDepartAt = Option.map addDateTT item.shouldDepartAt
             } :: items,
             newDaysRT, newDaysTT,

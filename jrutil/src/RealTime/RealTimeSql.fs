@@ -61,7 +61,7 @@ let sqlCreateRealTimeTables conn =
     createTableFor conn typeof<DbStop> "stops"
     executeSql conn """
         ALTER TABLE stopHistory ADD PRIMARY KEY (
-            tripId, tripStartDate, stopId, tripStopIndex);
+            tripId, tripStartDate, tripStopIndex);
         CREATE INDEX ON stopHistory (tripId);
         CREATE INDEX ON stopHistory (tripStartDate);
         CREATE INDEX ON stopHistory (stopId);
@@ -92,7 +92,6 @@ let insertTripPosition =
             (sprintf """INSERT INTO "%s" (%s) VALUES %s
                         ON CONFLICT (tripId,
                                      tripStartDate,
-                                     stopId,
                                      tripStopIndex) DO UPDATE
                             SET timezone = excluded.timezone,
                                 arrivedAt = excluded.arrivedAt,

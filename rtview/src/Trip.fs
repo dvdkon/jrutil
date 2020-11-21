@@ -88,12 +88,17 @@ WITH stopHist AS (
 ), data AS (
     SELECT * FROM (
         -- Arrival delays
-        SELECT EXTRACT(EPOCH FROM shouldArriveAt
-                                - first_value(shouldDepartAt)
-                                      OVER (ORDER BY tripStopIndex)) AS x,
+        SELECT
+            EXTRACT(EPOCH FROM shouldArriveAt
+                    - first_value(shouldDepartAt)
+                        OVER (ORDER BY tripStopIndex))
+                -- Guard against two+ stops in a row having the same x
+                + (SELECT COUNT(*) * 10 FROM stopHist AS sh2
+                   WHERE sh2.tripStopIndex < sh.tripStopIndex
+                     AND sh2.shouldArriveAt = sh.shouldArriveAt) AS x,
                EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60 AS delay,
                stopName || ' (arr.)' AS stopName
-        FROM stopHist
+        FROM stopHist AS sh
         UNION
         -- Departure delays
         SELECT
@@ -105,10 +110,12 @@ WITH stopHist AS (
                         OVER (ORDER BY tripStopIndex) + '1sec'::INTERVAL
                 ELSE shouldDepartAt - first_value(shouldDepartAt)
                     OVER (ORDER BY tripStopIndex)
-            END) AS x,
+            END) + (SELECT COUNT(*) * 10 FROM stopHist AS sh2
+                    WHERE sh2.tripStopIndex < sh.tripStopIndex
+                      AND sh2.shouldDepartAt = sh.shouldDepartAt) AS x,
             EXTRACT(EPOCH FROM departedAt - shouldDepartAt)/60 AS delay,
             stopName || ' (dep.)' as stopName
-        FROM stopHist
+        FROM stopHist AS sh
     ) AS i
     WHERE x IS NOT NULL AND delay IS NOT NULL
     ORDER BY x
@@ -196,7 +203,7 @@ module Client =
         let chartOpts (data: Server.DelayChartData) =
             let seriesData =
                 data.data |> Array.map (fun i -> [|
-                    // TODO: Having to cast to float is actually a bug in WS
+                    // Having to cast to float is actually a bug in WS
                     // A param (X|Y)[] gets compiled to X[] and Y[]. We also
                     // need obj[]
                     i.x
@@ -218,11 +225,12 @@ module Client =
                  .SetType("value")
                  .SetAxisLabel(
                     CartesianAxis_Label()
-                     // Actual nulls get converted to "null" by echarts
                      .SetCustomValues(ticks)
                      .SetFormatter(fun (v, _) ->
                         // TODO: Why do I get invalid keys?
-                        labelMap |> Map.tryFind (float v) |> Option.defaultValue v
+                        labelMap
+                        |> Map.tryFind (float v)
+                        |> Option.defaultValue v
                      )
                      .SetRotate(80.)
                  )
@@ -244,9 +252,14 @@ module Client =
                 Tooltip()
                  .SetShow(true)
                  .SetTrigger("axis")
-                 .SetFormatter(fun (pars: Tooltip_Format array, ticket: string, callback: JavaScript.FuncWithArgs<(string * string),Unit>) ->
+                 .SetFormatter(fun (pars: Tooltip_Format array,
+                                    ticket: string,
+                                    callback: JavaScript.FuncWithArgs<
+                                        (string * string),Unit>) ->
                     let data = pars.[0].Data.Value :?> obj array
-                    sprintf "%s<br>Delay: %.0f min" (data.[2] :?> string) (data.[1] :?> float)
+                    sprintf "%s<br>Delay: %.0f min"
+                            (data.[2] :?> string)
+                            (data.[1] :?> float)
                  )
              )
              .SetAxisPointer(
@@ -258,8 +271,9 @@ module Client =
                  .SetType("line")
                  .SetData(seriesData)
                  .SetShowSymbol(false)
-                 .SetSmooth(true)
-                 // TODO: Doesn't always work?
+                 // Disabled since SmoothMonotone is broken with points too
+                 // close on the X axis
+                 .SetSmooth(false)
                  .SetSmoothMonotone("x")
              |])
 
