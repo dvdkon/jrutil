@@ -13,8 +13,8 @@ module Server =
 
     [<Remote>]
     let tripName (tripId: string) (startDate: string) () =
-        let name =
-            sqlQueryOne dbConn.Value """
+        use c = getDbConn ()
+        let name = sqlQueryOne c """
                 SELECT COALESCE(shortName, @tripId)
                 FROM tripDetails
                 WHERE tripId = @tripId
@@ -37,8 +37,9 @@ module Server =
 
     [<Remote>]
     let tripStops (tripId: string) (startDate: string) () =
+        use c = getDbConn ()
         let stops =
-            sqlQueryRec<WebTripStop> dbConn.Value """
+            sqlQueryRec<WebTripStop> c """
                 SELECT stopId, stopName,
                        to_char(arrivedAt, 'HH24:MI') AS arrivedAt,
                        to_char(shouldArriveAt, 'HH24:MI') AS shouldArriveAt,
@@ -78,8 +79,9 @@ module Server =
 
     [<Remote>]
     let tripDelayChart (tripId: string) (startDate: string) () =
+        use c = getDbConn ()
         let out =
-            sqlQuery dbConn.Value """
+            sqlQuery c """
 WITH stopHist AS (
     SELECT *
     FROM stopHistoryWithNames

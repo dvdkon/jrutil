@@ -37,6 +37,7 @@ type SqlRow(columnNames: string seq, cols: obj array) =
 
 NpgsqlConnection.GlobalTypeMapper.UseNodaTime() |> ignore
 
+// Don't forget to .Close()/use the result!
 let getPostgresqlConnection connstr =
     let conn = new NpgsqlConnection(connstr)
     conn.Open()
@@ -140,12 +141,12 @@ let createSqlCommand (conn: DbConnection) sql (paramSeq: (string * obj) seq) =
     cmd
 
 let executeSql conn sql paramSeq =
-    let cmd = createSqlCommand conn sql paramSeq
+    use cmd = createSqlCommand conn sql paramSeq
     cmd.ExecuteNonQuery() |> ignore // TODO: Is async desirable?
 
 let sqlQuery conn sql paramSeq =
-    let cmd = createSqlCommand conn sql paramSeq
-    let reader = cmd.ExecuteReader()
+    use cmd = createSqlCommand conn sql paramSeq
+    use reader = cmd.ExecuteReader()
     let colNames = reader.GetColumnSchema() |> Seq.map (fun c ->
         c.ColumnName
     )
@@ -154,11 +155,10 @@ let sqlQuery conn sql paramSeq =
         let cols = Array.zeroCreate reader.FieldCount
         reader.GetValues(cols) |> ignore
         rows.Add(SqlRow(colNames, cols))
-    reader.Close()
     rows
 
 let sqlQueryOne conn sql paramSeq =
-    let cmd = createSqlCommand conn sql paramSeq
+    use cmd = createSqlCommand conn sql paramSeq
     cmd.ExecuteScalar()
 
 let rec parseSqlValue tgtType (value: obj) =

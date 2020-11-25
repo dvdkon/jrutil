@@ -11,8 +11,7 @@ open JrUtil.SqlRecordStore
 
 module ServerGlobals =
     let mutable dbConnStr = Unchecked.defaultof<string>
-    let dbConn = new ThreadLocal<NpgsqlConnection> (fun () ->
-        getPostgresqlConnection dbConnStr)
+    let getDbConn () = getPostgresqlConnection dbConnStr
 
     let createSqlViews conn =
         executeSql conn """
@@ -32,7 +31,8 @@ module ServerGlobals =
 
     let init dbConnStr_ =
         dbConnStr <- dbConnStr_
-        createSqlViews dbConn.Value
+        use c = getDbConn ()
+        createSqlViews c
 
 [<JavaScript>]
 module ClientGlobals =

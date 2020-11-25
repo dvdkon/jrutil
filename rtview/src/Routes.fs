@@ -20,8 +20,9 @@ module Server =
     [<Remote>]
     let routes (startDateBound: string * string) () =
         // TODO: Fully async?
+        use c = getDbConn ()
         let routes =
-            sqlQueryRec<WebRoute> dbConn.Value """
+            sqlQueryRec<WebRoute> c """
                 SELECT DISTINCT ON (routeId)
                        routeId,
                        COALESCE(routeShortName, routeId) AS name,
@@ -50,9 +51,9 @@ module Server =
 
     [<Remote>]
     let trips (startDateBound: string * string) (routeId: string) () =
-        // TODO: Fully async?
+        use c = getDbConn ()
         let tripIds =
-            sqlQueryRec<WebTrip> dbConn.Value """
+            sqlQueryRec<WebTrip> c """
                 SELECT tripId, tripStartDate::text,
                        COALESCE(shortName, tripId) AS shortName
                 FROM tripDetails
