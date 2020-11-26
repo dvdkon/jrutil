@@ -1,13 +1,22 @@
 .routes-page
     .controls
         display: flex
-        flex-direction: row
-        flex-wrap: wrap
-        column-gap: 20px
-        row-gap: 20px
+        flex-direction: column
+        row-gap: 15px
 
-        input
-            margin-left: 10px
+        .date-range
+            display: flex
+            flex-direction: row
+            flex-wrap: wrap
+            column-gap: 20px
+            row-gap: 5px
+
+            input
+                margin-left: 10px
+
+        .search
+            button
+                margin-left: 10px
 
     li
         padding-top: 5px
@@ -38,3 +47,14 @@
 
             &:visited
                 color: $link-color
+
+    .pagination
+        .back,.forward
+            cursor: pointer
+            text-decoration: solid
+            color: $link-color
+
+        .back
+            margin-right: 20px
+        .forward
+            margin-left: 20px

@@ -18,8 +18,8 @@ module ClientMain =
         router <- Router.Infer<Locations> ()
         location <- Router.Install Homepage router
         location.View.Doc (function
-            | Homepage -> RtView.Routes.Client.tripList None None ()
-            | Routes (f, t) -> RtView.Routes.Client.tripList f t ()
+            | Homepage -> RtView.Routes.Client.tripList None None None ()
+            | Routes (f, t, s) -> RtView.Routes.Client.tripList f t s ()
             | Trip (tid, d) -> RtView.Trip.Client.tripPage tid d ()
         )
         |> Doc.RunReplaceById "main"

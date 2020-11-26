@@ -17,30 +17,57 @@ module Server =
         lastStop: string
     }
 
+    [<JavaScript>]
+    type WebRoutesResp = {
+        fullRouteCount: int64
+        routes: WebRoute array
+    }
+
+    [<JavaScript>]
+    let routesPerPage = 25
+
     [<Remote>]
-    let routes (startDateBound: string * string) () =
+    let routes (startDateBound: string * string) 
+               (page: int)
+               (searchTerm: string option)() =
         // TODO: Fully async?
         use c = getDbConn ()
+        let routesQuery = """
+            SELECT DISTINCT ON (routeId)
+               routeId,
+               COALESCE(routeShortName, routeId) AS name,
+               (SELECT stopName FROM stophistorywithnames AS sh
+                WHERE sh.tripId = td.tripId
+                  AND sh.tripstartdate = td.tripstartdate
+                  ORDER BY tripStopIndex LIMIT 1) AS firstStop,
+               (SELECT stopName FROM stophistorywithnames AS sh
+                WHERE sh.tripId = td.tripId
+                  AND sh.tripstartdate = td.tripstartdate
+                  ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
+            FROM tripDetails AS td
+            WHERE tripStartDate >= @dateFrom::date
+              AND tripStartDate <= @dateTo::date
+              -- TODO: Full text search also on the stop names
+              AND routeShortName ILIKE @searchLike
+        """
+        let pars = ["dateFrom", box <| fst startDateBound
+                    "dateTo", box <| snd startDateBound
+                    "searchLike",
+                        box <| "%" + (Option.defaultValue "" searchTerm) + "%"
+                    "page", box <| page - 1
+                    "perPage", box routesPerPage]
+
+        let routeCount =
+            unbox<int64> <| sqlQueryOne c (
+                "SELECT COUNT(routeId) FROM (" + routesQuery + ") AS i") pars
         let routes =
-            sqlQueryRec<WebRoute> c """
-                SELECT DISTINCT ON (routeId)
-                       routeId,
-                       COALESCE(routeShortName, routeId) AS name,
-                       (SELECT stopName FROM stophistorywithnames AS sh
-                        WHERE sh.tripId = td.tripId
-                          AND sh.tripstartdate = td.tripstartdate
-                          ORDER BY tripStopIndex LIMIT 1) AS firstStop,
-                       (SELECT stopName FROM stophistorywithnames AS sh
-                        WHERE sh.tripId = td.tripId
-                          AND sh.tripstartdate = td.tripstartdate
-                          ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
-                FROM tripDetails AS td
-                WHERE tripStartDate >= @dateFrom::date
-                  AND tripStartDate <= @dateTo::date
-                """ ["dateFrom", box <| fst startDateBound
-                     "dateTo", box <| snd startDateBound]
+            sqlQueryRec<WebRoute> c (routesQuery + """
+                ORDER BY routeId, routeShortName
+                LIMIT @perPage
+                OFFSET @page * @perPage
+                """) pars 
             |> Seq.toArray
-        async { return routes }
+        async { return { fullRouteCount = routeCount; routes = routes } }
 
     [<JavaScript>]
     type WebTrip = {
@@ -74,18 +101,24 @@ module Client =
 
     open RtView.ClientGlobals
 
-    let tripList fromDateParam toDateParam () =
+    // Some Vars are global in the module to persist when navigating without having to add GET params
+    let page = Var.Create(1)
+
+    let tripList fromDateParam toDateParam searchParam () =
         let today () = JavaScript.Date().ToISOString().Split([|'T'|]).[0]
-        let fromDate = Var.Create(fromDateParam |> Option.defaultWith today)
-        let toDate = Var.Create(toDateParam |> Option.defaultWith today)
+        let fromDate = fromDateParam |> Option.defaultWith today
+        let toDate = toDateParam |> Option.defaultWith today
         // TODO: A var per route or this?
         let tripsByRoute = Var.Create(Map<string, Server.WebTrip array> [])
 
-        let routes =
-            V(fromDate.V, toDate.V)
-            |> View.MapAsync (fun dr ->
-                setLocation <| Routes (Some <| fst dr, Some <| snd dr)
-                Server.routes dr ())
+        let searchTerm =
+            Var.Create (searchParam |> Option.defaultValue "")
+
+        let routesRes =
+            page.View.MapAsync (fun page ->
+                Server.routes (fromDate, toDate) page searchParam ())
+        let fullRouteCount = routesRes.Map (fun res -> res.fullRouteCount)
+        let routes = routesRes.Map (fun res -> res.routes)
 
         let tripDaysHtml (trips: Server.WebTrip array) =
             ul [attr.``class`` "days-list"] [
@@ -126,7 +159,7 @@ module Client =
                    |> Map.containsKey r.routeId
                    |> not then
                     let! trips =
-                        Server.trips (fromDate.Value, toDate.Value)
+                        Server.trips (fromDate, toDate)
                                      r.routeId ()
                     tripsByRoute.Value <- tripsByRoute.Value
                                           |> Map.add r.routeId trips
@@ -153,15 +186,64 @@ module Client =
 
         div [attr.``class`` "routes-page"] [
             div [attr.``class`` "controls"] [
-                label [] [
-                    text "From:"
-                    Doc.Input [attr.``type`` "date"] fromDate
+                div [attr.``class`` "date-range"] [
+                    label [] [
+                        text "From:"
+                        input [attr.``type`` "date"
+                               attr.value fromDate
+                               on.change (fun el _ ->
+                                   setLocation <| Locations.Routes (
+                                       BindVar.StringGet(el),
+                                       Some toDate,
+                                       searchParam)
+                               )] []
+                    ]
+                    label [] [
+                        text "To:"
+                        input [attr.``type`` "date"
+                               attr.value toDate
+                               on.change (fun el _ ->
+                                   setLocation <| Locations.Routes (
+                                       Some fromDate,
+                                       BindVar.StringGet(el),
+                                       searchParam)
+                              )] []
+                    ]
                 ]
-                label [] [
-                    text "To:"
-                    Doc.Input [attr.``type`` "date"] toDate
+                form [attr.``class`` "search"
+                      on.submit (fun _ ev ->
+                          ev.PreventDefault()
+                          setLocation <| Locations.Routes (
+                              Some fromDate,
+                                  Some toDate,
+                                  let v = searchTerm.Value
+                                  if v.Trim() = "" then None else Some v))] [
+                    Doc.Input [attr.placeholder "Search term"] searchTerm
+                    button [] [text "Search"]
                 ]
             ]
             h2 [] [text "Routes"]
             ul [attr.``class`` "route-list"] [routes.DocSeqCached routeHtml]
+            V(page.V, fullRouteCount.V).Doc (fun (p, rc) ->
+                div [attr.``class`` "pagination"] [
+                    let pageCount =
+                        (float rc) / (float Server.routesPerPage)
+                        |> ceil |> int
+                    yield a
+                        [attr.``class`` "back"
+                         attr.style (if p = 1 then "visibility: hidden"
+                                     else "")
+                         on.click (fun _ _ -> page.Value <- p - 1)]
+                        [text "Back"]
+                    yield span [] [
+                        text <| if pageCount = 0 then "No routes"
+                                else sprintf "Page %d/%d" p pageCount]
+                    yield a
+                        [attr.``class`` "forward"
+                         attr.style (if p >= pageCount
+                                     then "visibility: hidden" else "")
+                         on.click (fun _ _ -> page.Value <- p + 1)]
+                        [text "Forward"]
+                ]
+            )
         ]
