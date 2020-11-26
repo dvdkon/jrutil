@@ -192,6 +192,7 @@ module Client =
                         input [attr.``type`` "date"
                                attr.value fromDate
                                on.change (fun el _ ->
+                                   page.Value <- 1
                                    setLocation <| Locations.Routes (
                                        BindVar.StringGet(el),
                                        Some toDate,
@@ -203,6 +204,7 @@ module Client =
                         input [attr.``type`` "date"
                                attr.value toDate
                                on.change (fun el _ ->
+                                   page.Value <- 1
                                    setLocation <| Locations.Routes (
                                        Some fromDate,
                                        BindVar.StringGet(el),
