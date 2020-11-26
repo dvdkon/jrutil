@@ -93,7 +93,10 @@ let fetchIndexData () =
 
 let fetchAllTrainsSummary indexData () =
     let body = JsonSerializer.Serialize({
-        CarrierCode = indexData.carrierCodes
+        CarrierCode = Array.concat [
+            indexData.carrierCodes
+            [| "f_o_r_e_i_g_n" |]
+        ]
         Delay = indexData.delayGroups
         DelayMax = -99999
         DelayMin = -99999
