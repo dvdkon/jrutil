@@ -93,7 +93,8 @@ let insertTripPosition =
                         ON CONFLICT (tripId,
                                      tripStartDate,
                                      tripStopIndex) DO UPDATE
-                            SET timezone = excluded.timezone,
+                            SET stopId = excluded.stopId,
+                                timezone = excluded.timezone,
                                 arrivedAt = excluded.arrivedAt,
                                 shouldArriveAt = excluded.shouldArriveAt,
                                 departedAt = excluded.departedAt,
@@ -134,6 +135,19 @@ let insertTripPosition =
                 })
             try
                 stopHistoryInserter conn rows
+                // When the count of reported stops decreases, we need to delete
+                // the remaining higher-numbered stops
+                executeSql conn """
+                    DELETE FROM stopHistory
+                    WHERE tripId = @tripId
+                      AND tripStartDate = @tripStartDate
+                      AND tripStopIndex > @maxStopIndex
+                    """ ["tripId", box tripPos.tripId
+                         "tripStartDate", box tripPos.tripStartDate
+                         "maxStopIndex",
+                             box (stopHistory
+                                  |> Array.map (fun i -> i.tripStopIndex)
+                                  |> Array.max)]
             with
             | e -> Log.Error(e, "Failed inserting {StopHistoryRows}", (sprintf "%A" rows))
         )
