@@ -131,7 +131,9 @@ module Client =
 
         let tripsHtml (trips: Server.WebTrip array) =
             match trips |> Array.groupBy (fun t -> t.tripId) with
-            | [| (_, ts) |] -> tripDaysHtml ts
+            // TODO: Disabled for now since the /Trips/ link would be hidden
+            // Will re-enable when an analogous /Route exists
+            //| [| (_, ts) |] -> tripDaysHtml ts
             | tripsById ->
                 ul [attr.``class`` "trips-list"]
                     (tripsById
@@ -140,12 +142,16 @@ module Client =
                         let caption =
                             sprintf "%s" firstTrip.shortName
                         let expanded = Var.Create(false)
+                        let link = router.Link <| Locations.Trips tripId
 
                         li [] [
-                            span [attr.``class`` "trips-heading"
+                            a [attr.``class`` "trips-heading"
+                               attr.href link]
+                              [text caption]
+                            span [attr.``class`` "trips-expand"
                                   on.click (fun _ _ ->
                                     expanded.Value <- not expanded.Value)]
-                                 [text caption]
+                                 [text "Expand"]
                             expanded.View.Doc (fun e ->
                                 if e then tripDaysHtml ts
                                 else Doc.Empty

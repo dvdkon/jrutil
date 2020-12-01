@@ -9,6 +9,7 @@
     <Compile Include="src/Globals.fs" />
     <Compile Include="src/Utils.fs" />
     <Compile Include="src/Routes.fs" />
+    <Compile Include="src/Trips.fs" />
     <Compile Include="src/Trip.fs" />
     <Compile Include="src/Main.fs" />
     <Compile Include="Startup.fs" />

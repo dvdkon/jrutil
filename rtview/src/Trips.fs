@@ -4,6 +4,7 @@
 module RtView.Trips
 
 open WebSharper
+open NodaTime
 
 open RtView.Utils
 
@@ -11,4 +12,389 @@ module Server =
     open RtView.ServerGlobals
     open JrUtil.SqlRecordStore
 
-    []
+    // Trips are divided into groups by their stop sequence, signified by the
+    // tripStartDate of any trip of the group
+    [<Remote>]
+    let stopSeqGroups (tripId: string) () =
+        use c = getDbConn ()
+        let tsDates =
+            sqlQuery c """
+-- TODO: Less nested query
+SELECT tripStartDate::text
+FROM (
+    SELECT MIN(tripStartDate) AS tripStartDate, COUNT(tripStartDate) AS c
+    FROM (
+        SELECT array_agg(stopId ORDER BY tripStopIndex) AS stopSeq, tripStartDate
+        FROM stopHistory
+        WHERE tripId = @tripId
+        GROUP BY tripId, tripstartdate
+    ) AS i2
+    GROUP BY stopSeq
+) AS i
+ORDER BY c DESC
+            """ ["tripId", box tripId]
+            |> Seq.map (fun r -> r.[0] :?> string)
+            |> Seq.toArray
+        async { return tsDates }
+
+    [<JavaScript>]
+    type WebTripStop = {
+        stopId: string
+        stopName: string
+        shouldArriveAt: string option
+        medArrivalDelay: float option
+        p10ArrivalDelay: float option
+        p90ArrivalDelay: float option
+        shouldDepartAt: string option
+        medDepartureDelay: float option
+        p10DepartureDelay: float option
+        p90DepartureDelay: float option
+    }
+
+    [<Remote>]
+    let tripStops (tripId: string) (tripStartDate: string) () =
+        use c = getDbConn ()
+        let stops =
+            sqlQueryRec<WebTripStop> c """
+WITH startDates AS (
+    SELECT tripStartDate
+    FROM stopHistory
+    WHERE tripId = @tripId
+    GROUP BY tripStartDate
+    HAVING array_agg(stopId ORDER BY tripStopIndex) = (
+        SELECT array_agg(stopId ORDER BY tripStopIndex)
+        FROM stopHistory
+        WHERE tripId = @tripId
+          AND tripStartDate = @tripStartDate::date)
+)
+SELECT
+    stopId, stopName,
+    to_char(to_timestamp(AVG(EXTRACT(EPOCH FROM shouldArriveAt))), 'HH24:MI') AS shouldArriveAt,
+    percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
+    percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p10ArrivalDelay,
+    percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p90ArrivalDelay,
+    to_char(to_timestamp(AVG(EXTRACT(EPOCH FROM shouldDepartAt))), 'HH24:MI') AS shouldDepartAt,
+    percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS medDepartureDelay,
+    percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p10DepartureDelay,
+    percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p90DepartureDelay
+FROM stopHistoryWithNames AS sh
+WHERE tripId = @tripId
+  AND EXISTS (SELECT FROM startDates AS sd
+              WHERE sd.tripStartDate = sh.tripStartDate)
+-- I know that there is exactly one stopId/stopName for tripStopIndex, but PostgreSQL doesn't
+GROUP BY tripStopIndex, stopId, stopName
+            """ ["tripId", box tripId
+                 "tripStartDate", box tripStartDate]
+            |> Seq.toArray
+        async { return stops }
+
+    [<JavaScript>]
+    type DelayChartAvgItem = {
+        x: float
+        p10Delay: float
+        delay: float
+        p90Delay: float
+        stopName: string
+    }
+
+    [<JavaScript>]
+    type DelayChartLabel = {
+        x: float
+        label: string
+    }
+
+    [<JavaScript>]
+    type DelayChartData = {
+        data: DelayChartAvgItem array
+        labels: DelayChartLabel array
+    }
+
+    [<Remote>]
+    let tripDelayChart (tripId: string) (tripStartDate: string) () =
+        use c = getDbConn ()
+        let out =
+            sqlQuery c """
+WITH startDates AS (
+    SELECT tripStartDate
+    FROM stopHistory
+    WHERE tripId = @tripId
+    GROUP BY tripStartDate
+    HAVING array_agg(stopId ORDER BY tripStopIndex) = (
+        SELECT array_agg(stopId ORDER BY tripStopIndex)
+        FROM stopHistory
+        WHERE tripId = @tripId
+          AND tripStartDate = @tripStartDate::date)
+), stopHist AS (
+    SELECT
+        stopId, stopName, tripStopIndex,
+        to_timestamp(AVG(EXTRACT(EPOCH FROM shouldArriveAt))) AS shouldArriveAt,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
+        percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p10ArrivalDelay,
+        percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p90ArrivalDelay,
+        to_timestamp(AVG(EXTRACT(EPOCH FROM shouldDepartAt))) AS shouldDepartAt,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS medDepartureDelay,
+        percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p10DepartureDelay,
+        percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p90DepartureDelay
+    FROM stopHistoryWithNames AS sh
+    WHERE tripId = @tripId
+      AND EXISTS (SELECT FROM startDates AS sd
+                  WHERE sd.tripStartDate = sh.tripStartDate)
+    GROUP BY tripStopIndex, stopId, stopName
+), data AS (
+    SELECT * FROM (
+        -- Arrival delays
+        SELECT
+            EXTRACT(EPOCH FROM shouldArriveAt
+                    - first_value(shouldDepartAt)
+                        OVER (ORDER BY tripStopIndex))
+                -- Guard against two+ stops in a row having the same x
+                + (SELECT COUNT(*) * 10 FROM stopHist AS sh2
+                   WHERE sh2.tripStopIndex < sh.tripStopIndex
+                     AND sh2.shouldArriveAt = sh.shouldArriveAt) AS x,
+            p10ArrivalDelay AS p10Delay,
+            medArrivalDelay AS delay,
+            p90ArrivalDelay AS p90Delay,
+            stopName || ' (arr.)' AS stopName
+        FROM stopHist AS sh
+        UNION
+        -- Departure delays
+        SELECT
+            -- If scheduled arrival and departure are the same, shift departure by
+            -- not to get conflicting xs
+            EXTRACT(EPOCH FROM CASE
+                WHEN shouldDepartAt = shouldArriveAt THEN
+                    shouldDepartAt - first_value(shouldDepartAt)
+                        OVER (ORDER BY tripStopIndex) + '1sec'::INTERVAL
+                ELSE shouldDepartAt - first_value(shouldDepartAt)
+                    OVER (ORDER BY tripStopIndex)
+            END) + (SELECT COUNT(*) * 10 FROM stopHist AS sh2
+                    WHERE sh2.tripStopIndex < sh.tripStopIndex
+                      AND sh2.shouldDepartAt = sh.shouldDepartAt) AS x,
+            p10DepartureDelay AS p10Delay,
+            medDepartureDelay AS delay,
+            p90DepartureDelay AS p90Delay,
+            stopName || ' (dep.)' as stopName
+        FROM stopHist AS sh
+    ) AS i
+    WHERE x IS NOT NULL AND delay IS NOT NULL
+    ORDER BY x
+), labels AS (
+    (SELECT
+        0 AS x,
+        stopName  || ' (' || to_char(shouldDepartAt, 'HH24:MI')
+            || ')' AS label
+    FROM stopHist
+    ORDER BY tripStopIndex
+    LIMIT 1)
+    UNION
+    (SELECT
+        EXTRACT(EPOCH FROM shouldArriveAt - first_value(shouldDepartAt)
+            OVER (ORDER BY tripStopIndex)) AS x,
+        stopName  || ' (' || to_char(shouldArriveAt, 'HH24:MI') || ')' AS label
+    FROM stopHist
+    ORDER BY tripStopIndex DESC
+    LIMIT 1)
+    UNION
+    (SELECT
+        COALESCE(
+            EXTRACT(EPOCH FROM shouldArriveAt -
+                (SELECT min(shouldDepartAt) FROM stopHist)),
+            0) AS x,
+        stopName || ' (' || to_char(shouldArriveAt, 'HH24:MI') || ')' AS label
+    FROM stopHist
+    WHERE shouldDepartAt <> shouldArriveAt
+    ORDER BY shouldDepartAt - shouldArriveAt DESC
+    LIMIT 10)
+    ORDER BY x
+)
+SELECT
+    (SELECT json_agg(json_build_object(
+        'x', x,
+        'p10Delay', p10Delay,
+        'delay', delay,
+        'p90Delay', p90Delay,
+        'stopName', stopName))
+     FROM data) AS data,
+    (SELECT json_agg(json_build_object(
+        'x', x, 'label', label))
+     FROM labels) AS labels;
+            """ ["tripId", box tripId
+                 "tripStartDate", box tripStartDate]
+            |> Seq.exactlyOne
+        let data =
+            Json.Deserialize<DelayChartAvgItem array> (out.["data"] :?> string)
+        let labels =
+            Json.Deserialize<DelayChartLabel array> (out.["labels"] :?> string)
+        async { return { data = data; labels = labels } }
+
+[<JavaScript>]
+module Client =
+    open WebSharper.UI
+    open WebSharper.UI.Html
+    open WebSharper.UI.Client
+    open WebSharper.ECharts
+
+    let tripsPage tripId () =
+        let stopSeqGroups = Var.Create([||])
+        async {
+            let! ssgs = Server.stopSeqGroups tripId ()
+            stopSeqGroups.Value <- ssgs
+        } |> Async.Start
+
+        let stopsTable (stops: Server.WebTripStop array )=
+            table [] [
+                thead [] [
+                    th [] [text "Stop"]
+                    th [] [text "Exp. arr."]
+                    th [] [text "10th% arr. delay"]
+                    th [] [text "Median arr. delay"]
+                    th [] [text "50th% arr. delay"]
+                    th [] [text "Exp. dep."]
+                    th [] [text "10th% dep. delay"]
+                    th [] [text "Median dep. delay"]
+                    th [] [text "50th% dep. delay"]
+                ] 
+                tbody [] [
+                    for stop in stops do
+                    let delay d =
+                        d
+                        |> Option.map (sprintf "%0.1f")
+                        |> Option.defaultValue ""
+                        |> text
+                    tr [] [
+                        td [] [text stop.stopName]
+                        td [] [
+                            text <| Option.defaultValue "" stop.shouldArriveAt]
+                        td [] [delay stop.p10ArrivalDelay ]
+                        td [] [delay stop.medArrivalDelay]
+                        td [] [delay stop.p90ArrivalDelay]
+                        td [] [
+                            text <| Option.defaultValue "" stop.shouldDepartAt]
+                        td [] [delay stop.p10DepartureDelay]
+                        td [] [delay stop.medDepartureDelay]
+                        td [] [delay stop.p90DepartureDelay]
+                    ]
+                ]
+            ]
+
+        let chartOpts (data: Server.DelayChartData) =
+            let seriesData =
+                data.data |> Array.map (fun i -> [|
+                    // Having to cast to float is actually a bug in WS
+                    // A param (X|Y)[] gets compiled to X[] and Y[]. We also
+                    // need obj[]
+                    i.x
+                    i.delay
+                    box i.stopName :?> float
+                |])
+            let ticks =
+                data.labels |> Array.map (fun l -> l.x)
+            let labelMap =
+                data.labels |> Array.map (fun l -> l.x, l.label) |> Map
+            let minY =
+                data.data |> Array.map (fun i -> i.p10Delay) |> Array.min
+            let botY = if minY < -5. then minY - 1. else -5.
+            let maxY =
+                data.data |> Array.map (fun i -> i.p90Delay) |> Array.max
+            let topY = if maxY > 10. then maxY + 1. else 10.
+
+            let bandRenderer (pars: SeriesCustom_RenderItemParams,
+                              api: SeriesCustom_RenderItemApi) =
+                let i = int pars.DataIndex.Value
+                let j = i + 1
+                let points =
+                    if j >= data.data.Length
+                    then [||]
+                    else [|
+                            [| data.data.[i].x; data.data.[i].p90Delay |]
+                            [| data.data.[i].x; data.data.[i].p10Delay |]
+                            [| data.data.[j].x; data.data.[j].p10Delay |]
+                            [| data.data.[j].x; data.data.[j].p90Delay |]
+                        // TODO: Give api.coord the proper type
+                        |] |> Array.map (api.Coord :> obj :?> float array -> float array)
+                SeriesCustom_RenderItemReturnPolygon()
+                 .SetType("polygon")
+                 .SetShape(
+                     {|
+                        // TODO: clipPointsByRect
+                        points = points
+                    |})
+                 .SetStyle((api.Style :> obj :?> obj -> obj)
+                    ({|
+                        fill = "#aaa5"
+                    |} :> obj))
+
+            EChartOption()
+             .SetGrid([|
+                Grid()
+                 .SetContainLabel(true)
+             |])
+             .SetXAxis(delayChartXAxis ticks labelMap)
+             .SetYAxis(
+                YAxis()
+                 .SetType("value")
+                 .SetMin(fun x -> botY)
+                 .SetMax(fun x -> topY)
+                 .SetInterval(5.)
+             )
+             .SetTooltip(
+                Tooltip()
+                 .SetShow(true)
+                 .SetTrigger("axis")
+                 .SetFormatter(fun (pars: Tooltip_Format array,
+                                    ticket: string,
+                                    callback: JavaScript.FuncWithArgs<
+                                        (string * string),Unit>) ->
+                    let data = pars.[0].Data.Value :?> obj array
+                    sprintf "%s<br>Delay: %.0f min"
+                            (data.[2] :?> string)
+                            (data.[1] :?> float)
+                 )
+             )
+             .SetAxisPointer(
+                AxisPointer()
+                 .SetSnap(true)
+             )
+             .SetSeries([|
+                SeriesCustom()
+                 .SetType("custom")
+                 .SetData(data.data :> obj :?> SeriesCustom_DataObject array)
+                 .SetRenderItem(bandRenderer)
+                 // TODO: Fix the bindings to this isn't needed!
+                 // This is because internally interface inheritance is
+                 // flattened due to "duplicate method" problems
+                 :> obj :?> SeriesLine 
+                SeriesLine()
+                 .SetType("line")
+                 .SetData(seriesData)
+                 .SetShowSymbol(false)
+             |])
+             .SetVisualMap([|delayChartVisualMap ()|])
+
+        div [attr.``class`` "trips-page"] [
+            stopSeqGroups.View.DocSeqCached (fun ssg ->
+                let tripName = Var.Create("")
+                async {
+                    let! tn = getTripName tripId ssg ()
+                    tripName.Value <- tn
+                } |> Async.Start
+
+                let stops = Var.Create([||])
+                async {
+                    let! s = Server.tripStops tripId ssg ()
+                    stops.Value <- s
+                } |> Async.Start
+
+                div [] [
+                    tripName.View.Doc (fun tn ->
+                        h1 [] [text (sprintf "Trip %s (SSG %s)" tn ssg)])
+                    stops.View.Doc stopsTable
+                    createChart "delay-chart" (fun c ->
+                        async {
+                            let! data = Server.tripDelayChart tripId ssg ()
+                            return chartOpts data
+                        }
+                    )
+                ]
+            )
+        ]
