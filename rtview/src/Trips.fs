@@ -43,12 +43,12 @@ ORDER BY c DESC
         stopName: string
         shouldArriveAt: string option
         medArrivalDelay: float option
-        p10ArrivalDelay: float option
-        p90ArrivalDelay: float option
+        p15ArrivalDelay: float option
+        p85ArrivalDelay: float option
         shouldDepartAt: string option
         medDepartureDelay: float option
-        p10DepartureDelay: float option
-        p90DepartureDelay: float option
+        p15DepartureDelay: float option
+        p85DepartureDelay: float option
     }
 
     [<Remote>]
@@ -71,12 +71,12 @@ SELECT
     stopId, stopName,
     to_char(to_timestamp(AVG(EXTRACT(EPOCH FROM shouldArriveAt))), 'HH24:MI') AS shouldArriveAt,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
-    percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p10ArrivalDelay,
-    percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p90ArrivalDelay,
+    percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p15ArrivalDelay,
+    percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p85ArrivalDelay,
     to_char(to_timestamp(AVG(EXTRACT(EPOCH FROM shouldDepartAt))), 'HH24:MI') AS shouldDepartAt,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS medDepartureDelay,
-    percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p10DepartureDelay,
-    percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p90DepartureDelay
+    percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p15DepartureDelay,
+    percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p85DepartureDelay
 FROM stopHistoryWithNames AS sh
 WHERE tripId = @tripId
   AND EXISTS (SELECT FROM startDates AS sd
@@ -91,9 +91,9 @@ GROUP BY tripStopIndex, stopId, stopName
     [<JavaScript>]
     type DelayChartAvgItem = {
         x: float
-        p10Delay: float
+        p15Delay: float
         delay: float
-        p90Delay: float
+        p85Delay: float
         stopName: string
     }
 
@@ -129,12 +129,12 @@ WITH startDates AS (
         stopId, stopName, tripStopIndex,
         to_timestamp(AVG(EXTRACT(EPOCH FROM shouldArriveAt))) AS shouldArriveAt,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
-        percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p10ArrivalDelay,
-        percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p90ArrivalDelay,
+        percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p15ArrivalDelay,
+        percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p85ArrivalDelay,
         to_timestamp(AVG(EXTRACT(EPOCH FROM shouldDepartAt))) AS shouldDepartAt,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS medDepartureDelay,
-        percentile_cont(0.1) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p10DepartureDelay,
-        percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p90DepartureDelay
+        percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p15DepartureDelay,
+        percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p85DepartureDelay
     FROM stopHistoryWithNames AS sh
     WHERE tripId = @tripId
       AND EXISTS (SELECT FROM startDates AS sd
@@ -151,9 +151,9 @@ WITH startDates AS (
                 + (SELECT COUNT(*) * 10 FROM stopHist AS sh2
                    WHERE sh2.tripStopIndex < sh.tripStopIndex
                      AND sh2.shouldArriveAt = sh.shouldArriveAt) AS x,
-            p10ArrivalDelay AS p10Delay,
+            p15ArrivalDelay AS p15Delay,
             medArrivalDelay AS delay,
-            p90ArrivalDelay AS p90Delay,
+            p85ArrivalDelay AS p85Delay,
             stopName || ' (arr.)' AS stopName
         FROM stopHist AS sh
         UNION
@@ -170,9 +170,9 @@ WITH startDates AS (
             END) + (SELECT COUNT(*) * 10 FROM stopHist AS sh2
                     WHERE sh2.tripStopIndex < sh.tripStopIndex
                       AND sh2.shouldDepartAt = sh.shouldDepartAt) AS x,
-            p10DepartureDelay AS p10Delay,
+            p15DepartureDelay AS p15Delay,
             medDepartureDelay AS delay,
-            p90DepartureDelay AS p90Delay,
+            p85DepartureDelay AS p85Delay,
             stopName || ' (dep.)' as stopName
         FROM stopHist AS sh
     ) AS i
@@ -210,9 +210,9 @@ WITH startDates AS (
 SELECT
     (SELECT json_agg(json_build_object(
         'x', x,
-        'p10Delay', p10Delay,
+        'p15Delay', p15Delay,
         'delay', delay,
-        'p90Delay', p90Delay,
+        'p85Delay', p85Delay,
         'stopName', stopName))
      FROM data) AS data,
     (SELECT json_agg(json_build_object(
@@ -246,13 +246,13 @@ module Client =
                 thead [] [
                     th [] [text "Stop"]
                     th [] [text "Exp. arr."]
-                    th [] [text "10th% arr. delay"]
+                    th [] [text "15th% arr. delay"]
                     th [] [text "Median arr. delay"]
-                    th [] [text "50th% arr. delay"]
+                    th [] [text "85th% arr. delay"]
                     th [] [text "Exp. dep."]
-                    th [] [text "10th% dep. delay"]
+                    th [] [text "15th% dep. delay"]
                     th [] [text "Median dep. delay"]
-                    th [] [text "50th% dep. delay"]
+                    th [] [text "85th% dep. delay"]
                 ] 
                 tbody [] [
                     for stop in stops do
@@ -265,14 +265,14 @@ module Client =
                         td [] [text stop.stopName]
                         td [] [
                             text <| Option.defaultValue "" stop.shouldArriveAt]
-                        td [] [delay stop.p10ArrivalDelay ]
+                        td [] [delay stop.p15ArrivalDelay ]
                         td [] [delay stop.medArrivalDelay]
-                        td [] [delay stop.p90ArrivalDelay]
+                        td [] [delay stop.p85ArrivalDelay]
                         td [] [
                             text <| Option.defaultValue "" stop.shouldDepartAt]
-                        td [] [delay stop.p10DepartureDelay]
+                        td [] [delay stop.p15DepartureDelay]
                         td [] [delay stop.medDepartureDelay]
-                        td [] [delay stop.p90DepartureDelay]
+                        td [] [delay stop.p85DepartureDelay]
                     ]
                 ]
             ]
@@ -285,17 +285,17 @@ module Client =
                     // need obj[]
                     i.x
                     i.delay
-                    box i.stopName :?> float
+                    box i :?> float
                 |])
             let ticks =
                 data.labels |> Array.map (fun l -> l.x)
             let labelMap =
                 data.labels |> Array.map (fun l -> l.x, l.label) |> Map
             let minY =
-                data.data |> Array.map (fun i -> i.p10Delay) |> Array.min
+                data.data |> Array.map (fun i -> i.p15Delay) |> Array.min
             let botY = if minY < -5. then minY - 1. else -5.
             let maxY =
-                data.data |> Array.map (fun i -> i.p90Delay) |> Array.max
+                data.data |> Array.map (fun i -> i.p85Delay) |> Array.max
             let topY = if maxY > 10. then maxY + 1. else 10.
 
             let bandRenderer (pars: SeriesCustom_RenderItemParams,
@@ -306,10 +306,10 @@ module Client =
                     if j >= data.data.Length
                     then [||]
                     else [|
-                            [| data.data.[i].x; data.data.[i].p90Delay |]
-                            [| data.data.[i].x; data.data.[i].p10Delay |]
-                            [| data.data.[j].x; data.data.[j].p10Delay |]
-                            [| data.data.[j].x; data.data.[j].p90Delay |]
+                            [| data.data.[i].x; data.data.[i].p85Delay |]
+                            [| data.data.[i].x; data.data.[i].p15Delay |]
+                            [| data.data.[j].x; data.data.[j].p15Delay |]
+                            [| data.data.[j].x; data.data.[j].p85Delay |]
                         // TODO: Give api.coord the proper type
                         |] |> Array.map (api.Coord :> obj :?> float array -> float array)
                 SeriesCustom_RenderItemReturnPolygon()
@@ -346,9 +346,10 @@ module Client =
                                     callback: JavaScript.FuncWithArgs<
                                         (string * string),Unit>) ->
                     let data = pars.[0].Data.Value :?> obj array
-                    sprintf "%s<br>Delay: %.0f min"
-                            (data.[2] :?> string)
-                            (data.[1] :?> float)
+                    let item = data.[2] :?> Server.DelayChartAvgItem
+                    sprintf "%s<br>85th%% delay: %.1f min<br>Median delay: %.1f min<br>15th%% delay: %.1f"
+                            item.stopName item.p85Delay item.delay
+                            item.p15Delay
                  )
              )
              .SetAxisPointer(
