@@ -84,3 +84,12 @@ let delayChartVisualMap () =
          .SetMin(10.2)
          .SetColor("#e01a28")
      |])
+
+[<JavaScript>]
+let delayChartGrid () =
+    Grid()
+     .SetContainLabel(true)
+     .SetTop(10.)
+     .SetLeft(10.)
+     .SetRight(10.)
+     .SetBottom(50.) // XXX: Labels won't fit inside without this

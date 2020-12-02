@@ -206,10 +206,7 @@ module Client =
                 data.labels |> Array.map (fun l -> l.x, l.label) |> Map
 
             EChartOption()
-             .SetGrid([|
-                Grid()
-                 .SetContainLabel(true)
-             |])
+             .SetGrid([|delayChartGrid ()|])
              .SetXAxis(delayChartXAxis ticks labelMap)
              .SetYAxis(
                 YAxis()

@@ -325,17 +325,14 @@ module Client =
                     |} :> obj))
 
             EChartOption()
-             .SetGrid([|
-                Grid()
-                 .SetContainLabel(true)
-             |])
+             .SetGrid([|delayChartGrid ()|])
              .SetXAxis(delayChartXAxis ticks labelMap)
              .SetYAxis(
                 YAxis()
                  .SetType("value")
                  .SetMin(fun x -> botY)
                  .SetMax(fun x -> topY)
-                 .SetInterval(5.)
+                 .SetInterval(5.) // TODO: Sometimes doesn't work
              )
              .SetTooltip(
                 Tooltip()
