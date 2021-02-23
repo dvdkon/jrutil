@@ -211,7 +211,7 @@ module Client =
              .SetYAxis(
                 YAxis()
                  .SetType("value")
-                 .SetMin(fun x -> if x.Min < -5. then ceil (x.Min - 1.) else -5.)
+                 .SetMin(fun x -> if x.Min < -5. then floor (x.Min - 1.) else -5.)
                  .SetMax(fun x -> if x.Max > 10. then ceil (x.Max + 1.) else 10.)
                  .SetInterval(5.)
              )
