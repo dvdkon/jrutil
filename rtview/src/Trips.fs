@@ -293,10 +293,10 @@ module Client =
                 data.labels |> Array.map (fun l -> l.x, l.label) |> Map
             let minY =
                 data.data |> Array.map (fun i -> i.p15Delay) |> Array.min
-            let botY = if minY < -5. then minY - 1. else -5.
+            let botY = if minY < -5. then floor (minY - 1.) else -5.
             let maxY =
                 data.data |> Array.map (fun i -> i.p85Delay) |> Array.max
-            let topY = if maxY > 10. then maxY + 1. else 10.
+            let topY = if maxY > 10. then ceil (maxY + 1.) else 10.
 
             let bandRenderer (pars: SeriesCustom_RenderItemParams,
                               api: SeriesCustom_RenderItemApi) =

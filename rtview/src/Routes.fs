@@ -221,6 +221,7 @@ module Client =
                 form [attr.``class`` "search"
                       on.submit (fun _ ev ->
                           ev.PreventDefault()
+                          page.Value <- 1
                           setLocation <| Locations.Routes (
                               Some fromDate,
                                   Some toDate,
