@@ -19,13 +19,13 @@ module ServerGlobals =
                 SELECT DISTINCT ON (tripId, tripStartDate,
                                     stopId, tripStopIndex)
                     sh.*, COALESCE(s.name, sub.name, stopId) AS stopName
-                FROM rtcollect.stopHistory AS sh
-                LEFT JOIN rtcollect.stops AS s ON
+                FROM stopHistory AS sh
+                LEFT JOIN stops AS s ON
                 s.id = sh.stopId AND s.validDateRange @> COALESCE(
                     sh.arrivedAt, sh.shouldArriveAt,
                     sh.departedAt, sh.shouldDepartAt)::date
                 -- Stops, unbounded by validity range
-                LEFT JOIN rtcollect.stops AS sub ON
+                LEFT JOIN stops AS sub ON
                     sub.id = sh.stopId;
             """ []
 

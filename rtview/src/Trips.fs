@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// (c) 2021 David Koňařík
 
 module RtView.Trips
 
@@ -12,19 +12,27 @@ module Server =
     open RtView.ServerGlobals
     open JrUtil.SqlRecordStore
 
+    [<JavaScript>]
+    type StopSeqGroup = {
+        date: string // Acts as an ID
+        dates: string array
+    }
+
     // Trips are divided into groups by their stop sequence, signified by the
     // tripStartDate of any trip of the group
     [<Remote>]
     let stopSeqGroups (tripId: string) () =
         use c = getDbConn ()
         let tsDates =
-            sqlQuery c """
+            sqlQueryRec<StopSeqGroup> c """
 -- TODO: Less nested query
-SELECT tripStartDate::text
+SELECT date::text AS date, dates::text[] AS dates
 FROM (
-    SELECT MIN(tripStartDate) AS tripStartDate, COUNT(tripStartDate) AS c
+    SELECT MIN(tripStartDate) AS date,
+           COUNT(tripStartDate) AS c,
+           array_agg(tripStartDate) AS dates
     FROM (
-        SELECT array_agg(stopId ORDER BY tripStopIndex) AS stopSeq, tripStartDate
+        SELECT array_agg((stopId, shouldArriveAt, shouldDepartAt) ORDER BY tripStopIndex) AS stopSeq, tripStartDate
         FROM stopHistory
         WHERE tripId = @tripId
         GROUP BY tripId, tripstartdate
@@ -33,7 +41,6 @@ FROM (
 ) AS i
 ORDER BY c DESC
             """ ["tripId", box tripId]
-            |> Seq.map (fun r -> r.[0] :?> string)
             |> Seq.toArray
         async { return tsDates }
 
@@ -61,19 +68,20 @@ WITH startDates AS (
     FROM stopHistory
     WHERE tripId = @tripId
     GROUP BY tripStartDate
-    HAVING array_agg(stopId ORDER BY tripStopIndex) = (
-        SELECT array_agg(stopId ORDER BY tripStopIndex)
+    HAVING array_agg((stopId, shouldArriveAt, shouldDepartAt) ORDER BY tripStopIndex) = (
+        SELECT array_agg((stopId, shouldArriveAt, shouldDepartAt) ORDER BY tripStopIndex)
         FROM stopHistory
         WHERE tripId = @tripId
           AND tripStartDate = @tripStartDate::date)
 )
 SELECT
     stopId, stopName,
-    to_char(to_timestamp(AVG(EXTRACT(EPOCH FROM shouldArriveAt))), 'HH24:MI') AS shouldArriveAt,
+    -- MIN() is here just for SQL semantics, all trips in an SSG should have identical planned times
+    to_char(MIN(shouldArriveAt), 'HH24:MI') AS shouldArriveAt,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
     percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p15ArrivalDelay,
     percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p85ArrivalDelay,
-    to_char(to_timestamp(AVG(EXTRACT(EPOCH FROM shouldDepartAt))), 'HH24:MI') AS shouldDepartAt,
+    to_char(MIN(shouldDepartAt), 'HH24:MI') AS shouldDepartAt,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS medDepartureDelay,
     percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p15DepartureDelay,
     percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p85DepartureDelay
@@ -370,26 +378,26 @@ module Client =
              .SetVisualMap([|delayChartVisualMap ()|])
 
         div [attr.``class`` "trips-page"] [
-            stopSeqGroups.View.DocSeqCached (fun ssg ->
+            stopSeqGroups.View.DocSeqCached (fun (ssg: Server.StopSeqGroup) ->
                 let tripName = Var.Create("")
                 async {
-                    let! tn = getTripName tripId ssg ()
+                    let! tn = getTripName tripId ssg.date ()
                     tripName.Value <- tn
                 } |> Async.Start
 
                 let stops = Var.Create([||])
                 async {
-                    let! s = Server.tripStops tripId ssg ()
+                    let! s = Server.tripStops tripId ssg.date ()
                     stops.Value <- s
                 } |> Async.Start
 
                 div [] [
                     tripName.View.Doc (fun tn ->
-                        h1 [] [text (sprintf "Trip %s (SSG %s)" tn ssg)])
+                        h1 [] [text (sprintf "Trip %s (SSG %s)" tn ssg.date)])
                     stops.View.Doc stopsTable
                     createChart "delay-chart" (fun c ->
                         async {
-                            let! data = Server.tripDelayChart tripId ssg ()
+                            let! data = Server.tripDelayChart tripId ssg.date ()
                             return chartOpts data
                         }
                     )
