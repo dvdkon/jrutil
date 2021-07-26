@@ -32,7 +32,11 @@ FROM (
            COUNT(tripStartDate) AS c,
            array_agg(tripStartDate) AS dates
     FROM (
-        SELECT array_agg((stopId, shouldArriveAt, shouldDepartAt) ORDER BY tripStopIndex) AS stopSeq, tripStartDate
+        SELECT
+            -- TODO: Don't just cast to time, rather subtract starting day
+            array_agg((stopId, shouldArriveAt::time, shouldDepartAt::time)
+                ORDER BY tripStopIndex) AS stopSeq,
+            tripStartDate
         FROM stopHistory
         WHERE tripId = @tripId
         GROUP BY tripId, tripstartdate
@@ -68,8 +72,8 @@ WITH startDates AS (
     FROM stopHistory
     WHERE tripId = @tripId
     GROUP BY tripStartDate
-    HAVING array_agg((stopId, shouldArriveAt, shouldDepartAt) ORDER BY tripStopIndex) = (
-        SELECT array_agg((stopId, shouldArriveAt, shouldDepartAt) ORDER BY tripStopIndex)
+    HAVING array_agg((stopId, shouldArriveAt::time, shouldDepartAt::time) ORDER BY tripStopIndex) = (
+        SELECT array_agg((stopId, shouldArriveAt::time, shouldDepartAt::time) ORDER BY tripStopIndex)
         FROM stopHistory
         WHERE tripId = @tripId
           AND tripStartDate = @tripStartDate::date)
@@ -241,6 +245,7 @@ module Client =
     open WebSharper.UI.Html
     open WebSharper.UI.Client
     open WebSharper.ECharts
+    open RtView.ClientGlobals
 
     let tripsPage tripId () =
         let stopSeqGroups = Var.Create([||])
@@ -249,7 +254,7 @@ module Client =
             stopSeqGroups.Value <- ssgs
         } |> Async.Start
 
-        let stopsTable (stops: Server.WebTripStop array )=
+        let stopsTable (stops: Server.WebTripStop array) =
             table [] [
                 thead [] [
                     th [] [text "Stop"]
@@ -394,6 +399,16 @@ module Client =
                 div [] [
                     tripName.View.Doc (fun tn ->
                         h1 [] [text (sprintf "Trip %s (SSG %s)" tn ssg.date)])
+                    details [attr.``class`` "ssg-trips"] [
+                        summary [] [text "Trips in SSG"]
+                        ul [] [
+                            for date in ssg.dates ->
+                            let link = router.Link <| Locations.Trip (tripId, date)
+                            li [] [
+                                a [attr.href link] [text date]
+                            ]
+                        ]
+                    ]
                     stops.View.Doc stopsTable
                     createChart "delay-chart" (fun c ->
                         async {
