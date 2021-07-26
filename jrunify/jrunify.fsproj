@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
   This file is part of JrUnify and is licenced under the GNU GPLv3 or later
-  (c) 2018 David Koňařík
+  (c) 2021 David Koňařík
   -->
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
