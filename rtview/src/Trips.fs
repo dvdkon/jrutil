@@ -328,14 +328,11 @@ module Client =
                 SeriesCustom_RenderItemReturnPolygon()
                  .SetType("polygon")
                  .SetShape(
-                     {|
-                        // TODO: clipPointsByRect
-                        points = points
-                    |})
-                 .SetStyle((api.Style :> obj :?> obj -> obj)
-                    ({|
-                        fill = "#aaa5"
-                    |} :> obj))
+                   SeriesCustom_RenderItemReturnPolygon_shape(points :> obj :?> obj array))
+                 .SetStyle(
+                   SeriesCustom_RenderItemReturnPolygon_style()
+                    .SetFill("#aaa5")
+                 )
 
             EChartOption()
              .SetGrid([|delayChartGrid ()|])
