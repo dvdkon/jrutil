@@ -14,6 +14,7 @@ open WebSharper.AspNetCore
 
 open JrUtil.Utils
 open RtView
+open RtView.PublicApi
 
 let docstring = (fun (s: string) -> s.Trim()) """
 RtView a web application for exploring data collected by RtCollect
@@ -27,26 +28,14 @@ Options:
 
 type Startup() =
     member this.ConfigureServices(services: IServiceCollection) = ()
+
     member this.Configure(app: IApplicationBuilder, env: IWebHostEnvironment) =
         if env.IsDevelopment() then app.UseDeveloperExceptionPage() |> ignore
 
-        app.UseRewriter(
-                RewriteOptions()
-                // Let the client-side handle routing of everything except for
-                // static resources (exclude POST, because that causes loops)
-                 .Add(fun ctx ->
-                    if (not <| ctx.HttpContext.Request.Path.StartsWithSegments(
-                                PathString("/Content")))
-                       && ctx.HttpContext.Request.Method = "GET" then
-                        ctx.HttpContext.Request.Path <- PathString("/")
-                        ctx.Result <- RuleResult.SkipRemainingRules
-                    else
-                        ctx.Result <- RuleResult.ContinueRules
-                 ))
-            .UseDefaultFiles()
-            .UseStaticFiles()
-            .UseWebSharper(fun builder -> builder.UseSitelets(false) |> ignore)
-            .Run(fun context ->
+        app.UseDefaultFiles()
+           .UseStaticFiles()
+           .UseWebSharper(fun builder -> builder.Sitelet(PublicApi.website) |> ignore)
+           .Run(fun context ->
                 context.Response.StatusCode <- 404
                 context.Response.WriteAsync(
                     "Page not found: " + context.Request.Path))
