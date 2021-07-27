@@ -21,7 +21,7 @@ module Server =
     // Trips are divided into groups by their stop sequence, signified by the
     // tripStartDate of any trip of the group
     [<Remote>]
-    let stopSeqGroups (tripId: string) () =
+    let stopSeqGroups (tripId: string) (fromDate: string) (toDate: string) () =
         use c = getDbConn ()
         let tsDates =
             sqlQueryRec<StopSeqGroup> c """
@@ -39,12 +39,16 @@ FROM (
             tripStartDate
         FROM stopHistory
         WHERE tripId = @tripId
+          AND tripStartDate >= @fromDate::date
+          AND tripStartDate <= @toDate::date
         GROUP BY tripId, tripstartdate
     ) AS i2
     GROUP BY stopSeq
 ) AS i
 ORDER BY c DESC
-            """ ["tripId", box tripId]
+            """ ["tripId", box tripId
+                 "fromDate", box fromDate
+                 "toDate", box toDate]
             |> Seq.toArray
         async { return tsDates }
 
@@ -122,7 +126,10 @@ GROUP BY tripStopIndex, stopId, stopName
     }
 
     [<Remote>]
-    let tripDelayChart (tripId: string) (tripStartDate: string) () =
+    let tripDelayChart (tripId: string)
+                       (tripStartDate: string)
+                       (fromDate: string) (toDate: string)
+                       () =
         use c = getDbConn ()
         let out =
             sqlQuery c """
@@ -130,6 +137,8 @@ WITH startDates AS (
     SELECT tripStartDate
     FROM stopHistory
     WHERE tripId = @tripId
+      AND tripStartDate >= @fromDate::date
+      AND tripStartDate <= @toDate::date
     GROUP BY tripStartDate
     HAVING array_agg(stopId ORDER BY tripStopIndex) = (
         SELECT array_agg(stopId ORDER BY tripStopIndex)
@@ -231,7 +240,9 @@ SELECT
         'x', x, 'label', label))
      FROM labels) AS labels;
             """ ["tripId", box tripId
-                 "tripStartDate", box tripStartDate]
+                 "tripStartDate", box tripStartDate
+                 "fromDate", box fromDate
+                 "toDate", box toDate]
             |> Seq.exactlyOne
         let data =
             Json.Deserialize<DelayChartAvgItem array> (out.["data"] :?> string)
@@ -247,10 +258,12 @@ module Client =
     open WebSharper.ECharts
     open RtView.ClientGlobals
 
-    let tripsPage tripId () =
+    let tripsPage tripId fromDateParam toDateParam () =
+        let fromDate, toDate = dateRangeOrDefaults fromDateParam toDateParam
+
         let stopSeqGroups = Var.Create([||])
         async {
-            let! ssgs = Server.stopSeqGroups tripId ()
+            let! ssgs = Server.stopSeqGroups tripId fromDate toDate ()
             stopSeqGroups.Value <- ssgs
         } |> Async.Start
 
@@ -380,6 +393,9 @@ module Client =
              .SetVisualMap([|delayChartVisualMap ()|])
 
         div [attr.``class`` "trips-page"] [
+            dateRangeControl fromDate toDate (fun f t () ->
+                setLocation <| Locations.Trips (tripId, f, t)
+            )
             stopSeqGroups.View.DocSeqCached (fun (ssg: Server.StopSeqGroup) ->
                 let tripName = Var.Create("")
                 async {
@@ -409,7 +425,7 @@ module Client =
                     stops.View.Doc stopsTable
                     createChart "delay-chart" (fun c ->
                         async {
-                            let! data = Server.tripDelayChart tripId ssg.date ()
+                            let! data = Server.tripDelayChart tripId ssg.date fromDate toDate ()
                             return chartOpts data
                         }
                     )

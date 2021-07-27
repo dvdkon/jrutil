@@ -44,7 +44,10 @@ module ClientGlobals =
           Routes of fromDate: string option
                   * toDate: string option
                   * search: string option
-        | Trips of tripId: string
+        | [<Query("fromDate", "toDate")>]
+          Trips of tripId: string
+                 * fromDate: string option
+                 * toDate: string option
         | Trip of tripId: string * date: string
 
     let mutable router = Unchecked.defaultof<Sitelets.Router<Locations>>

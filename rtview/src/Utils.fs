@@ -5,10 +5,12 @@ module RtView.Utils
 
 open WebSharper
 open WebSharper.UI.Html
+open WebSharper.UI.Client
 open WebSharper.ECharts
 
 open JrUtil.SqlRecordStore
 open RtView.ServerGlobals
+open RtView.ClientGlobals
 
 [<Remote>]
 let getTripName (tripId: string) (startDate: string) () =
@@ -93,3 +95,35 @@ let delayChartGrid () =
      .SetLeft(10.)
      .SetRight(10.)
      .SetBottom(50.) // XXX: Labels won't fit inside without this
+
+[<JavaScript>]
+let dateRangeOrDefaults fromDateParam toDateParam =
+    let dateString (d: JavaScript.Date) = d.ToISOString().Split([|'T'|]).[0]
+    let weekAgo = JavaScript.Date()
+    weekAgo.SetDate(weekAgo.GetDate() - 7)
+    let today = JavaScript.Date()
+    fromDateParam |> Option.defaultValue (dateString weekAgo),
+    toDateParam |> Option.defaultValue (dateString today)
+
+[<JavaScript>]
+let dateRangeControl
+        fromDate toDate
+        (onSet: string option -> string option -> unit -> unit) =
+    div [attr.``class`` "date-range"] [
+        label [] [
+            text "From:"
+            input [attr.``type`` "date"
+                   attr.value fromDate
+                   on.change (fun el _ ->
+                       onSet (BindVar.StringGet(el)) (Some toDate) ()
+                   )] []
+        ]
+        label [] [
+            text "To:"
+            input [attr.``type`` "date"
+                   attr.value toDate
+                   on.change (fun el _ ->
+                       onSet (Some fromDate) (BindVar.StringGet(el)) ()
+                  )] []
+        ]
+    ]

@@ -100,14 +100,13 @@ module Client =
     open WebSharper.UI.Client
 
     open RtView.ClientGlobals
+    open RtView.Utils
 
     // Some Vars are global in the module to persist when navigating without having to add GET params
     let page = Var.Create(1)
 
     let tripList fromDateParam toDateParam searchParam () =
-        let today () = JavaScript.Date().ToISOString().Split([|'T'|]).[0]
-        let fromDate = fromDateParam |> Option.defaultWith today
-        let toDate = toDateParam |> Option.defaultWith today
+        let fromDate, toDate = dateRangeOrDefaults fromDateParam toDateParam
         // TODO: A var per route or this?
         let tripsByRoute = Var.Create(Map<string, Server.WebTrip array> [])
 
@@ -142,7 +141,7 @@ module Client =
                         let caption =
                             sprintf "%s" firstTrip.shortName
                         let expanded = Var.Create(false)
-                        let link = router.Link <| Locations.Trips tripId
+                        let link = router.Link <| Locations.Trips (tripId, fromDateParam, toDateParam)
 
                         li [] [
                             a [attr.``class`` "trips-heading"
@@ -192,32 +191,10 @@ module Client =
 
         div [attr.``class`` "routes-page"] [
             div [attr.``class`` "controls"] [
-                div [attr.``class`` "date-range"] [
-                    label [] [
-                        text "From:"
-                        input [attr.``type`` "date"
-                               attr.value fromDate
-                               on.change (fun el _ ->
-                                   page.Value <- 1
-                                   setLocation <| Locations.Routes (
-                                       BindVar.StringGet(el),
-                                       Some toDate,
-                                       searchParam)
-                               )] []
-                    ]
-                    label [] [
-                        text "To:"
-                        input [attr.``type`` "date"
-                               attr.value toDate
-                               on.change (fun el _ ->
-                                   page.Value <- 1
-                                   setLocation <| Locations.Routes (
-                                       Some fromDate,
-                                       BindVar.StringGet(el),
-                                       searchParam)
-                              )] []
-                    ]
-                ]
+                dateRangeControl fromDate toDate (fun f t () ->
+                    page.Value <- 1
+                    setLocation <| Locations.Routes (f, t, searchParam)
+                )
                 form [attr.``class`` "search"
                       on.submit (fun _ ev ->
                           ev.PreventDefault()

@@ -20,7 +20,7 @@ module ClientMain =
         location.View.Doc (function
             | Homepage -> RtView.Routes.Client.tripList None None None ()
             | Routes (f, t, s) -> RtView.Routes.Client.tripList f t s ()
-            | Trips tid -> RtView.Trips.Client.tripsPage tid ()
+            | Trips (tid, f, t) -> RtView.Trips.Client.tripsPage tid f t ()
             | Trip (tid, d) -> RtView.Trip.Client.tripPage tid d ()
         )
         |> Doc.RunReplaceById "main"
