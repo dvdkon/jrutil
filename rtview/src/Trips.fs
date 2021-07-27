@@ -30,7 +30,7 @@ SELECT date::text AS date, dates::text[] AS dates
 FROM (
     SELECT MIN(tripStartDate) AS date,
            COUNT(tripStartDate) AS c,
-           array_agg(tripStartDate) AS dates
+           array_agg(tripStartDate ORDER BY tripStartDate) AS dates
     FROM (
         SELECT
             -- TODO: Don't just cast to time, rather subtract starting day
