@@ -148,11 +148,11 @@ WITH startDates AS (
 ), stopHist AS (
     SELECT
         stopId, stopName, tripStopIndex,
-        to_timestamp(AVG(EXTRACT(EPOCH FROM shouldArriveAt))) AS shouldArriveAt,
+        MIN(shouldArriveAt) AS shouldArriveAt,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
         percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p15ArrivalDelay,
         percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS p85ArrivalDelay,
-        to_timestamp(AVG(EXTRACT(EPOCH FROM shouldDepartAt))) AS shouldDepartAt,
+        MIN(shouldDepartAt) AS shouldDepartAt,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS medDepartureDelay,
         percentile_cont(0.15) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p15DepartureDelay,
         percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p85DepartureDelay
