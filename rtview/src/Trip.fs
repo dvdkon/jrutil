@@ -17,10 +17,10 @@ module Server =
         stopName: string
         arrivedAt: string option
         shouldArriveAt: string option
-        arrivalDelay: string option
+        arrivalDelay: float option
         departedAt: string option
         shouldDepartAt: string option
-        departureDelay: string option
+        departureDelay: float option
     }
 
     [<Remote>]
@@ -31,12 +31,10 @@ module Server =
                 SELECT stopId, stopName,
                        to_char(arrivedAt, 'HH24:MI') AS arrivedAt,
                        to_char(shouldArriveAt, 'HH24:MI') AS shouldArriveAt,
-                       (EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60)::text
-                           AS arrivalDelay,
+                       EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60 AS arrivalDelay,
                        to_char(departedAt, 'HH24:MI') AS departedAt,
                        to_char(shouldDepartAt, 'HH24:MI') as shouldDepartAt,
-                       (EXTRACT(EPOCH FROM departedAt - shouldDepartAt)/60)::text
-                           AS departureDelay
+                       EXTRACT(EPOCH FROM departedAt - shouldDepartAt)/60 AS departureDelay
                 FROM stopHistoryWithNames
                 WHERE tripId = @tripId
                   AND tripStartDate = @startDate::date
@@ -184,10 +182,14 @@ module Client =
                 td [] [text s.stopName]
                 td [] [text (s.shouldArriveAt |> Option.defaultValue "")]
                 td [] [text (s.arrivedAt |> Option.defaultValue "")]
-                td [] [text (s.arrivalDelay |> Option.defaultValue "")]
+                td [] [text (s.arrivalDelay
+                             |> Option.map (sprintf "%.1f")
+                             |> Option.defaultValue "")]
                 td [] [text (s.shouldDepartAt |> Option.defaultValue "")]
                 td [] [text (s.departedAt |> Option.defaultValue "")]
-                td [] [text (s.departureDelay |> Option.defaultValue "")]
+                td [] [text (s.departureDelay
+                             |> Option.map (sprintf "%.1f")
+                             |> Option.defaultValue "")]
             ]
 
         let chartOpts (data: Server.DelayChartData) =

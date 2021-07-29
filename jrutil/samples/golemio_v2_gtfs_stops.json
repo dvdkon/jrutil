@@ -1,0 +1,65 @@
+{
+  "features": [
+    {
+      "geometry": {
+        "coordinates": [
+          14.24257,
+          50.07866
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_id": null,
+        "location_type": 0,
+        "parent_station": null,
+        "platform_code": "B",
+        "stop_id": "U1218Z2",
+        "stop_name": "Hostivice,Sportovců",
+        "wheelchair_boarding": 0,
+        "zone_id": "1"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          14.34082,
+          50.11005
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_id": null,
+        "location_type": 0,
+        "parent_station": null,
+        "platform_code": "A",
+        "stop_id": "U1219Z1",
+        "stop_name": "Průhonský háj",
+        "wheelchair_boarding": 0,
+        "zone_id": "B"
+      },
+      "type": "Feature"
+    },
+    {
+      "geometry": {
+        "coordinates": [
+          14.34082,
+          50.11005
+        ],
+        "type": "Point"
+      },
+      "properties": {
+        "level_id": null,
+        "location_type": 0,
+        "parent_station": null,
+        "platform_code": "A",
+        "stop_id": "U1219Z1P",
+        "stop_name": "Průhonský háj",
+        "wheelchair_boarding": 0,
+        "zone_id": "P"
+      },
+      "type": "Feature"
+    }
+  ],
+  "type": "FeatureCollection"
+}

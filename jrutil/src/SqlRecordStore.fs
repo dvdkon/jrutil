@@ -225,23 +225,24 @@ let getSqlInserterTemplated = memoize <| fun recType ->
         |> Seq.map (fun f -> getSqlValuePreparer f.PropertyType)
         |> Seq.toArray
     fun template table (conn: DbConnection) (os: obj seq) ->
-        let ps =
-            os
-            |> Seq.mapi (fun i o ->
-                fieldsGetter o
-                |> Seq.mapi (fun j v ->
-                    (sprintf "@%d_%d" i j, preparers.[j] v)))
-            |> Seq.concat
-        let paramsStr =
-            seq { for i in 0 .. (Seq.length os) - 1 ->
-                  seq { for j in 0 .. (Seq.length preparers) - 1 ->
-                        sprintf "@%d_%d" i j }
-                  |> String.concat ", "
-                  |> fun s -> "(" + s + ")" }
-            |> String.concat ", "
-        let sql =
-            template (sqlIdent table) columnsStr paramsStr
-        executeSql conn sql ps
+        if not <| Seq.isEmpty os then
+            let ps =
+                os
+                |> Seq.mapi (fun i o ->
+                    fieldsGetter o
+                    |> Seq.mapi (fun j v ->
+                        (sprintf "@%d_%d" i j, preparers.[j] v)))
+                |> Seq.concat
+            let paramsStr =
+                seq { for i in 0 .. (Seq.length os) - 1 ->
+                      seq { for j in 0 .. (Seq.length preparers) - 1 ->
+                            sprintf "@%d_%d" i j }
+                      |> String.concat ", "
+                      |> fun s -> "(" + s + ")" }
+                |> String.concat ", "
+            let sql =
+                template (sqlIdent table) columnsStr paramsStr
+            executeSql conn sql ps
 
 let getSqlInserter recType =
     getSqlInserterTemplated

@@ -13,8 +13,8 @@ module Server =
     type WebRoute = {
         routeId: string
         name: string
-        firstStop: string
-        lastStop: string
+        firstStop: string option
+        lastStop: string option
     }
 
     [<JavaScript>]
@@ -178,9 +178,12 @@ module Client =
                 span [attr.``class`` "route-heading"
                       on.click (fun _ _ -> onRouteClick r ())]
                      [span [attr.``class`` "route-name"] [text r.name]
-                      span
-                        [attr.``class`` "route-stops"]
-                        [text (sprintf "(%s -> %s)" r.firstStop r.lastStop)]]
+                      (match r.firstStop, r.lastStop with
+                       | Some f, Some l ->
+                           span
+                               [attr.``class`` "route-stops"]
+                               [text (sprintf "(%s -> %s)" f l)]
+                       | _ -> Doc.Empty)]
                 tripsByRoute.View.Doc (fun tripsMap ->
                     tripsMap
                     |> Map.tryFind r.routeId
