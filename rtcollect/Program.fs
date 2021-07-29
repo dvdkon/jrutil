@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// (c) 2021 David Koňařík
 
 open System.Threading
 open FSharp.Data
@@ -30,8 +30,9 @@ GRAPP stops CSV columns (GPS coords as floating point numbers):
     SR70,NÁZEV20,GPS X,GPS Y
 """
 
-let collect conn skipStops grappStopsCsv golemioApiKey =
+let collect connGetter skipStops grappStopsCsv golemioApiKey =
     grappStopsCsv |> Option.iter (fun grappStopsCsv ->
+        let conn = connGetter()
         let mutable grappStopsDate = LocalDate(0, 1, 1)
         let mutable grappStopMap = Map []
         new Timer(
@@ -57,6 +58,7 @@ let collect conn skipStops grappStopsCsv golemioApiKey =
             ), null :> obj, 0, 10*60*1000) |> ignore)
 
     golemioApiKey |> Option.iter (fun apiKey ->
+        let conn = connGetter()
         let mutable stopsDate = LocalDate(0, 1, 1)
         new Timer(
             (fun _ ->
@@ -83,17 +85,21 @@ let main argv =
     withProcessedArgs docstring argv (fun args ->
         setupLogging (optArgValue args "--logfile") ()
         Log.Information("RtCollect started!")
-        let conn = getPostgresqlConnection (argValue args "<db-connstr>")
-        setSchema conn "rtcollect"
+        let connGetter = fun () ->
+            let conn = getPostgresqlConnection (argValue args "<db-connstr>")
+            setSchema conn "rtcollect"
+            conn
 
         if (argFlagSet args "--create-tables") then
+            let conn = connGetter ()
             cleanAndSetSchema conn "rtcollect"
             sqlCreateRealTimeTables conn
             Log.Information("RtCollect tables created!")
             0
         else
-            collect conn (argFlagSet args "--skip-stops")
-                         (optArgValue args "--grapp-stops-csv")
-                         (optArgValue args "--golemio-api-key")
+            collect connGetter
+                    (argFlagSet args "--skip-stops")
+                    (optArgValue args "--grapp-stops-csv")
+                    (optArgValue args "--golemio-api-key")
             0
     )
