@@ -47,8 +47,8 @@ let getStops apiKey () =
         id = "-PIDS-" + gtfsStop.Properties.StopId
         date = dateToday ()
         name = gtfsStop.Properties.StopName
-        lat = Some <| float gtfsStop.Geometry.Coordinates.[0]
-        lon = Some <| float gtfsStop.Geometry.Coordinates.[1]
+        lat = Some <| float gtfsStop.Geometry.Coordinates.[1]
+        lon = Some <| float gtfsStop.Geometry.Coordinates.[0]
     })
 
 // This outputs the database types directly, since the Golemio API differs from
@@ -95,8 +95,8 @@ let processPositions noTrains (trips: V2VehiclePositionsOutput.Feature seq) =
                         (parseDt pos.Properties.OriginTimestamp)
                          .InZoneStrictly(tz)
                          .ToInstant()
-                    lat = float pos.Geometry.Coordinates.[0]
-                    lon = float pos.Geometry.Coordinates.[1]
+                    lat = float pos.Geometry.Coordinates.[1]
+                    lon = float pos.Geometry.Coordinates.[0]
                 })
                 // Evaluate the seqs early so that potential errors get caught
                 // by the big overarching `try with`
