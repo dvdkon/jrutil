@@ -68,12 +68,13 @@ let processPositions noTrains (trips: V2VehiclePositionsOutput.Feature seq) =
             // to "none" even for normal buses
             let tripId = "-PIDT-" + tripProps.Gtfs.TripId
             let routeId = "-PIDT-" + tripProps.Gtfs.RouteId
-            let dtPattern =
-                LocalDateTimePattern.CreateWithInvariantCulture(
-                    "uuuu'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'")
-            let parseDt (str: string) = dtPattern.Parse(str).Value
-            let startDate = (parseDt tripProps.StartTimestamp).Date
             let tz = DateTimeZoneProviders.Tzdb.GetZoneOrNull("Europe/Prague")
+            let dtPattern =
+                InstantPattern.CreateWithInvariantCulture(
+                    "uuuu'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'")
+            let parseDt (str: string) =
+                dtPattern.Parse(str).Value.InZone(tz).LocalDateTime
+            let startDate = (parseDt tripProps.StartTimestamp).Date
             let routeName = tripProps.Gtfs.RouteShortName
 
             let tripDetails = {
