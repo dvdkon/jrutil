@@ -31,7 +31,8 @@ GRAPP stops CSV columns (GPS coords as floating point numbers):
 """
 
 let collect connGetter skipStops grappStopsCsv golemioApiKey =
-    grappStopsCsv |> Option.iter (fun grappStopsCsv ->
+    // We need to keep references to the timers so they don't get GC'd
+    let grappTimer = grappStopsCsv |> Option.map (fun grappStopsCsv ->
         let conn = connGetter()
         let mutable grappStopsDate = LocalDate(0, 1, 1)
         let mutable grappStopMap = Map []
@@ -55,9 +56,9 @@ let collect connGetter skipStops grappStopsCsv golemioApiKey =
                 measureTime "Inserting train positions from Grapp into DB" (fun () ->
                     positions |> Array.iter (insertTripPosition conn))
             // Every 10 minutes, fire immediately
-            ), null :> obj, 0, 10*60*1000) |> ignore)
+            ), null, 0, 10*60*1000))
 
-    golemioApiKey |> Option.iter (fun apiKey ->
+    let golemioTimer = golemioApiKey |> Option.map (fun apiKey ->
         let conn = connGetter()
         let mutable stopsDate = LocalDate(0, 1, 1)
         new Timer(
@@ -75,8 +76,8 @@ let collect connGetter skipStops grappStopsCsv golemioApiKey =
                         insertCoordHistory conn coordHistory
                         insertStopHistory conn tripDetails.tripId tripDetails.tripStartDate stopHistory
                     ))
-            // Every 30 minutes, fire immediately
-            ), null, 0, 30*60*1000) |> ignore)
+            // Every 10 minutes, fire immediately
+            ), null, 0, 10*60*1000))
 
     Thread.Sleep(Timeout.Infinite)
 
