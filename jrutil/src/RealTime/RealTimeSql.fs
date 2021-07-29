@@ -184,23 +184,33 @@ let insertStops conn (stops: Stop seq) =
             id_ text, validDate date, name_ text, lat_ float8, lon_ float8)
         LANGUAGE plpgsql AS $$
         DECLARE
-            newRange daterange;
-            existingDateRange daterange;
+            newRange_ daterange;
+            existing_ stops;
         BEGIN
-            newRange := daterange(validDate, validDate, '[]');
-            SELECT validDateRange
-            INTO existingDateRange
+            newRange_ := daterange(validDate, validDate, '[]');
+            SELECT stops.*
+            INTO existing_
             FROM stops
-            WHERE (validDateRange -|- newRange OR validDateRange @> validDate)
-              AND id = id_ AND name = name_ AND lat = lat_ AND lon = lon_;
-            IF existingDateRange IS NOT NULL THEN
-                UPDATE stops
-                SET validDateRange = range_merge(validDateRange, newRange)
-                WHERE id = id_
-                  AND validDateRange = existingDateRange;
+            WHERE (validDateRange -|- newRange_ OR validDateRange @> validDate)
+              AND id = id_ AND name = name_;
+            IF existing_ IS NOT NULL THEN
+                IF existing_.lat = lat_ AND existing_.lon = lon_ THEN
+                    UPDATE stops
+                    SET validDateRange = range_merge(validDateRange, newRange_)
+                    WHERE id = id_ AND validDateRange = existing_.validDateRange;
+                ELSE
+                    -- XXX: Will break if validDate is not on either end of
+                    -- existing_.validDateRange
+                    UPDATE stops
+                    SET validDateRange = validDateRange - newRange_
+                    WHERE id = id_ AND validDateRange = existing_.validDateRange;
+
+                    INSERT INTO stops (id, validDateRange, name, lat, lon)
+                    VALUES (id_, newRange_, name_, lat_, lon_);
+                END IF;
             ELSE
                 INSERT INTO stops (id, validDateRange, name, lat, lon)
-                VALUES (id_, newRange, name_, lat_, lon_);
+                VALUES (id_, newRange_, name_, lat_, lon_);
             END IF;
         END;
         $$""" []
