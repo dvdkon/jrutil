@@ -33,22 +33,41 @@ module Server =
         // TODO: Fully async?
         use c = getDbConn ()
         let routesQuery = """
+        WITH routes AS (
             SELECT DISTINCT ON (routeId)
-               routeId,
-               COALESCE(routeShortName, routeId) AS name,
-               (SELECT stopName FROM stophistorywithnames AS sh
-                WHERE sh.tripId = td.tripId
-                  AND sh.tripstartdate = td.tripstartdate
-                  ORDER BY tripStopIndex LIMIT 1) AS firstStop,
-               (SELECT stopName FROM stophistorywithnames AS sh
-                WHERE sh.tripId = td.tripId
-                  AND sh.tripstartdate = td.tripstartdate
-                  ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
+                routeId, tripId, tripStartDate,
+                COALESCE(routeShortName, routeId) AS name
             FROM tripDetails AS td
             WHERE tripStartDate >= @dateFrom::date
               AND tripStartDate <= @dateTo::date
               -- TODO: Full text search also on the stop names
               AND routeShortName ILIKE @searchLike
+            /*LIMIT*/)
+        SELECT
+            routeId, name,
+            (SELECT name FROM stophistory AS sh
+             LEFT JOIN stops AS s
+                 ON s.id = sh.stopId
+                 AND s.validDateRange @> COALESCE(
+                     sh.arrivedAt,
+                     sh.shouldArriveAt,
+                     sh.departedAt,
+                     sh.shouldDepartAt)::date
+             WHERE sh.tripId = r.tripId
+               AND sh.tripStartDate = r.tripStartDate
+             ORDER BY tripStopIndex LIMIT 1) AS firstStop,
+            (SELECT name FROM stophistory AS sh
+             LEFT JOIN stops AS s
+                 ON s.id = sh.stopId
+                 AND s.validDateRange @> COALESCE(
+                     sh.arrivedAt,
+                     sh.shouldArriveAt,
+                     sh.departedAt,
+                     sh.shouldDepartAt)::date
+             WHERE sh.tripId = r.tripId
+               AND sh.tripStartDate = r.tripStartDate
+             ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
+        FROM routes AS r
         """
         let pars = ["dateFrom", box <| fst startDateBound
                     "dateTo", box <| snd startDateBound
@@ -61,11 +80,11 @@ module Server =
             unbox<int64> <| sqlQueryOne c (
                 "SELECT COUNT(routeId) FROM (" + routesQuery + ") AS i") pars
         let routes =
-            sqlQueryRec<WebRoute> c (routesQuery + """
-                ORDER BY routeId, routeShortName
+            sqlQueryRec<WebRoute> c (routesQuery.Replace("/*LIMIT*/", """
+                ORDER BY routeId
                 LIMIT @perPage
                 OFFSET @page * @perPage
-                """) pars 
+                """)) pars
             |> Seq.toArray
         async { return { fullRouteCount = routeCount; routes = routes } }
 
