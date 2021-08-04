@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// (c) 2021 David Koňařík
 
 module JrUtil.Grapp
 
@@ -13,6 +13,7 @@ open Serilog
 
 open JrUtil.Utils
 open JrUtil.RealTimeModel
+open JrUtil.UndatedTimes
 
 let baseUrl = "https://grapp.spravazeleznic.cz/"
 
@@ -163,15 +164,6 @@ let fetchTrainDetail token nameIdMap trainId () =
             routePageAvailable = doc.CssSelect(".action") |> Seq.isEmpty |> not
         }
 
-// Internal intermediate type for fetchTrainRoute
-type UndatedStopHistoryItem = {
-    stopId: string
-    arrivedAt: LocalTime option
-    shouldArriveAt: LocalTime option
-    departedAt: LocalTime option
-    shouldDepartAt: LocalTime option
-}
-
 let fetchTrainRoute token nameIdMap trainId () =
     let resp =
         Http.RequestString(sprintf "%s/OneTrain/RouteInfo/%s?trainId=%d"
@@ -179,6 +171,15 @@ let fetchTrainRoute token nameIdMap trainId () =
     // XXX: Remove the <html> tag when the FSharp.Data fix makes it into a
     // release (https://github.com/fsharp/FSharp.Data/pull/1290)
     let doc = HtmlDocument.Parse("<html>" + (fsharpDataHtmlWorkaround resp) + "<html>")
+
+
+    // TODO: Maybe use data from train detail page?
+    let currentStationIdx =
+        match doc.CssSelect(".route .row")
+              |> Seq.tryFindIndex (fun row ->
+                  row.CssSelect("#currentStation") |> List.isEmpty |> not) with
+        | Some idx -> idx
+        | None -> failwith "Failed to get current station"
 
     // The route page only has times and not dates, so we need to find out how
     // many days ago the train departed and then go through the data and add a
@@ -191,7 +192,7 @@ let fetchTrainRoute token nameIdMap trainId () =
     // function called on them.
     let undated =
         doc.CssSelect(".route .row")
-        |> Seq.map (fun row ->
+        |> Seq.mapi (fun i row ->
             let cols =
                 row.Elements()
                 |> Seq.map (fun c -> c.InnerText().Trim())
@@ -210,78 +211,30 @@ let fetchTrainRoute token nameIdMap trainId () =
                         failwithf "Time \"%s\" was not enclosed in ()" strTime
                     parseTime strTime.[1..(strTime.Length - 2)]
             {
-                stopId = stopIdForName nameIdMap cols.[0]
-                arrivedAt = parseTime cols.[4]
+                UndatedStopHistoryItem.stopId = stopIdForName nameIdMap cols.[0]
+                // Don't save the projected times shown after the current
+                // station
+                arrivedAt =
+                    if i > currentStationIdx then None else parseTime cols.[4]
                 shouldArriveAt = parseParTime cols.[5]
-                departedAt = parseTime cols.[8]
+                departedAt =
+                    if i > currentStationIdx then None else parseTime cols.[8]
                 shouldDepartAt = parseParTime cols.[9]
             }
         )
         |> Seq.toArray
 
-    // TODO: Maybe use data from train detail page?
-    let currentStationIdx =
-        match doc.CssSelect(".route .row")
-              |> Seq.tryFindIndex (fun row ->
-                  row.CssSelect("#currentStation") |> List.isEmpty |> not) with
-        | Some idx -> idx
-        | None -> failwith "Failed to get current station"
-
-    // The number of days the train has been runing for (i.e. if it started
-    // today, 0; if it started yesterday, 1)
-    let daysRunning =
-        undated.[..currentStationIdx]
-        |> Array.pairwise
-        |> Array.sumBy (fun (t1, t2) -> if t1 < t2 then 1 else 0)
+    let timezone = DateTimeZoneProviders.Tzdb.["Europe/Prague"]
+    let now =
+        SystemClock.Instance.GetCurrentInstant()
+         .InZone(timezone)
+         .LocalDateTime
 
     // XXX: Sometimes there are stops that later disappear. No important ones,
     // but it's curious nonetheless
 
-    let (res, _, _, _, _, _) =
-        undated
-        |> Array.fold (fun (items, daysRT, daysTT, lastTimeRT, lastTimeTT, i)
-                            item ->
-            let addDate time dayOffset =
-                let date = LocalDate.FromDateTime(DateTime.Today)
-                            .Plus(Period.FromDays(dayOffset))
-                date + time
-            let mutable newDaysRT = 0
-            let addDateRT time =
-                if lastTimeRT > time then
-                    newDaysRT <- newDaysRT + 1
-                addDate time newDaysRT
-            let mutable newDaysTT = 0
-            let addDateTT time =
-                if lastTimeTT > time then
-                    newDaysTT <- newDaysTT + 1
-                addDate time newDaysTT
-            {
-                StopHistoryItem.stopId = item.stopId
-                tripStopIndex = i
-                timeZone = DateTimeZoneProviders.Tzdb.["Europe/Prague"]
-                arrivedAt =
-                    // Don't save the projected times shown after the current
-                    // station
-                    if i > currentStationIdx then None
-                    else Option.map addDateRT item.arrivedAt
-                shouldArriveAt = Option.map addDateTT item.shouldArriveAt
-                departedAt =
-                    if i > currentStationIdx then None
-                    else Option.map addDateRT item.departedAt
-                shouldDepartAt = Option.map addDateTT item.shouldDepartAt
-            } :: items,
-            newDaysRT, newDaysTT,
-            (item.departedAt
-             |> Option.orElse item.arrivedAt
-             |> Option.defaultValue lastTimeRT),
-            (item.shouldDepartAt
-             |> Option.orElse item.shouldArriveAt
-             |> Option.defaultValue lastTimeTT),
-            i + 1
-        ) ([],
-           -daysRunning, -daysRunning,
-           LocalTime(0, 0), LocalTime(0, 0), 0)
-    res |> List.rev |> List.toArray
+    dateUndatedStopHistory timezone currentStationIdx now undated 
+    |> Seq.toArray
 
 let fetchAllTrains indexData nameIdMap () =
     let trains = fetchAllTrainsSummary indexData ()

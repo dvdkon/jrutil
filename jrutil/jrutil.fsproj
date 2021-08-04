@@ -38,6 +38,7 @@
     <Compile Include="src/Gtfs/GtfsMerge.fs" />
     <Compile Include="src/RealTime/RealTimeModel.fs" />
     <Compile Include="src/RealTime/RealTimeSql.fs" />
+    <Compile Include="src/UndatedTimes.fs" />
     <Compile Include="src/Grapp.fs" />
     <Compile Include="src/Golemio.fs" />
   </ItemGroup>
