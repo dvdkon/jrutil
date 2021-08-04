@@ -8,7 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Tests.fs" />
+    <Compile Include="Asserts.fs" />
+    <Compile Include="UndatedStopHistoryTests.fs" />
+    <Compile Include="HolidayTests.fs" />
+    <Compile Include="EntryPoint.fs" />
   </ItemGroup>
 
   <ItemGroup>
