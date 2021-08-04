@@ -32,43 +32,7 @@ module Server =
                (searchTerm: string option)() =
         // TODO: Fully async?
         use c = getDbConn ()
-        let routesQuery = """
-        WITH routes AS (
-            SELECT DISTINCT ON (routeId)
-                routeId, tripId, tripStartDate,
-                COALESCE(routeShortName, routeId) AS name
-            FROM tripDetails AS td
-            WHERE tripStartDate >= @dateFrom::date
-              AND tripStartDate <= @dateTo::date
-              -- TODO: Full text search also on the stop names
-              AND routeShortName ILIKE @searchLike
-            /*LIMIT*/)
-        SELECT
-            routeId, name,
-            (SELECT name FROM stophistory AS sh
-             LEFT JOIN stops AS s
-                 ON s.id = sh.stopId
-                 AND s.validDateRange @> COALESCE(
-                     sh.arrivedAt,
-                     sh.shouldArriveAt,
-                     sh.departedAt,
-                     sh.shouldDepartAt)::date
-             WHERE sh.tripId = r.tripId
-               AND sh.tripStartDate = r.tripStartDate
-             ORDER BY tripStopIndex LIMIT 1) AS firstStop,
-            (SELECT name FROM stophistory AS sh
-             LEFT JOIN stops AS s
-                 ON s.id = sh.stopId
-                 AND s.validDateRange @> COALESCE(
-                     sh.arrivedAt,
-                     sh.shouldArriveAt,
-                     sh.departedAt,
-                     sh.shouldDepartAt)::date
-             WHERE sh.tripId = r.tripId
-               AND sh.tripStartDate = r.tripStartDate
-             ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
-        FROM routes AS r
-        """
+
         let pars = ["dateFrom", box <| fst startDateBound
                     "dateTo", box <| snd startDateBound
                     "searchLike",
@@ -77,14 +41,56 @@ module Server =
                     "perPage", box routesPerPage]
 
         let routeCount =
-            unbox<int64> <| sqlQueryOne c (
-                "SELECT COUNT(routeId) FROM (" + routesQuery + ") AS i") pars
+            unbox<int64> <| sqlQueryOne c """
+                SELECT COUNT(*) FROM (
+                    SELECT DISTINCT routeId
+                    FROM tripDetails AS td
+                    WHERE tripStartDate >= @dateFrom::date
+                      AND tripStartDate <= @dateTo::date
+                      AND routeShortName ILIKE @searchLike
+                    GROUP BY routeId) AS i;
+                """ pars
+
         let routes =
-            sqlQueryRec<WebRoute> c (routesQuery.Replace("/*LIMIT*/", """
-                ORDER BY routeId
-                LIMIT @perPage
-                OFFSET @page * @perPage
-                """)) pars
+            sqlQueryRec<WebRoute> c """
+                WITH routes AS (
+                    SELECT DISTINCT ON (routeId)
+                        routeId, tripId, tripStartDate,
+                        COALESCE(routeShortName, routeId) AS name
+                    FROM tripDetails AS td
+                    WHERE tripStartDate >= @dateFrom::date
+                      AND tripStartDate <= @dateTo::date
+                      -- TODO: Full text search also on the stop names
+                      AND routeShortName ILIKE @searchLike
+                    ORDER BY routeId
+                    LIMIT @perPage
+                    OFFSET @page * @perPage)
+                SELECT
+                    routeId, name,
+                    (SELECT name FROM stophistory AS sh
+                     LEFT JOIN stops AS s
+                         ON s.id = sh.stopId
+                         AND s.validDateRange @> COALESCE(
+                             sh.arrivedAt,
+                             sh.shouldArriveAt,
+                             sh.departedAt,
+                             sh.shouldDepartAt)::date
+                     WHERE sh.tripId = r.tripId
+                       AND sh.tripStartDate = r.tripStartDate
+                     ORDER BY tripStopIndex LIMIT 1) AS firstStop,
+                    (SELECT name FROM stophistory AS sh
+                     LEFT JOIN stops AS s
+                         ON s.id = sh.stopId
+                         AND s.validDateRange @> COALESCE(
+                             sh.arrivedAt,
+                             sh.shouldArriveAt,
+                             sh.departedAt,
+                             sh.shouldDepartAt)::date
+                     WHERE sh.tripId = r.tripId
+                       AND sh.tripStartDate = r.tripStartDate
+                     ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
+                FROM routes AS r
+                """ pars
             |> Seq.toArray
         async { return { fullRouteCount = routeCount; routes = routes } }
 
