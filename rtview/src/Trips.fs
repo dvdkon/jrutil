@@ -67,7 +67,10 @@ ORDER BY c DESC
     }
 
     [<Remote>]
-    let tripStops (tripId: string) (tripStartDate: string) () =
+    let tripStops (tripId: string)
+                  (tripStartDate: string)
+                  (fromDate: string) (toDate: string)
+                  () =
         use c = getDbConn ()
         let stops =
             sqlQueryRec<WebTripStop> c """
@@ -75,6 +78,8 @@ WITH startDates AS (
     SELECT tripStartDate
     FROM stopHistory
     WHERE tripId = @tripId
+      AND tripStartDate >= @fromDate::date
+      AND tripStartDate <= @toDate::date
     GROUP BY tripStartDate
     HAVING array_agg((stopId, shouldArriveAt::time, shouldDepartAt::time) ORDER BY tripStopIndex) = (
         SELECT array_agg((stopId, shouldArriveAt::time, shouldDepartAt::time) ORDER BY tripStopIndex)
@@ -100,7 +105,9 @@ WHERE tripId = @tripId
 -- I know that there is exactly one stopId/stopName for tripStopIndex, but PostgreSQL doesn't
 GROUP BY tripStopIndex, stopId, stopName
             """ ["tripId", box tripId
-                 "tripStartDate", box tripStartDate]
+                 "tripStartDate", box tripStartDate
+                 "fromDate", box fromDate
+                 "toDate", box toDate]
             |> Seq.toArray
         async { return stops }
 
@@ -405,7 +412,7 @@ module Client =
 
                 let stops = Var.Create([||])
                 async {
-                    let! s = Server.tripStops tripId ssg.date ()
+                    let! s = Server.tripStops tripId ssg.date fromDate toDate ()
                     stops.Value <- s
                 } |> Async.Start
 
