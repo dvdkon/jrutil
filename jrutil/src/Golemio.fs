@@ -150,16 +150,20 @@ let processPositions noTrains (trips: V2VehiclePositionsOutput.Feature seq) =
 
 let getPositions apiKey noTrains () =
     getAllPaginated positionsPageSize (fun offset () ->
-        let resp =
-            Http.RequestString(
-                baseUrl + "/v2/vehiclepositions",
-                query = [
-                    "limit", string positionsPageSize
-                    "offset", string offset
-                    "includeNotTracking", "true"
-                    "includePositions", "true"
-                ],
-                headers = ["X-Access-Token", apiKey])
-        V2VehiclePositionsOutput.Parse(resp).Features
+        try
+            let resp =
+                Http.RequestString(
+                    baseUrl + "/v2/vehiclepositions",
+                    query = [
+                        "limit", string positionsPageSize
+                        "offset", string offset
+                        "includeNotTracking", "true"
+                        "includePositions", "true"
+                    ],
+                    headers = ["X-Access-Token", apiKey])
+            V2VehiclePositionsOutput.Parse(resp).Features
+        with e ->
+            Log.Error(e, "Exception while getting positions from Golemio")
+            [||]
     )
     |> processPositions noTrains
