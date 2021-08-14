@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// (c) 2021 David Koňařík
 
 module RtView.Routes
 
@@ -19,7 +19,8 @@ module Server =
 
     [<JavaScript>]
     type WebRoutesResp = {
-        fullRouteCount: int64
+        isRouteCountFull: bool
+        routeCount: int64
         routes: WebRoute array
     }
 
@@ -40,8 +41,32 @@ module Server =
                     "page", box <| page - 1
                     "perPage", box routesPerPage]
 
-        let routeCount =
-            unbox<int64> <| sqlQueryOne c """
+        let fastRouteCountRow =
+            sqlQuery c """
+                WITH limitedTrips AS (
+                    SELECT routeId
+                    FROM tripDetails AS td
+                    WHERE tripStartDate >= @dateFrom::date
+                      AND tripStartDate <= @dateTo::date
+                      AND routeShortName ILIKE @searchLike
+                    LIMIT 1000
+                )
+                SELECT
+                    (SELECT COUNT(*) FROM (
+                         SELECT DISTINCT routeId
+                         FROM limitedTrips
+                     ) AS i) AS routeCount,
+                    (SELECT COUNT(*) < 1000 FROM limitedTrips) AS isPrecise;
+                """ pars
+            |> Seq.exactlyOne
+        let fastRouteCount = fastRouteCountRow.[0] |> unbox<int64>
+        let fastRouteCountIsPrecise = fastRouteCountRow.[1] |> unbox<bool>
+
+        let isRouteCountFull, routeCount =
+            if fastRouteCount / (int64 routesPerPage) > (int64 page)
+               || fastRouteCountIsPrecise
+            then fastRouteCountIsPrecise, fastRouteCount
+            else true, unbox<int64> <| sqlQueryOne c """
                 SELECT COUNT(*) FROM (
                     SELECT DISTINCT routeId
                     FROM tripDetails AS td
@@ -92,7 +117,11 @@ module Server =
                 FROM routes AS r
                 """ pars
             |> Seq.toArray
-        async { return { fullRouteCount = routeCount; routes = routes } }
+        async { return {
+            isRouteCountFull = isRouteCountFull
+            routeCount = routeCount
+            routes = routes
+        } }
 
     [<JavaScript>]
     type WebTrip = {
@@ -141,7 +170,8 @@ module Client =
         let routesRes =
             page.View.MapAsync (fun page ->
                 Server.routes (fromDate, toDate) page searchParam ())
-        let fullRouteCount = routesRes.Map (fun res -> res.fullRouteCount)
+        let isRouteCountFull = routesRes.Map (fun res -> res.isRouteCountFull)
+        let routeCount = routesRes.Map (fun res -> res.routeCount)
         let routes = routesRes.Map (fun res -> res.routes)
 
         let tripDaysHtml (trips: Server.WebTrip array) =
@@ -238,7 +268,7 @@ module Client =
             ]
             h2 [] [text "Routes"]
             ul [attr.``class`` "route-list"] [routes.DocSeqCached routeHtml]
-            V(page.V, fullRouteCount.V).Doc (fun (p, rc) ->
+            V(page.V, isRouteCountFull.V, routeCount.V).Doc (fun (p, rcf, rc) ->
                 div [attr.``class`` "pagination"] [
                     let pageCount =
                         (float rc) / (float Server.routesPerPage)
@@ -251,7 +281,8 @@ module Client =
                         [text "Back"]
                     yield span [] [
                         text <| if pageCount = 0 then "No routes"
-                                else sprintf "Page %d/%d" p pageCount]
+                                elif rcf then sprintf "Page %d/%d" p pageCount
+                                else sprintf "Page %d/%d+" p pageCount]
                     yield a
                         [attr.``class`` "forward"
                          attr.style (if p >= pageCount
