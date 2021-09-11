@@ -270,7 +270,9 @@ module Client =
 
         let stopSeqGroups = Var.Create([||])
         async {
-            let! ssgs = Server.stopSeqGroups tripId fromDate toDate ()
+            let! ssgs =
+                asyncWithLoading "Loading stop sequence group list" <|
+                    Server.stopSeqGroups tripId fromDate toDate ()
             stopSeqGroups.Value <- ssgs
         } |> Async.Start
 
@@ -286,7 +288,7 @@ module Client =
                     th [] [text "15th% dep. delay"]
                     th [] [text "Median dep. delay"]
                     th [] [text "85th% dep. delay"]
-                ] 
+                ]
                 tbody [] [
                     for stop in stops do
                     let delay d =
@@ -391,7 +393,7 @@ module Client =
                  // TODO: Fix the bindings to this isn't needed!
                  // This is because internally interface inheritance is
                  // flattened due to "duplicate method" problems
-                 :> obj :?> SeriesLine 
+                 :> obj :?> SeriesLine
                 SeriesLine()
                  .SetType("line")
                  .SetData(seriesData)
@@ -412,7 +414,9 @@ module Client =
 
                 let stops = Var.Create([||])
                 async {
-                    let! s = Server.tripStops tripId ssg.date fromDate toDate ()
+                    let! s =
+                        asyncWithLoading "Loading trip stop list..." <|
+                            Server.tripStops tripId ssg.date fromDate toDate ()
                     stops.Value <- s
                 } |> Async.Start
 
@@ -432,7 +436,9 @@ module Client =
                     stops.View.Doc stopsTable
                     createChart "delay-chart" (fun c ->
                         async {
-                            let! data = Server.tripDelayChart tripId ssg.date fromDate toDate ()
+                            let! data =
+                                asyncWithLoading "Loading trip delay chart..." <|
+                                    Server.tripDelayChart tripId ssg.date fromDate toDate ()
                             return chartOpts data
                         }
                     )

@@ -115,7 +115,8 @@ module Client =
 
         let routesRes =
             page.View.MapAsync (fun page ->
-                Server.routes (fromDate, toDate) page searchParam ())
+                asyncWithLoading "Loading route list" <|
+                    Server.routes (fromDate, toDate) page searchParam ())
         let routeCount = routesRes.Map (fun res -> res.routeCount)
         let routes = routesRes.Map (fun res -> res.routes)
 

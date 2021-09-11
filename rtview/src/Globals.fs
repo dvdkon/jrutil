@@ -108,3 +108,24 @@ module ClientGlobals =
     let mutable location = Unchecked.defaultof<Var<Locations>>
     let setLocation newLoc =
         if location.Value <> newLoc then location.Value <- newLoc
+
+    type LoadingTask = {
+        id: int
+        description: string
+    }
+
+    let loadingTasks: Var<LoadingTask list> = Var.Create([])
+    let private random = System.Random()
+    let asyncWithLoading description innerAsync =
+        let id = random.Next()
+        loadingTasks.Value <- {
+                id = id
+                description = description
+            } :: loadingTasks.Value
+        async {
+            let! _ = innerAsync
+            loadingTasks.Value <-
+                loadingTasks.Value
+                |> List.filter (fun lt -> lt.id <> id)
+        } |> Async.Start
+        innerAsync

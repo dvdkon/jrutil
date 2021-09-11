@@ -8,21 +8,37 @@ open WebSharper
 [<JavaScript>]
 module ClientMain =
     open WebSharper.UI
+    open WebSharper.UI.Html
     open WebSharper.UI.Client
     open WebSharper.Sitelets
 
     open RtView.ClientGlobals
 
+    let pageWithLoadingIndicator doc =
+        Doc.Concat [
+            loadingTasks.View.Doc (fun lt ->
+                if lt |> List.length > 0 then
+                    div [attr.``class`` "loading-indicator"] [
+                        yield div [attr.``class`` "heading"] [text "Loading..."]
+                        for task in lt -> div [] [text task.description]
+                    ]
+                else Doc.Empty
+            )
+            doc
+        ]
+
     [<SPAEntryPoint>]
     let clientMain () =
         router <- Router.Infer<Locations> ()
         location <- Router.Install Homepage router
-        location.View.Doc (function
-            | Homepage -> RtView.Routes.Client.tripList None None None ()
-            | Routes (f, t, s) -> RtView.Routes.Client.tripList f t s ()
-            | Trips (tid, f, t) -> RtView.Trips.Client.tripsPage tid f t ()
-            | Trip (tid, d) -> RtView.Trip.Client.tripPage tid d ()
-        )
+        let pageDoc =
+            location.View.Doc (function
+                | Homepage -> RtView.Routes.Client.tripList None None None ()
+                | Routes (f, t, s) -> RtView.Routes.Client.tripList f t s ()
+                | Trips (tid, f, t) -> RtView.Trips.Client.tripsPage tid f t ()
+                | Trip (tid, d) -> RtView.Trip.Client.tripPage tid d ()
+            )
+        pageWithLoadingIndicator pageDoc
         |> Doc.RunReplaceById "main"
 
 module PublicApi =

@@ -158,6 +158,7 @@ module Client =
     open WebSharper.UI.Html
     open WebSharper.UI.Client
     open WebSharper.ECharts
+    open RtView.ClientGlobals
 
     type ChartPoint = {
         x: float
@@ -167,13 +168,17 @@ module Client =
     let tripPage tripId tripStartDate () =
         let stops = Var.Create([||])
         async {
-            let! s = Server.tripStops tripId tripStartDate ()
+            let! s =
+                asyncWithLoading "Loading trip stop list..." <|
+                    Server.tripStops tripId tripStartDate ()
             stops.Value <- s
         } |> Async.Start
 
         let tripName = Var.Create("")
         async {
-            let! n = getTripName tripId tripStartDate ()
+            let! n =
+                asyncWithLoading "Loading trip name..." <|
+                    getTripName tripId tripStartDate ()
             tripName.Value <- n
         } |> Async.Start
 
@@ -267,7 +272,9 @@ module Client =
             ]
             createChart "delay-chart" (fun c ->
                 async {
-                    let! data = Server.tripDelayChart tripId tripStartDate ()
+                    let! data =
+                        asyncWithLoading "Loading trip delay chart..." <|
+                            Server.tripDelayChart tripId tripStartDate ()
                     return chartOpts data
                 }
             )
