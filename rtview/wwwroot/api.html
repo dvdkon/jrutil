@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>RtView – API</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="stylesheet" type="text/css" href="/Content/rtview.sass.css" />
+	</head>
+	<body>
+		<h1>API</h1>
+		<p>
+			JrUtil obsahuje veřejné API, kterým lze získat čistá data získaná z
+			RtCollect. Všechny endpointy vrací CSV z PostgreSQL. Všechny data
+			data jsou očekávana ve formátu <code>YYYY-mm-dd</code>. Parametry
+			<code>fromDate</code> a <code>toDate</code> se vztahují na datum
+			vyjetí spoje.
+		</p>
+
+		<p>
+			Na užívání vrácených dat nejsou kladeny žádná omezení ve smyslu
+			autorského práva nebo zvláštního práva pořizovatele databáze.
+		</p>
+
+		<dl class="api-endpoints">
+			<dt><code class="url">/api/stops</code><code>?stopIdLike=</code></dt>
+			<dd>
+				Vrátí seznam zastávek, jejichž název odpovídá vzoru
+				<code>stopIdLike</code> (použijte <code>%</code> pro všechny
+				zastávky, nezapomeňte jej ale enkódovat jako <code>%25</code>!.
+			</dd>
+
+			<dt><code class="url">/api/tripdetails</code><code>?tripIdLike=&fromDate=&toDate=</code></dt>
+			<dd>
+				Vrátí informace o spojích (ID, název, datum vyjetí), které
+				odpovídají podmínkám.
+			</dd>
+
+			<dt><code class="url">/api/stophistory</code><code>?tripIdLike=&fromDate=&toDate=</code></dt>
+			<dd>
+				Vrátí pro každý spoj vyhovující podmínkám jeho trasu včetně
+				reálných časů příjezdu/odjezdu.
+			</dd>
+
+			<dt><code class="url">/api/coordhistory</code><code>?tripIdLike=&fromDate=&toDate=</code></dt>
+			<dd>
+				Vrátí pro každý spoj vyhovující podmínkám všechny naměřené
+				polohy vozu.
+			</dd>
+		</dl>
+	</body>
+</html>

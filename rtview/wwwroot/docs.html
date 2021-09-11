@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>RtView – Dokumentace</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="stylesheet" type="text/css" href="/Content/rtview.sass.css" />
+	</head>
+	<body>
+		<h1>Dokumentace</h1>
+		<p>
+			JrUtil je webová aplikace zobrazující sesbíraná data o provozu
+			veřejné hromadné dopravy. Umožňuje zobrazit všechny spoje, které v
+			daném období jely, statisticky zpracovat data pro jeden spoj nebo
+			zobrazit průběh jízdy spoje v konkrétní den.
+		</p>
+
+		<h2>Terminologie</h2>
+		<dl>
+			<dt>Route</dt>
+			<dd>Linka, uspořádání spojů podle jízdního řádu. Linky přejímá
+				RtView, resp. RtCollect, ze zdrojových dat.<br>
+				Vlaky se tradičně nedělí na linky, proto má každý vlak v RtView
+				vlastní linku s jedním spojem.
+			</dd>
+
+			<dt>Trip</dt>
+			<dd>Spoj, abstraktní představa vozidla, které jede po definované
+				trase. Typický spoj jede např. každý pracovní den.
+			</dd>
+
+			<dt>SSG</dt>
+			<dd>Stop Sequence Group, skupina spojů v konkrétní dny, které jedou
+				stejnou trasou, včetně stejných časů. Pro tyto spoje lze pak
+				statisticky zpracovat zpoždění.
+			</dd>
+		</dl>
+	</body>
+</html>
+
