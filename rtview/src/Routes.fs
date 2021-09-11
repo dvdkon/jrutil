@@ -19,7 +19,6 @@ module Server =
 
     [<JavaScript>]
     type WebRoutesResp = {
-        isRouteCountFull: bool
         routeCount: int64
         routes: WebRoute array
     }
@@ -41,84 +40,31 @@ module Server =
                     "page", box <| page - 1
                     "perPage", box routesPerPage]
 
-        let fastRouteCountRow =
-            sqlQuery c """
-                WITH limitedTrips AS (
-                    SELECT routeId
-                    FROM tripDetails AS td
-                    WHERE tripStartDate >= @dateFrom::date
-                      AND tripStartDate <= @dateTo::date
-                      AND routeShortName ILIKE @searchLike
-                    LIMIT 1000
-                )
-                SELECT
-                    (SELECT COUNT(*) FROM (
-                         SELECT DISTINCT routeId
-                         FROM limitedTrips
-                     ) AS i) AS routeCount,
-                    (SELECT COUNT(*) < 1000 FROM limitedTrips) AS isPrecise;
+        let routeCount =
+            sqlQueryOne c """
+                SELECT COUNT(*)
+                FROM routeSummaries
+                WHERE lastDate >= @dateFrom::date
+                  AND firstDate <= @dateTo::date
+                  -- TODO: Full text search also on the stop names
+                  AND name ILIKE @searchLike
                 """ pars
-            |> Seq.exactlyOne
-        let fastRouteCount = fastRouteCountRow.[0] |> unbox<int64>
-        let fastRouteCountIsPrecise = fastRouteCountRow.[1] |> unbox<bool>
-
-        let isRouteCountFull, routeCount =
-            if fastRouteCount / (int64 routesPerPage) > (int64 page)
-               || fastRouteCountIsPrecise
-            then fastRouteCountIsPrecise, fastRouteCount
-            else true, unbox<int64> <| sqlQueryOne c """
-                SELECT COUNT(*) FROM (
-                    SELECT DISTINCT routeId
-                    FROM tripDetails AS td
-                    WHERE tripStartDate >= @dateFrom::date
-                      AND tripStartDate <= @dateTo::date
-                      AND routeShortName ILIKE @searchLike
-                    GROUP BY routeId) AS i;
-                """ pars
+            |> unbox
 
         let routes =
             sqlQueryRec<WebRoute> c """
-                WITH routes AS (
-                    SELECT DISTINCT ON (routeId)
-                        routeId, tripId, tripStartDate,
-                        COALESCE(routeShortName, routeId) AS name
-                    FROM tripDetails AS td
-                    WHERE tripStartDate >= @dateFrom::date
-                      AND tripStartDate <= @dateTo::date
-                      -- TODO: Full text search also on the stop names
-                      AND routeShortName ILIKE @searchLike
-                    ORDER BY routeId
-                    LIMIT @perPage
-                    OFFSET @page * @perPage)
-                SELECT
-                    routeId, name,
-                    (SELECT name FROM stophistory AS sh
-                     LEFT JOIN stops AS s
-                         ON s.id = sh.stopId
-                         AND s.validDateRange @> COALESCE(
-                             sh.arrivedAt,
-                             sh.shouldArriveAt,
-                             sh.departedAt,
-                             sh.shouldDepartAt)::date
-                     WHERE sh.tripId = r.tripId
-                       AND sh.tripStartDate = r.tripStartDate
-                     ORDER BY tripStopIndex LIMIT 1) AS firstStop,
-                    (SELECT name FROM stophistory AS sh
-                     LEFT JOIN stops AS s
-                         ON s.id = sh.stopId
-                         AND s.validDateRange @> COALESCE(
-                             sh.arrivedAt,
-                             sh.shouldArriveAt,
-                             sh.departedAt,
-                             sh.shouldDepartAt)::date
-                     WHERE sh.tripId = r.tripId
-                       AND sh.tripStartDate = r.tripStartDate
-                     ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
-                FROM routes AS r
+                SELECT routeId, name, firstStop, lastStop
+                FROM routeSummaries
+                WHERE lastDate >= @dateFrom::date
+                  AND firstDate <= @dateTo::date
+                  -- TODO: Full text search also on the stop names
+                  AND name ILIKE @searchLike
+                ORDER BY routeId
+                LIMIT @perPage
+                OFFSET @page * @perPage
                 """ pars
             |> Seq.toArray
         async { return {
-            isRouteCountFull = isRouteCountFull
             routeCount = routeCount
             routes = routes
         } }
@@ -170,7 +116,6 @@ module Client =
         let routesRes =
             page.View.MapAsync (fun page ->
                 Server.routes (fromDate, toDate) page searchParam ())
-        let isRouteCountFull = routesRes.Map (fun res -> res.isRouteCountFull)
         let routeCount = routesRes.Map (fun res -> res.routeCount)
         let routes = routesRes.Map (fun res -> res.routes)
 
@@ -268,7 +213,7 @@ module Client =
             ]
             h2 [] [text "Routes"]
             ul [attr.``class`` "route-list"] [routes.DocSeqCached routeHtml]
-            V(page.V, isRouteCountFull.V, routeCount.V).Doc (fun (p, rcf, rc) ->
+            V(page.V, routeCount.V).Doc (fun (p, rc) ->
                 div [attr.``class`` "pagination"] [
                     let pageCount =
                         (float rc) / (float Server.routesPerPage)
@@ -281,8 +226,7 @@ module Client =
                         [text "Back"]
                     yield span [] [
                         text <| if pageCount = 0 then "No routes"
-                                elif rcf then sprintf "Page %d/%d" p pageCount
-                                else sprintf "Page %d/%d+" p pageCount]
+                                else sprintf "Page %d/%d" p pageCount]
                     yield a
                         [attr.``class`` "forward"
                          attr.style (if p >= pageCount
