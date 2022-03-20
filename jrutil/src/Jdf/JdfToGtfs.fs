@@ -401,7 +401,7 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
             // The JDF specification allows stops that aren't served to have a
             // blank arrival and departure time. In GTFS, such stops are just
             // omitted.
-            | None when jdfTripStop.departureTime = None -> None
+            | None when jdfTripStop.arrivalTime = None -> None
             | _ ->
                 let tripStopTimeExtract tst =
                     tst
