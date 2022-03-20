@@ -4,6 +4,7 @@
 module JrUtil.GtfsCsvSerializer
 
 open System
+open System.Globalization
 open Microsoft.FSharp.Reflection
 open NodaTime
 
@@ -21,16 +22,16 @@ let rec getFormatter fieldType =
             match unbox x with
             | true -> [| "1" |]
             | false -> [| "0" |]
-    else if fieldType = typeof<DateTime> then
+    else if fieldType = typeof<LocalDate> then
         fun x ->
-            let dt: DateTime = unbox x
-            [| dt.ToString("yyyyMMdd") |]
+            let ld: LocalDate = unbox x
+            [| ld.ToString("yyyyMMdd", CultureInfo.InvariantCulture) |]
     else if fieldType = typeof<Period> then
         fun x ->
-            let ts: Period = unbox x
-            [| sprintf "%02d:%02d:%02d" (ts.Hours + (int64 ts.Days * 24L))
-                                        ts.Minutes
-                                        ts.Seconds |]
+            let p = (unbox<Period> x).Normalize()
+            [| sprintf "%02d:%02d:%02d" (p.Hours + (int64 p.Days * 24L))
+                                         p.Minutes
+                                         p.Seconds |]
     else if typeIsOption fieldType then
         let innerType = fieldType.GetGenericArguments().[0]
         let innerFormatter = getFormatter innerType
