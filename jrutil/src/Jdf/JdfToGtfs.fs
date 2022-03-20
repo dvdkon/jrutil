@@ -376,8 +376,9 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
         // code, but rather the JDF format, which can't represent
         // such trips.
         assert (jdfTripStops.Length >= 2)
-        let firstKm = (jdfTripStops |> Array.head).kilometer
-        let lastKm = (jdfTripStops |> Array.last).kilometer
+        let stopKilometers = jdfTripStops |> Seq.choose (fun s -> s.kilometer)
+        let firstKm = (stopKilometers |> Seq.head)
+        let lastKm = (stopKilometers |> Seq.last)
         let jdfTripStops =
             (if firstKm > lastKm
              then Array.rev
