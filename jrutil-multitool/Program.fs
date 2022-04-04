@@ -3,6 +3,7 @@
 
 open System.IO
 open Docopt
+open FSharp.Data
 
 open JrUtil
 open JrUtil.Utils
@@ -12,15 +13,22 @@ let docstring = (fun (s: string) -> s.Trim()) """
 jrutil, a tool for working with czech public transport data
 
 Usage:
-    jrutil-multitool.exe jdf-to-gtfs <JDF-in-dir> <GTFS-out-dir>
+    jrutil-multitool.exe jdf-to-gtfs [--stop-coords-by-id=FILE] <JDF-in-dir> <GTFS-out-dir>
     jrutil-multitool.exe czptt-to-gtfs <CzPtt-in-file> <GTFS-out-dir>
     jrutil-multitool.exe load-gtfs-to-db <db-connstr> <GTFS-in-dir>
     jrutil-multitool.exe --help
+
+Options:
+    --stop-coords-by-id=FILE CSV file assigning coordinates to stops by ID
 
 Passing - to an input path parameter will make most jrutil commands read
 input filenames from stdin. Each result will be output into a sequentially
 numbered directory.
 """
+
+type StopCoordsById = CsvProvider<
+    HasHeaders = false,
+    Schema = "id(string), lat(decimal), lon(decimal)">
 
 let stdinLinesSeq () =
     Seq.initInfinite (fun i -> stdin.ReadLine())
@@ -33,9 +41,29 @@ let inOutFiles inpath outpath =
     else
         seq [(inpath, outpath)]
 
+let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
+    match stopCoordsByIdPath with
+    | Some p ->
+        let coords =
+            StopCoordsById.Load(Path.GetFullPath(p)).Rows
+            |> Seq.map (fun r -> r.Id, (r.Lat, r.Lon))
+            |> Map
+        { gtfs with
+            stops =
+                gtfs.stops
+                |> Array.map (fun s ->
+                    match coords |> Map.tryFind s.id with
+                    | Some (lat, lon) -> { s with
+                                             lat = Some lat
+                                             lon = Some lon }
+                    | None -> s)
+        }
+    | _ -> gtfs
+
 [<EntryPoint>]
 let main (args: string array) =
     withProcessedArgs docstring args (fun args ->
+        let stopCoordsByIdPath = optArgValue args "--stop-coords-by-id"
         if argFlagSet args "jdf-to-gtfs" then
             let jdfPar = Jdf.jdfBatchDirParser ()
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
@@ -46,7 +74,10 @@ let main (args: string array) =
                 try
                     let jdf = jdfPar inpath
                     // TODO: Allow choice for stopIdsCis
-                    let gtfs = JdfToGtfs.getGtfsFeed false jdf
+                    let gtfs =
+                        JdfToGtfs.getGtfsFeed false jdf
+                        |> gtfsWithCoords stopCoordsByIdPath
+
                     gtfsSer out gtfs
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
@@ -59,7 +90,9 @@ let main (args: string array) =
                 printfn "Processing %s" inpath
                 try
                     let czptt = CzPtt.parseFile inpath
-                    let gtfs = CzPtt.gtfsFeed czptt
+                    let gtfs =
+                        CzPtt.gtfsFeed czptt
+                        |> gtfsWithCoords stopCoordsByIdPath
                     gtfsSer out gtfs
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e

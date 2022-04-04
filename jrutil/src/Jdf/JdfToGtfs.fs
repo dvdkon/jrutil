@@ -376,8 +376,9 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
         // code, but rather the JDF format, which can't represent
         // such trips.
         assert (jdfTripStops.Length >= 2)
-        let firstKm = (jdfTripStops |> Array.head).kilometer
-        let lastKm = (jdfTripStops |> Array.last).kilometer
+        let stopKilometers = jdfTripStops |> Seq.choose (fun s -> s.kilometer)
+        let firstKm = (stopKilometers |> Seq.head)
+        let lastKm = (stopKilometers |> Seq.last)
         let jdfTripStops =
             (if firstKm > lastKm
              then Array.rev
@@ -395,10 +396,12 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
                  && rs.routeDistinction = jdfTripStop.routeDistinction
                  && rs.routeStopId = jdfTripStop.routeStopId)
 
-            // TODO: This will deal with the majority of trips, but some
-            // might fail. I'll deal with them when I get data samples.
             match jdfTripStop.departureTime with
             | Some JdfModel.Passing | Some JdfModel.NotPassing -> None
+            // The JDF specification allows stops that aren't served to have a
+            // blank arrival and departure time. In GTFS, such stops are just
+            // omitted.
+            | None when jdfTripStop.arrivalTime = None -> None
             | _ ->
                 let tripStopTimeExtract tst =
                     tst
@@ -452,8 +455,6 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
                     else
                         GtfsModel.RegularlyScheduled
 
-
-
                 let stopTime: GtfsModel.StopTime = {
                     tripId = jdfTripId jdfTripStop.routeId
                                        jdfTripStop.routeDistinction
@@ -482,7 +483,7 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
                     stopZoneIds = jdfRouteStop.zone
                 }
                 Some stopTime
-            )
+        )
         |> Array.choose id
     )
 
