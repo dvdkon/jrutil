@@ -77,6 +77,23 @@ module ServerGlobals =
                 FROM routes AS r
             """ []
 
+        executeSql conn """
+            CREATE OR REPLACE FUNCTION startDates(_tripid text, _fromDate date, _toDate date, _tripStartDate date)
+            RETURNS SETOF date LANGUAGE SQL AS $$
+                SELECT tripStartDate
+                FROM stopHistory
+                WHERE tripId = _tripId
+                  AND tripStartDate >= _fromDate
+                  AND tripStartDate <= _toDate
+                GROUP BY tripStartDate
+                HAVING array_agg((stopId, shouldArriveAt::time, shouldDepartAt::time) ORDER BY tripStopIndex) = (
+                    SELECT array_agg((stopId, shouldArriveAt::time, shouldDepartAt::time) ORDER BY tripStopIndex)
+                    FROM stopHistory
+                    WHERE tripId = _tripId
+                      AND tripStartDate = _tripStartDate)
+            $$
+        """ []
+
         routeSummariesRefreshTimer <- new Timer((fun _ ->
             let conn = getDbConn ()
             executeSql conn "REFRESH MATERIALIZED VIEW routeSummaries" []
