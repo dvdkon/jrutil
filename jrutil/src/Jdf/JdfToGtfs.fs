@@ -161,13 +161,31 @@ let getGtfsRoutes: JdfModel.JdfBatch -> GtfsModel.Route array = fun jdfBatch ->
 let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
     jdfBatch.routes
     |> Array.collect (fun jdfRoute ->
-        let fromDate = jdfRoute.timetableValidFrom
-        let toDate = jdfRoute.timetableValidTo
+        let routeFromDate = jdfRoute.timetableValidFrom
+        let routeToDate = jdfRoute.timetableValidTo
         jdfBatch.trips
         |> Array.filter
             (fun t -> t.routeId = jdfRoute.id
                       && t.routeDistinction = jdfRoute.idDistinction)
         |> Array.map (fun jdfTrip ->
+            let tripServiceInfos = // TODO: Use hash table for lookup?
+                jdfBatch.routeTimes
+                |> Seq.filter (fun rt ->
+                    rt.routeId = jdfRoute.id
+                    && rt.routeDistinction = jdfRoute.idDistinction
+                    && rt.tripId = jdfTrip.id
+                    && rt.timeType = Some JdfModel.RouteTimeType.Service)
+                |> Seq.toList
+            let fromDate, toDate =
+                match tripServiceInfos with
+                | [ts] when ts.dateFrom.IsSome && ts.dateTo.IsSome ->
+                    ts.dateFrom.Value , ts.dateTo.Value
+                // No "Service" entry, just use full timetable validity
+                | tsi ->
+                    if tsi <> [] then Log.Warning("Multiple 1/'jede' entries in Caskody.txt for {RouteId}-{TripId}", jdfTrip.routeId, jdfTrip.id)
+                    routeFromDate, routeToDate
+
+
             let attrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
             let servicedDays =
                 attrs
@@ -249,16 +267,13 @@ let getGtfsCalendarExceptions:
                         // how to deal with
                         let timeType = jdfRouteTime.timeType.Value
                         match timeType with
-                        | JdfModel.Service ->
-                            jdfDateRange jdfRouteTime.dateFrom jdfRouteTime.dateTo
-                            |> List.map
-                                (fun date -> jdfCalExc date GtfsModel.ServiceAdded)
                         | JdfModel.ServiceAlso | JdfModel.ServiceOnly ->
                             [jdfCalExc jdfRouteTime.dateFrom.Value
                                        GtfsModel.ServiceAdded]
                         | JdfModel.NoService ->
                             [jdfCalExc jdfRouteTime.dateFrom.Value
                                        GtfsModel.ServiceRemoved]
+                        | JdfModel.Service -> [] // Handled in getGtfsCalendar
                         | _ ->
                             Log.Warning("Unhandled JDF timeType: {TimeType}", timeType)
                             [] //TBD
