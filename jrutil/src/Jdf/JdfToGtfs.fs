@@ -9,6 +9,7 @@ open NodaTime
 open Serilog
 
 open JrUtil
+open JrUtil
 open JrUtil.Holidays
 
 // Information that is lost in the conversion:
@@ -255,24 +256,22 @@ let getGtfsCalendarExceptions:
                         let id = jdfTripId jdfRouteTime.routeId
                                            jdfRouteTime.routeDistinction
                                            jdfRouteTime.tripId
-                        let jdfCalExc date excType =
-                            let exc: GtfsModel.CalendarException = {
+                        let jdfCalExcs excType =
+                            jdfDateRange jdfRouteTime.dateFrom jdfRouteTime.dateTo
+                            |> List.map (fun date -> {
                                 id = id
                                 date = date
                                 exceptionType = excType
-                            }
-                            exc
+                            }) : GtfsModel.CalendarException list
 
                         // None would indicate data that this function doesn't know
                         // how to deal with
                         let timeType = jdfRouteTime.timeType.Value
                         match timeType with
                         | JdfModel.ServiceAlso | JdfModel.ServiceOnly ->
-                            [jdfCalExc jdfRouteTime.dateFrom.Value
-                                       GtfsModel.ServiceAdded]
+                            jdfCalExcs GtfsModel.ServiceAdded
                         | JdfModel.NoService ->
-                            [jdfCalExc jdfRouteTime.dateFrom.Value
-                                       GtfsModel.ServiceRemoved]
+                            jdfCalExcs GtfsModel.ServiceRemoved
                         | JdfModel.Service -> [] // Handled in getGtfsCalendar
                         | _ ->
                             Log.Warning("Unhandled JDF timeType: {TimeType}", timeType)
