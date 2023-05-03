@@ -159,6 +159,29 @@ let getGtfsRoutes: JdfModel.JdfBatch -> GtfsModel.Route array = fun jdfBatch ->
         sortOrder = None
     })
 
+let tripDateRange (jdfBatch: JdfModel.JdfBatch)
+                  routeId routeDistinction tripId =
+    let route =
+        jdfBatch.routes
+        |> Array.find (fun r -> r.id = routeId
+                             && r.idDistinction = routeDistinction)
+    let tripServiceInfos = // TODO: Use hash table for lookup?
+        jdfBatch.routeTimes
+        |> Seq.filter (fun rt ->
+            rt.routeId = routeId
+            && rt.routeDistinction = routeDistinction
+            && rt.tripId = tripId
+            && rt.timeType = Some JdfModel.RouteTimeType.Service)
+        |> Seq.toList
+    match tripServiceInfos with
+    | [ts] when ts.dateFrom.IsSome && ts.dateTo.IsSome ->
+        ts.dateFrom.Value , ts.dateTo.Value
+    // No "Service" entry, just use full timetable validity
+    | tsi ->
+        if tsi <> [] then Log.Warning("Multiple 1/'jede' entries in Caskody.txt for {RouteId}-{TripId}", routeId, tripId)
+        route.timetableValidFrom, route.timetableValidTo
+
+
 let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
     jdfBatch.routes
     |> Array.collect (fun jdfRoute ->
@@ -169,23 +192,9 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
             (fun t -> t.routeId = jdfRoute.id
                       && t.routeDistinction = jdfRoute.idDistinction)
         |> Array.map (fun jdfTrip ->
-            let tripServiceInfos = // TODO: Use hash table for lookup?
-                jdfBatch.routeTimes
-                |> Seq.filter (fun rt ->
-                    rt.routeId = jdfRoute.id
-                    && rt.routeDistinction = jdfRoute.idDistinction
-                    && rt.tripId = jdfTrip.id
-                    && rt.timeType = Some JdfModel.RouteTimeType.Service)
-                |> Seq.toList
             let fromDate, toDate =
-                match tripServiceInfos with
-                | [ts] when ts.dateFrom.IsSome && ts.dateTo.IsSome ->
-                    ts.dateFrom.Value , ts.dateTo.Value
-                // No "Service" entry, just use full timetable validity
-                | tsi ->
-                    if tsi <> [] then Log.Warning("Multiple 1/'jede' entries in Caskody.txt for {RouteId}-{TripId}", jdfTrip.routeId, jdfTrip.id)
-                    routeFromDate, routeToDate
-
+                tripDateRange jdfBatch jdfRoute.id jdfRoute.idDistinction
+                              jdfTrip.id
 
             let attrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
             let servicedDays =
@@ -307,8 +316,9 @@ let getGtfsCalendarExceptions:
                         if attrs |> Set.contains JdfModel.HolidaySundayService
                         then GtfsModel.ServiceAdded
                         else GtfsModel.ServiceRemoved
-                    let fromDate = jdfRoute.timetableValidFrom
-                    let toDate = jdfRoute.timetableValidTo
+                    let fromDate, toDate =
+                        tripDateRange jdfBatch jdfTrip.routeId
+                                      jdfTrip.routeDistinction jdfTrip.id
                     let years = [fromDate.Year .. toDate.Year]
                     years
                     |> Seq.collect (fun year ->
