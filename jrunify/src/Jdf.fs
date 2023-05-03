@@ -74,7 +74,10 @@ let processJdf conn stopIdsCis group path threadCount =
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, false)
+        MergedFeed(conn, schemaMerged,
+                   TripMergeStrategy.Never,
+                   StopMergeStrategy.ApproxName,
+                   false)
 
     // Parsing, loading and converting the JDF is per-thread, merging it into
     // the main merged feed is behind a lock and happens on the main connection

@@ -89,10 +89,21 @@ IMMUTABLE LANGUAGE SQL AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION
+normalise_stop_name(name text) RETURNS text
+IMMUTABLE LANGUAGE SQL AS $$
+    SELECT regexp_replace(name, '[^[:word:]]+', ' ', 'g');
+$$;
+
+CREATE OR REPLACE FUNCTION
 stop_should_merge(s1 #in.stops, s2 #merged.stops) RETURNS integer
 IMMUTABLE LANGUAGE SQL AS $$
     SELECT CASE
-        WHEN (s1.name = s2.name
+        WHEN ({{ case stop_merge_strategy }}
+              {{ when "exact_name" }}
+                  s1.name = s2.name
+              {{ when "approx_name" }}
+                  normalise_stop_name(s1.name) = normalise_stop_name(s2.name)
+              {{ end }}
               -- Note to self: Comparing anything to null results in null,
               -- making everything null and therefore "falsy". Reminds me of
               -- PHP, but worse somehow...

@@ -36,7 +36,8 @@ let processCzPtt conn overpassUrl cacheDir path threadCount =
     cleanAndSetSchema conn schemaMerged
     Gtfs.sqlCreateGtfsTables conn
     let mergedFeed =
-        MergedFeed(conn, schemaMerged, TripMergeStrategy.Never, true)
+        MergedFeed(conn, schemaMerged, TripMergeStrategy.Never,
+                   StopMergeStrategy.ExactName, true)
 
     let files = Directory.EnumerateFiles(path, "*.xml",
                                          SearchOption.AllDirectories)

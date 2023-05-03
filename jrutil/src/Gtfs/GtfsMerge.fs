@@ -14,9 +14,14 @@ type TripMergeStrategy =
     | [<StrValue("with_route")>] WithRoute
     | [<StrValue("full")>] Full
 
+type StopMergeStrategy =
+    | [<StrValue("exact_name")>] ExactName
+    | [<StrValue("approx_name")>] ApproxName
+
 type MergedFeed(conn: DbConnection,
                 schema: string,
                 tripMergeStrategy: TripMergeStrategy,
+                stopMergeStrategy: StopMergeStrategy,
                 ?checkStopType: bool) =
     let checkStopType = defaultArg checkStopType true
 
@@ -32,6 +37,7 @@ type MergedFeed(conn: DbConnection,
             "in", box feedSchema
             "feednum", box feedNum
             "trip_merge_strategy", box <| serializeUnion tripMergeStrategy
+            "stop_merge_strategy", box <| serializeUnion stopMergeStrategy
         ]
         executeSql conn sql []
 
