@@ -171,7 +171,7 @@ let tripDateRange (jdfBatch: JdfModel.JdfBatch)
             rt.routeId = routeId
             && rt.routeDistinction = routeDistinction
             && rt.tripId = tripId
-            && rt.timeType = Some JdfModel.RouteTimeType.Service)
+            && rt.timeType = Some JdfModel.Service)
         |> Seq.toList
     match tripServiceInfos with
     | [ts] when ts.dateFrom.IsSome && ts.dateTo.IsSome ->
@@ -255,11 +255,13 @@ let getGtfsCalendarExceptions:
     fun jdfBatch ->
         jdfBatch.routes
         |> Array.collect (fun jdfRoute ->
-            let exceptions =
+            let routeTimes =
                 jdfBatch.routeTimes
                 |> Seq.filter (fun rt ->
                     rt.routeId = jdfRoute.id
                     && rt.routeDistinction = jdfRoute.idDistinction)
+            let exceptions =
+                routeTimes
                 |> Seq.collect (fun jdfRouteTime ->
                     if designationNumRegex.IsMatch(jdfRouteTime.designation) then
                         let id = jdfTripId jdfRouteTime.routeId
@@ -302,6 +304,10 @@ let getGtfsCalendarExceptions:
                 // single-day excpetions have a higher priority than multi-day ones)
                 |> Seq.map (fun (_, cexcs) -> cexcs |> Seq.last)
 
+            let hasServiceOnly =
+                routeTimes
+                |> Seq.exists (fun rt -> rt.timeType = Some JdfModel.ServiceOnly)
+
             let holidays =
                 jdfBatch.trips
                 |> Seq.filter (fun trip ->
@@ -325,7 +331,11 @@ let getGtfsCalendarExceptions:
                         czechHolidays year
                         |> Seq.map (fun (d, m) -> LocalDate(year, m, d))
                         |> Seq.filter (fun date ->
-                            date >= fromDate && date <= toDate)
+                            date >= fromDate && date <= toDate
+                            // Holidays should't override regular exceptions
+                            && (exceptions
+                                |> Seq.exists (fun e -> e.date = date)
+                                |> not))
                         |> Seq.map (fun date ->
                             let exc: GtfsModel.CalendarException = {
                                 id = id
@@ -334,7 +344,9 @@ let getGtfsCalendarExceptions:
                             }
                             exc
                         )))
-            Seq.append exceptions holidays
+            Seq.append exceptions (if hasServiceOnly
+                                   then Seq.empty
+                                   else holidays)
             |> Seq.groupBy (fun ex -> (ex.id, ex.date))
             // For duplicate exceptions, take the first one, which will
             // hopefully be from exceptions and not holidays
