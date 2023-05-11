@@ -77,7 +77,7 @@ type JdfBatch = {
     tripStops: TripStop array
     routeInfo: JdfModel.RouteInfo array
     attributeRefs: JdfModel.AttributeRef array
-    routeTimes: JdfModel.RouteTime array
+    serviceNotes: JdfModel.ServiceNote array
     transfers: Transfer array
     agencyAlternations: JdfModel.AgencyAlternation array
     alternateRouteNames: JdfModel.AlternateRouteName array

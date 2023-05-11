@@ -78,12 +78,12 @@ type RouteInfo = {
     text: string
 }
 
-type RouteTime = {
+type ServiceNote = {
     routeId: string
     tripId: int64
     id: int64
     designation: string // TODO: What is this?
-    timeType: JdfModel.RouteTimeType option
+    timeType: JdfModel.ServiceNoteType option
     dateFrom: LocalDate option
     dateTo: LocalDate option
     note: string option
@@ -123,7 +123,7 @@ type JdfBatch = {
     tripStops: TripStop array
     routeInfo: RouteInfo array
     attributeRefs: JdfModel.AttributeRef array
-    routeTimes: RouteTime array
+    serviceNotes: ServiceNote array
     agencyAlternations: AgencyAlternation array
     alternateRouteNames: AlternateRouteName array
     reservationOptions: ReservationOptions array

@@ -261,7 +261,7 @@ type RouteInfo = {
     routeDistinction: int
 }
 
-type RouteTimeType =
+type ServiceNoteType =
     | [<StrValue("1")>] Service
     | [<StrValue("2")>] ServiceAlso
     | [<StrValue("3")>] ServiceOnly
@@ -271,12 +271,12 @@ type RouteTimeType =
     | [<StrValue("7")>] ServiceOddWeeksFromTo
     | [<StrValue("8")>] ServiceEvenWeeksFromTo
 
-type RouteTime = {
+type ServiceNote = {
     routeId: string
     tripId: int64
     id: int64
     designation: string
-    timeType: RouteTimeType option
+    noteType: ServiceNoteType option
     dateFrom: LocalDate option
     dateTo: LocalDate option
     note: string option
@@ -340,7 +340,7 @@ type JdfBatch = {
     tripStops: TripStop array
     routeInfo: RouteInfo array
     attributeRefs: AttributeRef array
-    routeTimes: RouteTime array
+    serviceNotes: ServiceNote array
     transfers: Transfer array
     agencyAlternations: AgencyAlternation array
     alternateRouteNames: AlternateRouteName array
