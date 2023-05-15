@@ -185,8 +185,10 @@ let tripDateRanges (jdfBatch: JdfModel.JdfBatch)
 
 let dateRangesHoles (ranges: DateInterval list) =
     ranges
+    |> List.sortBy (fun r -> r.Start)
     |> List.pairwise
-    |> List.filter (fun (a, b) -> a.Intersection(b) = null)
+    |> List.filter (fun (a, b) -> a.Intersection(b) = null
+                                  && a.End + Period.FromDays(1) <> b.Start)
     |> List.map (fun (a, b) -> DateInterval(a.End + Period.FromDays(1),
                                             b.Start - Period.FromDays(1)))
 
@@ -357,6 +359,10 @@ let getGtfsCalendarExceptions:
 
             let positiveExceptions =
                 positiveExceptionDates
+                |> Set.union (
+                    if holidayExcType = Some GtfsModel.ServiceAdded
+                    then holidayDates
+                    else set [])
                 |> Seq.map (fun d -> ({
                     id = gtfsId
                     date = d
@@ -365,24 +371,19 @@ let getGtfsCalendarExceptions:
 
             let negativeExceptions =
                 negativeExceptionDates
+                |> Set.union (
+                    if holidayExcType = Some GtfsModel.ServiceRemoved
+                    then holidayDates
+                    else set [])
                 |> Seq.map (fun d -> ({
                     id = gtfsId
                     date = d
                     exceptionType = GtfsModel.ServiceRemoved
                 }: GtfsModel.CalendarException))
 
-            let holidayExceptions =
-                holidayDates
-                |> Seq.map (fun d -> ({
-                    id = gtfsId
-                    date = d
-                    exceptionType = holidayExcType.Value
-                }: GtfsModel.CalendarException))
-
             Seq.concat [
                 positiveExceptions
                 negativeExceptions
-                holidayExceptions
             ]
             |> Array.ofSeq
         )
