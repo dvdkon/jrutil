@@ -43,7 +43,7 @@ let queryOverpass overpassUrl cacheDir (query: string) =
     | cd ->
         let queryBytes = Encoding.Default.GetBytes(query)
         let queryHash =
-            Convert.ToBase64String((new SHA256Managed())
+            Convert.ToBase64String(SHA512.Create()
                                     .ComputeHash(queryBytes))
              .Replace("/", "-")
         let filename =
