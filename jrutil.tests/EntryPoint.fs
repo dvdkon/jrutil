@@ -3,5 +3,5 @@
 module JrUtil.Tests.DummyEntryPoint
 
 // So that dotnet build doesn't complain
-[<EntryPoint>] 
+[<EntryPoint>]
 let main argv = 0
