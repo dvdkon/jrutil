@@ -31,8 +31,9 @@ type Sr70Stops = CsvProvider<HasHeaders = false, Schema = "sr70(int), name(strin
 let readStopNamesCsv path =
     File.ReadAllLines(path)
     |> Array.map (fun line ->
-        assert ((Seq.head line) = '"' && (Seq.last line) = '"')
-        line.[1..(line.Length - 2)])
+        if ((Seq.head line) = '"' && (Seq.last line) = '"')
+        then line.[1..(line.Length - 2)]
+        else line)
 
 let topMatches matches =
     let matchPriority = function
