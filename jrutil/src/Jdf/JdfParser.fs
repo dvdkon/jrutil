@@ -1,9 +1,10 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.JdfParser
 
 open System.IO
+open System.IO.Compression
 open System.Text.RegularExpressions
 open System.Text
 open NodaTime
@@ -39,12 +40,29 @@ let getJdfParser<'r> =
                 colRegex.Split(strippedLine) |> rowParser)
 
 
-let getJdfFileParser<'r> =
+let jdfEncoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)
+
+let readJdfTextFromFile inpath =
     // This is probably not ideal. However, the file should never be more
     // than a few megabytes in size, in which case this will be faster than
     // FSharp.Data's approach, which reads char by char
-    let parser = getJdfParser<'r>
-    fun inpath ->
-        let encoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)
-        let text = File.ReadAllText(inpath, encoding)
-        parser text
+    File.ReadAllText(inpath, jdfEncoding)
+
+let tryReadJdfTextFromZip zipPath (filename: string) =
+    ZipFile.OpenRead(zipPath).Entries
+    |> Seq.tryFind (fun entry -> entry.Name.ToLower() = filename.ToLower())
+    |> Option.map (fun entry ->
+        use reader = new StreamReader(entry.Open(), jdfEncoding)
+        reader.ReadToEnd()
+    )
+
+/// path: Path to JDF batch (folder or .zip)
+/// name: filename inside batch (case-insensitive)jj
+let tryReadJdfText (path: string) name =
+    let ext = Path.GetExtension(path)
+    if Directory.Exists(path) then
+        findPathCaseInsensitive path name
+        |> Option.map readJdfTextFromFile
+    else if ext.ToLower() = ".zip" then
+        tryReadJdfTextFromZip path name
+    else None
