@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.Utils
 
@@ -8,8 +8,11 @@ open System.IO
 open System.Diagnostics
 open System.Globalization
 open System.Collections.Concurrent
+open System.Runtime.InteropServices
 open Docopt
 open Serilog
+open Serilog.Events
+open Serilog.Sinks.SystemConsole.Themes
 open Serilog.Formatting.Json
 open NodaTime
 open NodaTime.Text
@@ -193,13 +196,23 @@ let findPathCaseInsensitive dirPath (filename: string) =
         failwithf "Multiple files found when looking for %s in %s (case insensitive)"
                   filename dirPath
 
-let setupLogging logFile () =
+let setupLogging (logFile: string option) () =
     let mutable loggerFactory =
         LoggerConfiguration()
          .MinimumLevel.Debug()
          .Enrich.FromLogContext()
          .Destructure.FSharpTypes()
-         .WriteTo.Console()
+         .WriteTo.Console(
+             standardErrorFromLevel = LogEventLevel.Verbose,
+             applyThemeToRedirectedOutput = true,
+             theme = if RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                     then SystemConsoleTheme.Literate :> ConsoleTheme
+                     else AnsiConsoleTheme.Literate :> ConsoleTheme)
     logFile |> Option.iter (fun lf ->
-        loggerFactory <- loggerFactory.WriteTo.File(JsonFormatter(), lf))
+        if lf.StartsWith("display:") then
+            loggerFactory <- loggerFactory.WriteTo.File(lf.[8..])
+        else if lf.StartsWith("json:") then
+            loggerFactory <- loggerFactory.WriteTo.File(JsonFormatter(), lf.[5..])
+        else
+            loggerFactory <- loggerFactory.WriteTo.File(lf))
     Log.Logger <- loggerFactory.CreateLogger()
