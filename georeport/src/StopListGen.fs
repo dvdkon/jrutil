@@ -8,7 +8,7 @@ open Serilog
 
 open JrUtil
 
-let jdfStopNames jdfDir =
+let jdfStopNames czSkOnly jdfDir =
     let stopsParser = Jdf.fileParser "Zastavky.txt"
 
     Jdf.findJdfBatches jdfDir
@@ -18,6 +18,8 @@ let jdfStopNames jdfDir =
         try
             let stops: JdfModel.Stop array = stopsParser batchPath
             stops
+            |> Array.filter (fun s ->
+                not czSkOnly || List.contains s.country ["CZ"; "SK"; ""])
             |> Array.map (fun s ->
                 sprintf "%s,%s,%s"
                         s.town

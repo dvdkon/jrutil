@@ -15,10 +15,9 @@ georeport, a tool for asessing coverage of stop geodata
 
 Usage:
     georeport.exe report [options]
-    georeport.exe jdf-to-stop-names <JDF-in-dir>
+    georeport.exe jdf-to-stop-names [--cz-sk-only] <JDF-in-dir>
 
 report options:
-    --connstr=CONNSTR         Npgsql connection string
     --rail-stops=PATH         Path to CSV of railway stops
     --other-stops=PATH        Path to CSV of non-railway stops
     --rail-ext-sources=PATH   Folder with external geodata sources for railway stops
@@ -26,6 +25,7 @@ report options:
     --overpass-url=URL        URL of OSM Overpass API instance (optional)
     --cache-dir=DIR           Overpass result cache directory [default: /tmp]
     --logfile=PATH            Output path for logfile (default is console output)
+    --cz-sk-only              Don't include "foreign" stops in output
 
 External sources should be in CSV format, with columns being lat,lon,stop name.
 Railway stops CSV has columns sr70,name
@@ -46,30 +46,26 @@ let main argv =
             let overpassUrl = optArgValue args "--overpass-url"
                               |> Option.defaultValue defaultOverpassUrl
 
-
             let railStopsPath = argValue args "--rail-stops"
             let otherStopsPath = argValue args "--other-stops"
             let railExtSourcesDir = argValue args "--rail-ext-sources"
             let otherExtSourcesDir = argValue args "--other-ext-sources"
             let cacheDir = argValue args "--cache-dir"
 
-            let dbConnStrMod = (argValue args "--connstr") + ";CommandTimeout=0"
-            Log.Information("Preparing database")
-            let conn = getPostgresqlConnection dbConnStrMod
-            cleanAndSetSchema conn "georeport"
-            initSqlTables conn
-
-            Log.Information("Loading stop lists")
-            loadStopListsToSql conn railStopsPath otherStopsPath
-            Log.Information("Loading OSM data")
-            loadOsmDataToSql conn overpassUrl cacheDir
-            Log.Information("Loading external data")
-            loadExternalDataToSql conn railExtSourcesDir otherExtSourcesDir
+            Log.Information("Getting rail stop matches")
+            let railStopMatches =
+                getRailStopsMatches overpassUrl
+                                    cacheDir
+                                    railStopsPath
+                                    railExtSourcesDir
+            Log.Information("Getting other stop matches")
+            let otherStopMatches =
+                getOtherStopsMatches overpassUrl
+                                     cacheDir
+                                     otherStopsPath
+                                     otherExtSourcesDir
 
             Log.Information("Creating report")
-            let railStopMatches = getRailStopsMatches conn
-            let otherStopMatches = getOtherStopsMatches conn
-
             let page = resultPage railStopMatches otherStopMatches
             let html = renderHtmlDocument page
             printfn "%s" html
@@ -77,7 +73,7 @@ let main argv =
             0
         else if argFlagSet args "jdf-to-stop-names" then
             argValue args "<JDF-in-dir>"
-            |> jdfStopNames
+            |> jdfStopNames (argFlagSet args "--cz-sk-only")
             |> Seq.iter (fun s -> printfn "%s" s)
 
             0

@@ -5,3 +5,4 @@
 .ionide
 /rtview/wwwroot/Content/*
 !/rtview/wwwroot/Content/.gitkeep
+/georeport/thirdparty

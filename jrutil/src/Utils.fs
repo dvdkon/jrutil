@@ -216,3 +216,17 @@ let setupLogging (logFile: string option) () =
         else
             loggerFactory <- loggerFactory.WriteTo.File(lf))
     Log.Logger <- loggerFactory.CreateLogger()
+
+// Computed UIC checksum digit
+// Algorithm source: https://github.com/proggy/uic/
+// Works for computing sixth digit of SR70 ID
+let uicChecksum (digits: int array) =
+    (digits
+    |> Array.mapi (fun i d -> if (digits.Length - i) % 2 = 1 then d * 2 else d)
+    |> Array.sum) % 10
+
+let normaliseSr70 (sr70: string) =
+    // Strip checksum digit
+    if sr70.Length > 5
+    then sr70.[..4]
+    else sr70.PadLeft(5, '0')

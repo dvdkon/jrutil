@@ -12,6 +12,7 @@ open System.Security.Cryptography
 open FSharp.Data
 
 open JrUtil.SqlRecordStore
+open JrUtil.Utils
 
 let czechRepBBox = [| 48.195; 12.000; 51.385; 18.951 |]
 let czechRepBBoxStr = String.Join(',', czechRepBBox)
@@ -65,31 +66,16 @@ let getCzRailStops overpassUrl cacheDir =
     |> CzRailStops.Parse
     |> (fun rs -> rs.Elements)
 
-let normalisedSr70 (stop: CzRailStops.Element) =
+let osmNormalisedSr70 (stop: CzRailStops.Element) =
     stop.Tags.RefSr70
     |> Option.orElse stop.Tags.RailwayRef
-    |> Option.map (fun x ->
-        let raw = x.ToString()
-        // Strip off checksum digit, if present
-        if raw.Length > 5 then raw.[..4]
-        else raw)
+    |> Option.map (fun x -> x.ToString() |> normaliseSr70)
     |> Option.defaultValue ""
 
 let czRailStopName (stop: CzRailStops.Element) =
     stop.Tags.Name
     |> Option.orElse stop.Tags.NameCs
     |> Option.defaultValue "" // TODO: Log stops without name
-
-let czRailStopsToSql conn (data: CzRailStops.Element seq) =
-    sqlCopyInText conn "czptt_stops_geodata"
-        [| false; true; false; false; false |]
-        (data |> Seq.map (fun rso -> [|
-            czRailStopName rso
-            normalisedSr70 rso
-            string rso.Lat
-            string rso.Lon
-            "osm"
-         |]))
 
 let getCzOtherStops overpassUrl cacheDir =
     let subdivisions = 4;
@@ -109,10 +95,10 @@ let getCzOtherStops overpassUrl cacheDir =
                 ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
                 (
                     node(area.cz)[highway=bus_stop];
-                    node(area.cz)[public_transport=platform];
+                    node(area.cz)[public_transport=platform][!train];
                     node(area.cz)[public_transport=pole];
                     node(area.cz)[railway=tram_stop];
-                    node(area.cz)[public_transport=station];
+                    node(area.cz)[public_transport=station][!train];
                     node(area.cz)[amenity=bus_station];
                 );
                 out;
@@ -121,13 +107,3 @@ let getCzOtherStops overpassUrl cacheDir =
             |> (fun os -> os.Elements)
     }
     |> Seq.concat
-
-let otherStopsToSql conn (data: OtherStops.Element seq) =
-    sqlCopyInText conn "other_stops_geodata"
-        [| false; false; false; false |]
-        (data |> Seq.map (fun stop -> [|
-            stop.Tags.Name
-            string stop.Lat
-            string stop.Lon
-            "osm"
-         |]))

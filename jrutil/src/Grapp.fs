@@ -55,14 +55,14 @@ type GetTrainsWithFilterOutput =
 
 // To translate the station names GRAPP gives us we use the SR70 document. It's
 // provided on an unstable URL as a .xls file, so the user is expected to
-// transform this file into a CSV. Use he script `sr70_process.py` from
+// transform this file into a CSV. Use the script `sr70_process.py` from
 // `jrunify-ext-geodata` with param `--name=NÁZEV20`
-type StopsCsv = ``CsvProvider,Schema="sr70(int), name(string), lat(float), lon(float)",HasHeaders="False"``
+type StopsCsv = ``CsvProvider,Schema="sr70(string), name(string), lat(float), lon(float)",HasHeaders="False"``
 
 let readStopsCsv date filename =
     let csv = StopsCsv.Load(Path.GetFullPath(filename))
     csv.Rows |> Seq.map (fun r -> {
-        id = sprintf "-SR70ST-%d" r.Sr70
+        id = sprintf "-SR70ST-%s" r.Sr70
         date = date
         name = r.Name
         lat = Some r.Lat
