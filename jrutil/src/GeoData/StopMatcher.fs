@@ -12,6 +12,7 @@ open Lucene.Net.Store
 open Lucene.Net.Documents
 open Lucene.Net.Index
 open Lucene.Net.Search
+open Lucene.Net.Analysis
 open Lucene.Net.Analysis.Core
 
 open JrUtil
@@ -27,16 +28,18 @@ type StopMatch<'d> = {
     score: float32
 }
 
+let preprocessStopName (name: string) =
+    name
+     // Make sure successive acronyms are tokenized as separate
+     .Replace(".", ". ")
+     // Strip punctuation
+     .Replace('.', ' ').Replace(',', ' ').Replace('-', ' ')
+     .ToLower()
+
+
 let stopNameToTokens (name: string) =
-    let name = name
-                // Make sure successive acronyms are tokenized as separate
-                .Replace(".", ". ")
-                // Strip punctuation
-                .Replace('.', ' ').Replace(',', ' ').Replace('-', ' ')
-                .ToLower()
-                // TODO: Run the name through the same sequence the input
-                // names are
-    name.Split(' ')
+    (preprocessStopName name)
+     .Split(' ')
     |> Seq.filter (String.IsNullOrWhiteSpace >> not)
     |> Seq.toArray
 
@@ -59,13 +62,17 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
     do this.index()
 
     member this.index() =
-        use analyzer = new SimpleAnalyzer(luceneVersion)
+        use analyzer = Analyzer.NewAnonymous(fun fieldName reader ->
+            let tokenizer = new WhitespaceTokenizer(luceneVersion, reader)
+            TokenStreamComponents(tokenizer)
+        )
         let config = IndexWriterConfig(luceneVersion, analyzer)
         use writer = new IndexWriter(directory, config)
 
         for i, stop in stops |> Seq.indexed do
             let doc = Document()
-            doc.Add(new Field("name", stop.name, TextField.TYPE_NOT_STORED))
+            doc.Add(new Field("name", preprocessStopName stop.name,
+                              TextField.TYPE_NOT_STORED))
             doc.Add(new Int32Field("index", i, Field.Store.YES))
             writer.AddDocument(doc)
 
