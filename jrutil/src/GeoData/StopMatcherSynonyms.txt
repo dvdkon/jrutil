@@ -1,0 +1,33 @@
+# This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+# (c) 2023 David Koňařík
+
+# This is a synonyms file for Lucene.Net, see documentation:
+# https://lucenenet.apache.org/docs/4.8.0-beta00007/api/Lucene.Net.Analysis.Common/Lucene.Net.Analysis.Synonym.html
+# It is used for matching different versions of stop names together.
+# Since the names to match are lowercased, so should everything in this file.
+
+nám., náměstí
+rozc., rozcestí
+odb., odbočka
+žel., železniční
+aut., autobusové
+st., stanice, stanoviště
+zast., zastávka
+rest., restaurace
+sídl., sídliště
+nem., nemocnice
+háj., hájenka, hájovna
+
+hor., horní
+dol., dolní
+vel., velký, velká, velké
+
+n., nad
+p., pod
+orl., orlicí, orlických
+vlt., vltavou
+svit., svitavou
+jiz., jizerských, jizerou
+bez., bezdězem
+h., horách
+zdrav., zdravotnická

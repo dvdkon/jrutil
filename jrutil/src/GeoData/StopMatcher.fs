@@ -7,6 +7,7 @@
 module JrUtil.GeoData.StopMatcher
 
 open System
+open System.IO
 open Lucene.Net.Util
 open Lucene.Net.Store
 open Lucene.Net.Documents
@@ -14,6 +15,8 @@ open Lucene.Net.Index
 open Lucene.Net.Search
 open Lucene.Net.Analysis
 open Lucene.Net.Analysis.Core
+open Lucene.Net.Analysis.Synonym
+open Lucene.Net.Analysis.TokenAttributes
 
 open JrUtil
 
@@ -28,12 +31,14 @@ type StopMatch<'d> = {
     score: float32
 }
 
+let synonymsFile = __SOURCE_DIRECTORY__ + "/StopMatcherSynonyms.txt"
+
 let preprocessStopName (name: string) =
     name
      // Make sure successive acronyms are tokenized as separate
      .Replace(".", ". ")
      // Strip punctuation
-     .Replace('.', ' ').Replace(',', ' ').Replace('-', ' ')
+     .Replace(',', ' ').Replace('-', ' ')
      .ToLower()
 
 
@@ -56,15 +61,30 @@ let nameSimilarity (queryTokens: string array) (matchedTokens: string array) =
     float32 (Set.intersect qtSet mtSet |> Set.count)
         / float32 matchedTokens.Length
 
+let analyzeToTokens (analyzer: Analyzer) (field: string) (str: string) =
+    let tokens = ResizeArray()
+    use ts = analyzer.GetTokenStream(field, str)
+    ts.Reset()
+    while ts.IncrementToken() do
+        if ts.HasAttribute<ICharTermAttribute>() then
+            tokens.Add(ts.GetAttribute<ICharTermAttribute>().ToString())
+    tokens
+
 type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
     let luceneVersion = LuceneVersion.LUCENE_48
     let directory = new RAMDirectory()
     do this.index()
 
     member this.index() =
+        let synonymAnalyzer = new WhitespaceAnalyzer(luceneVersion)
+        let synonymParser = SolrSynonymParser(false, true, synonymAnalyzer)
+        use synonymReader = new StreamReader(synonymsFile)
+        synonymParser.Parse(synonymReader)
         use analyzer = Analyzer.NewAnonymous(fun fieldName reader ->
             let tokenizer = new WhitespaceTokenizer(luceneVersion, reader)
-            TokenStreamComponents(tokenizer)
+            let synonymFilter = new SynonymFilter(
+                tokenizer, synonymParser.Build(), true)
+            TokenStreamComponents(tokenizer, synonymFilter)
         )
         let config = IndexWriterConfig(luceneVersion, analyzer)
         use writer = new IndexWriter(directory, config)
