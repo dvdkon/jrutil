@@ -23,6 +23,7 @@
     <Compile Include="src/Jdf/Jdf109Model.fs" />
     <Compile Include="src/Jdf/Jdf109To110.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
+    <Compile Include="src/Jdf/JdfFixups.fs" />
     <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
     <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
     <Compile Include="src/Gtfs/GtfsParser.fs" />
