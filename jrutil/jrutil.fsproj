@@ -35,6 +35,7 @@
     <Compile Include="src/GeoData/ExternalCsv.fs" />
     <Compile Include="src/GeoData/SqlCzptt.fs" />
     <Compile Include="src/GeoData/SqlOther.fs" />
+    <Compile Include="src/GeoData/StopMatcher.fs" />
     <Compile Include="src/Gtfs/GtfsMerge.fs" />
     <Compile Include="src/RealTime/RealTimeModel.fs" />
     <Compile Include="src/RealTime/RealTimeSql.fs" />
@@ -44,6 +45,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Lucene.Net" Version="4.8.0-beta00016" />
+    <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00016" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
     <PackageReference Include="FSharp.Data" Version="3.3.3" />
     <PackageReference Include="Npgsql" Version="4.1.4" />
