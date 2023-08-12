@@ -206,8 +206,8 @@ const StopsTable = {
             return stopsfs;
         });
 		const pageBounded = Vue.computed(() => {
-            if((page.value + 1) * pageSize >= stopsFilteredSorted.value.length) {
-                return 0;
+            if(page.value * pageSize >= stopsFilteredSorted.value.length) {
+				page.value = 0;
             }
 			return page.value;
 		});
