@@ -12,11 +12,16 @@ odb., odbočka
 žel., železniční
 aut., autobusové
 st., stanice, stanoviště
+nádr., nádraží
 zast., zastávka
 rest., restaurace
 sídl., sídliště
 nem., nemocnice
 háj., hájenka, hájovna
+obú, obecní úřadHorní Heřmanice
+měú, městský úřad
+nákup., nákupní
+stř., středisko
 
 hor., horní
 dol., dolní
@@ -24,10 +29,17 @@ vel., velký, velká, velké
 
 n., nad
 p., pod
+l., labem
 orl., orlicí, orlických
 vlt., vltavou
 svit., svitavou
 jiz., jizerských, jizerou
+met., metují
+cidl., cidlinou
 bez., bezdězem
+jev., jevišovkou
+mor., moravě, moravou
 h., horách
 zdrav., zdravotnická
+heřm., heřmanice
+l., lázně

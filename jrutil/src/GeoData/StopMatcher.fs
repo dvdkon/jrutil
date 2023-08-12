@@ -39,6 +39,8 @@ let preprocessStopName (name: string) =
      .Replace(".", ". ")
      // Strip punctuation
      .Replace(',', ' ').Replace('-', ' ')
+     // Replace non-space spaces
+     .Replace('\u00a0', ' ')
      .ToLower()
 
 
@@ -54,13 +56,6 @@ let stopNameToQuery (tokens: string array) =
         query.Add(BooleanClause(TermQuery(Term("name", token)), Occur.MUST))
     query
 
-let nameSimilarity (queryTokens: string array) (matchedTokens: string array) =
-    let qtSet = set queryTokens
-    let mtSet = set matchedTokens
-    // Result: How many of the matched stop's words are also in the query
-    float32 (Set.intersect qtSet mtSet |> Set.count)
-        / float32 matchedTokens.Length
-
 let analyzeToTokens (analyzer: Analyzer) (field: string) (str: string) =
     let tokens = ResizeArray()
     use ts = analyzer.GetTokenStream(field, str)
@@ -70,22 +65,24 @@ let analyzeToTokens (analyzer: Analyzer) (field: string) (str: string) =
             tokens.Add(ts.GetAttribute<ICharTermAttribute>().ToString())
     tokens
 
+let makeAnalyzer luceneVersion =
+    let synonymAnalyzer = new WhitespaceAnalyzer(luceneVersion)
+    let synonymParser = SolrSynonymParser(false, true, synonymAnalyzer)
+    use synonymReader = new StreamReader(synonymsFile)
+    synonymParser.Parse(synonymReader)
+    Analyzer.NewAnonymous(fun fieldName reader ->
+        let tokenizer = new WhitespaceTokenizer(luceneVersion, reader)
+        let synonymFilter = new SynonymFilter(
+            tokenizer, synonymParser.Build(), true)
+        TokenStreamComponents(tokenizer, synonymFilter))
+
 type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
     let luceneVersion = LuceneVersion.LUCENE_48
     let directory = new RAMDirectory()
+    let analyzer = makeAnalyzer luceneVersion
     do this.index()
 
     member this.index() =
-        let synonymAnalyzer = new WhitespaceAnalyzer(luceneVersion)
-        let synonymParser = SolrSynonymParser(false, true, synonymAnalyzer)
-        use synonymReader = new StreamReader(synonymsFile)
-        synonymParser.Parse(synonymReader)
-        use analyzer = Analyzer.NewAnonymous(fun fieldName reader ->
-            let tokenizer = new WhitespaceTokenizer(luceneVersion, reader)
-            let synonymFilter = new SynonymFilter(
-                tokenizer, synonymParser.Build(), true)
-            TokenStreamComponents(tokenizer, synonymFilter)
-        )
         let config = IndexWriterConfig(luceneVersion, analyzer)
         use writer = new IndexWriter(directory, config)
 
@@ -96,6 +93,19 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
             doc.Add(new Int32Field("index", i, Field.Store.YES))
             writer.AddDocument(doc)
 
+    member this.nameSimilarity(queryTokens: string array,
+                               matchedTokens: string array) =
+        let qtSet = set queryTokens
+        // Result: How many of the matched stop's words are also in the query
+        let matchedCount =
+            matchedTokens
+            |> Array.sumBy (fun mt ->
+                let synonyms = analyzeToTokens analyzer "name" mt
+                if Set.intersect (set synonyms) qtSet |> Set.isEmpty |> not
+                then 1
+                else 0)
+        float32 matchedCount / float32 matchedTokens.Length
+
     member this.matchStop(name, ?top) =
         // TODO: Reuse reader/searcher?
         use reader = DirectoryReader.Open(directory)
@@ -105,17 +115,18 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
         // Ideally we'd override Lucene.Net with a custom scoring method, but
         // that looks complicated, so we take the results the original sorting
         // method gives us and apply our own sorting after that
-        searcher.Search(query, null, defaultArg top 10).ScoreDocs
+        searcher.Search(query, null, defaultArg top 100).ScoreDocs
         |> Seq.map (fun sd ->
             let doc = searcher.Doc(sd.Doc)
             let stop = stops[doc.GetField("index").GetInt32Value().Value]
             {
                 stop = stop
-                score = nameSimilarity queryTokens
-                                       (stopNameToTokens <| stop.name)
+                score = this.nameSimilarity(
+                    queryTokens, (stopNameToTokens <| stop.name))
             })
         |> Seq.toArray
 
     interface IDisposable with
         member this.Dispose() =
+            analyzer.Dispose()
             directory.Dispose()
