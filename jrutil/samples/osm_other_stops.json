@@ -1,386 +1,184 @@
 {
   "version": 0.6,
-  "generator": "Overpass API 0.7.55.7 8b86ff77",
+  "generator": "Overpass API 0.7.61.5 4133829e",
   "osm3s": {
-    "timestamp_osm_base": "2019-11-03T18:57:02Z",
-    "timestamp_areas_base": "2019-11-03T18:09:02Z",
+    "timestamp_osm_base": "2023-08-13T10:33:41Z",
+    "timestamp_areas_base": "2023-08-13T09:02:51Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
 
 {
   "type": "node",
-  "id": 83794509,
-  "lat": 50.0013928,
-  "lon": 14.6634072,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, U Větrníku",
-    "public_transport": "platform",
-    "ref:pid": "U1875Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 83794514,
-  "lat": 50.0016919,
-  "lon": 14.6625753,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, U Větrníku",
-    "public_transport": "platform",
-    "ref:pid": "U1875Z1"
-  }
-},
-{
-  "type": "node",
-  "id": 96557840,
-  "lat": 49.9950865,
-  "lon": 14.6598256,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, park A.Švehly"
-  }
-},
-{
-  "type": "node",
-  "id": 96557880,
-  "lat": 49.9970824,
-  "lon": 14.6589303,
-  "tags": {
-    "created_by": "JOSM",
-    "highway": "bus_stop",
-    "name": "Říčany, Pod lihovarem"
-  }
-},
-{
-  "type": "node",
-  "id": 187692930,
-  "lat": 49.9895989,
-  "lon": 14.6773969,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Pivoňková"
-  }
-},
-{
-  "type": "node",
-  "id": 189383857,
-  "lat": 50.0062483,
-  "lon": 14.6536490,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Černokostelecká",
-    "public_transport": "platform",
-    "ref:pid": "U1929Z1"
-  }
-},
-{
-  "type": "node",
-  "id": 189384174,
-  "lat": 49.9933423,
-  "lon": 14.6669162,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, 5.května"
-  }
-},
-{
-  "type": "node",
-  "id": 189391117,
-  "lat": 49.9921362,
-  "lon": 14.6647660,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Komenského nám.",
-    "public_transport": "platform",
-    "ref:pid": "U1900Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 292546658,
-  "lat": 49.9935143,
-  "lon": 14.6606023,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Štefánikova",
-    "public_transport": "platform",
-    "ref:pid": "U1870Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 292547059,
-  "lat": 49.9937714,
-  "lon": 14.6585766,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, U Milána"
-  }
-},
-{
-  "type": "node",
-  "id": 293117301,
-  "lat": 49.9961984,
-  "lon": 14.6779449,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, U nem.",
-    "public_transport": "platform",
-    "ref:pid": "U1882Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 308482383,
-  "lat": 49.9952632,
-  "lon": 14.6496110,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Wolkerova"
-  }
-},
-{
-  "type": "node",
-  "id": 308487916,
-  "lat": 50.0045638,
-  "lon": 14.6577151,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, prům. areál Černokostelecká",
-    "public_transport": "platform",
-    "ref:pid": "U1885Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 308487922,
-  "lat": 50.0011893,
-  "lon": 14.6622852,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, U Podjezdu",
-    "public_transport": "platform",
-    "ref:pid": "U1891Z1"
-  }
-},
-{
-  "type": "node",
-  "id": 308487923,
-  "lat": 50.0019424,
-  "lon": 14.6639693,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, U podjezdu",
-    "public_transport": "platform",
-    "ref:pid": "U1891Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 308488709,
-  "lat": 49.9989538,
-  "lon": 14.6683016,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, K žel. st.",
-    "public_transport": "platform",
-    "ref:pid": "U1878Z1"
-  }
-},
-{
-  "type": "node",
-  "id": 308488711,
-  "lat": 49.9994493,
-  "lon": 14.6671505,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, K žel. st.",
-    "public_transport": "platform",
-    "ref:pid": "U1878Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 308488836,
-  "lat": 49.9981536,
-  "lon": 14.6706306,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Spojovací ZŠ"
-  }
-},
-{
-  "type": "node",
-  "id": 308492170,
-  "lat": 49.9910530,
-  "lon": 14.6751909,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Pod Kavčí Skálou"
-  }
-},
-{
-  "type": "node",
-  "id": 308492172,
-  "lat": 49.9906584,
-  "lon": 14.6752910,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Pod Kavčí Skálou",
-    "public_transport": "platform",
-    "ref:pid": "U1899Z2"
-  }
-},
-{
-  "type": "node",
-  "id": 308492175,
-  "lat": 49.9933082,
-  "lon": 14.6657109,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, 5.května"
-  }
-},
-{
-  "type": "node",
-  "id": 308494919,
-  "lat": 49.9916479,
-  "lon": 14.6557832,
+  "id": 259779667,
+  "lat": 49.4883114,
+  "lon": 15.7200433,
   "tags": {
     "bus": "yes",
     "highway": "bus_stop",
-    "name": "Říčany, náměstí",
+    "name": "Polná, autobusové stanoviště",
+    "official_name": "Polná, aut. st.",
     "public_transport": "platform",
-    "short_name": "Říčany, nám."
+    "ref:CIS_JR": "27495"
   }
 },
 {
   "type": "node",
-  "id": 308496054,
-  "lat": 49.9965997,
-  "lon": 14.6621649,
+  "id": 8725891118,
+  "lat": 49.4861852,
+  "lon": 15.7280827,
   "tags": {
-    "bench": "yes",
+    "bus": "yes",
     "highway": "bus_stop",
-    "name": "Říčany, Nádraží",
-    "network": "PiD",
-    "shelter": "yes"
-  }
-},
-{
-  "type": "node",
-  "id": 308496055,
-  "lat": 49.9916602,
-  "lon": 14.6512923,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Podhradí"
-  }
-},
-{
-  "type": "node",
-  "id": 308496289,
-  "lat": 49.9900810,
-  "lon": 14.6498579,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, U lípy"
-  }
-},
-{
-  "type": "node",
-  "id": 308497085,
-  "lat": 49.9851094,
-  "lon": 14.6551554,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany, Marvánek"
-  }
-},
-{
-  "type": "node",
-  "id": 5194232422,
-  "lat": 49.9909018,
-  "lon": 14.6612492,
-  "tags": {
-    "bench": "yes",
-    "highway": "bus_stop",
-    "name": "Říčany, Fibichova",
-    "shelter": "no"
-  }
-},
-{
-  "type": "node",
-  "id": 6344505579,
-  "lat": 50.0048100,
-  "lon": 14.6568800,
-  "tags": {
-    "highway": "bus_stop",
-    "name": "Říčany,Prům.areál Černokostelecká",
+    "name": "Polná, Palackého",
     "public_transport": "platform",
-    "ref:pid": "U1885Z1"
+    "ref:CIS_JR": "47554"
   }
 },
 {
   "type": "node",
-  "id": 6344505580,
-  "lat": 50.0064103,
-  "lon": 14.6533893,
+  "id": 8725891119,
+  "lat": 49.4862597,
+  "lon": 15.7279915,
   "tags": {
+    "bus": "yes",
     "highway": "bus_stop",
-    "name": "Říčany, Černokostelecká",
+    "name": "Polná, Palackého",
     "public_transport": "platform",
-    "ref:pid": "U1929Z2"
+    "ref:CIS_JR": "47554"
   }
 },
 {
   "type": "node",
-  "id": 6344505583,
-  "lat": 49.9979931,
-  "lon": 14.6704516,
+  "id": 8725891120,
+  "lat": 49.4817858,
+  "lon": 15.7220437,
   "tags": {
+    "bus": "yes",
     "highway": "bus_stop",
-    "name": "Říčany,Spojovací ZŠ",
+    "name": "Polná, Jungmannova ul.",
     "public_transport": "platform",
-    "ref:pid": "U1888Z2"
+    "ref:CIS_JR": "27496"
   }
 },
 {
   "type": "node",
-  "id": 6344505584,
-  "lat": 49.9983678,
-  "lon": 14.6702451,
+  "id": 8725891121,
+  "lat": 49.4818065,
+  "lon": 15.7221490,
   "tags": {
+    "bus": "yes",
     "highway": "bus_stop",
-    "name": "Říčany,Spojovací ZŠ",
+    "name": "Polná, Jungmannova ul.",
     "public_transport": "platform",
-    "ref:pid": "U1888Z1"
+    "ref:CIS_JR": "27496"
   }
 },
 {
   "type": "node",
-  "id": 6344508789,
-  "lat": 49.9933841,
-  "lon": 14.6606065,
+  "id": 8725891122,
+  "lat": 49.4827656,
+  "lon": 15.7167886,
   "tags": {
+    "bus": "yes",
     "highway": "bus_stop",
-    "name": "Říčany, Štefánikova",
+    "name": "Polná, Kateřinov",
     "public_transport": "platform",
-    "ref:pid": "U1870Z1"
+    "ref:CIS_JR": "27497"
   }
 },
 {
   "type": "node",
-  "id": 6344508795,
-  "lat": 49.9920178,
-  "lon": 14.6644640,
+  "id": 8725891123,
+  "lat": 49.4827525,
+  "lon": 15.7169254,
   "tags": {
+    "bus": "yes",
     "highway": "bus_stop",
-    "name": "Říčany, Komenského nám.",
+    "name": "Polná, Kateřinov",
     "public_transport": "platform",
-    "ref:pid": "U1900Z1"
+    "ref:CIS_JR": "27497"
+  }
+},
+{
+  "type": "node",
+  "id": 8735894338,
+  "lat": 49.4873997,
+  "lon": 15.7055254,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Polná, železniční stanice",
+    "official_name": "Polná, žel. st.",
+    "public_transport": "platform",
+    "ref:CIS_JR": "27502"
+  }
+},
+{
+  "type": "node",
+  "id": 8735894339,
+  "lat": 49.4875147,
+  "lon": 15.7055274,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Polná, železniční stanice",
+    "official_name": "Polná, žel. st.",
+    "public_transport": "platform",
+    "ref:CIS_JR": "27502"
+  }
+},
+{
+  "type": "node",
+  "id": 9378482682,
+  "lat": 49.4909663,
+  "lon": 15.7206067,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Polná, rozcestí Hrbov",
+    "official_name": "Polná, rozc. Hrbov",
+    "public_transport": "platform",
+    "ref:CIS_JR": "27500"
+  }
+},
+{
+  "type": "node",
+  "id": 9378482683,
+  "lat": 49.4909384,
+  "lon": 15.7204619,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Polná, rozcestí Hrbov",
+    "official_name": "Polná, rozc. Hrbov",
+    "public_transport": "platform",
+    "ref:CIS_JR": "27500"
+  }
+},
+{
+  "type": "node",
+  "id": 9378482684,
+  "lat": 49.4869711,
+  "lon": 15.7154140,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "name": "Polná, kino",
+    "public_transport": "platform",
+    "ref:CIS_JR": "27498"
+  }
+},
+{
+  "type": "node",
+  "id": 9378482685,
+  "lat": 49.4869634,
+  "lon": 15.7151740,
+  "tags": {
+    "bus": "yes",
+    "highway": "bus_stop",
+    "public_transport": "platform",
+    "ref:CIS_JR": "27498"
   }
 }
 

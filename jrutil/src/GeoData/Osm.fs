@@ -77,6 +77,11 @@ let czRailStopName (stop: CzRailStops.Element) =
     |> Option.orElse stop.Tags.NameCs
     |> Option.defaultValue "" // TODO: Log stops without name
 
+let czOtherStopName (stop: OtherStops.Element) =
+    stop.Tags.OfficialName
+    |> Option.orElse stop.Tags.Name
+    |> Option.defaultValue ""
+
 let getCzOtherStops overpassUrl cacheDir =
     let subdivisions = 4;
     let latStep = (czechRepBBox.[2] - czechRepBBox.[0]) / (float subdivisions)

@@ -142,7 +142,7 @@ let getOtherStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
     let stopsOsm =
         getCzOtherStops overpassUrl cacheDir
         |> Seq.map (fun s -> {
-            name = s.Tags.Name
+            name = czOtherStopName s
             data = (
                 float s.Lat, float s.Lon,
                 "OSM",
