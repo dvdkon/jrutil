@@ -1,5 +1,5 @@
 # This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-# (c) 2019 David Koňařík
+# (c) 2023 David Koňařík
 
 # At first I tried to create an XML Schema (XSD) for the format,
 # but after getting to a state when the schema had a few hundred lines but
@@ -11,11 +11,11 @@
 # I used this wondeful book to learn the bits of RELAX NG that I needed to
 # know: http://www.kosek.cz/xml/schema/index.html
 
-# This schema defines the CZPTTCISMessage XML object given to CIS JŘ per
-# official SŽDC documentation ("Popis DJR_CIS_v1_04.pdf"). It contains
-# only elements used in the docs sent to and publicly available from CIS JŘ
-# When the docs and given data diverge, the structure of the data is
-# used for the spec's creation.
+# This schema defines the CZPTTCISMessage and CZCanceledPTTMessage XML objects
+# given to CIS JŘ per official SŽDC documentation ("Popis DJR_CIS_v1_09.pdf").
+# It contains only elements used in the docs sent to and publicly available
+# from CIS JŘ When the docs and given data diverge, the structure of the data
+# is used for the spec's creation.
 
 company = xsd:string { pattern="[0-9]{1,4}" }
 
@@ -27,44 +27,50 @@ TransportIdentifier =
 	element Variant { xsd:string { pattern="[0-9A-Z]{2}" } },
 	element TimetableYear { xsd:integer }
 
-start =
+PlannedTransportIdentifiers =
+	element PlannedTransportIdentifiers {
+		TransportIdentifier
+	}
+
+PlannedCalendar =
+	element PlannedCalendar {
+		element BitmapDays { xsd:string { pattern="[10]+" } },
+		element ValidityPeriod {
+			element StartDateTime { xsd:date },
+			element EndDateTime { xsd:date }?
+		}
+	}
+
+start = CZPTTCISMessage | CZCanceledPTTMessage
+
+CZPTTCISMessage =
 	element CZPTTCISMessage {
 		element Identifiers {
 			# Always exactly two, with ObjectType TR and PA
-			element PlannedTransportIdentifiers {
-				TransportIdentifier
-			}+
+			PlannedTransportIdentifiers+
 		},
 
 		element CZPTTCreation { xsd:date },
 
 		element CZPTTInformation {
-			element PlannedCalendar {
-				element BitmapDays { xsd:string { pattern="[10]+" } },
-				element ValidityPeriod {
-					element StartDateTime { xsd:date },
-					element EndDateTime { xsd:date }?
-				}
-			},
+			PlannedCalendar,
 
 			element CZPTTLocation {
-				attribute JourneyLocationTypeCode {
-					"01" | "02" | "03" | "04" | "05" | "06" | "07"
+				element Location {
+					element CountryCodeISO { xsd:string },
+					element LocationPrimaryCode {
+						xsd:string { pattern="[0-9]{5}" }
+					}?,
+					element PrimaryLocationName { xsd:string }?,
+					element LocationSubsidiaryIdentification {
+						element LocationSubsidiaryCode {
+							attribute LocationSubsidiaryTypeCode { xsd:string },
+							xsd:string
+						},
+						element AllocationCompany { company }?,
+						element LocationSubsidiaryName { xsd:string }?
+					}?
 				},
-
-				element CountryCodeISO { xsd:string },
-				element LocationPrimaryCode {
-					xsd:string { pattern="[0-9]{5}" }
-				}?,
-				element PrimaryLocationName { xsd:string }?,
-				element LocationSubsidiaryIdentification {
-					element LocationSubsidiaryCode {
-						attribute LocationSubsidiaryTypeCode { xsd:string },
-						xsd:string
-					},
-					element AllocationCompany { company }?,
-					element LocationSubsidiaryName { xsd:string }?
-				}?,
 				element TimingAtLocation {
 					element DwellTime { xsd:decimal }?,
 					element Timing {
@@ -95,4 +101,13 @@ start =
 			element Name { xsd:string }*,
 			element Value { xsd:string }*
 		}?
+	}
+
+CZCanceledPTTMessage =
+	element CZCanceledPTTMessage {
+		PlannedTransportIdentifiers+,
+		element CZPTTCancelation {
+			xsd:date
+		},
+		PlannedCalendar
 	}
