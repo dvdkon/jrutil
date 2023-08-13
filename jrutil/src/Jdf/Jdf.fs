@@ -187,7 +187,8 @@ let rec findJdfBatches (path: string) =
     else if Path.GetExtension(path).ToLower() = ".zip" then
         [path]
     else if Directory.Exists(path) then
-        Directory.EnumerateFiles(path)
+        Seq.concat [Directory.EnumerateFiles(path);
+                    Directory.EnumerateDirectories(path)]
         |> Seq.collect findJdfBatches
         |> Seq.toList
     else []
