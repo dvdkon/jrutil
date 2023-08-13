@@ -32,24 +32,16 @@ let moveNearbyTownFromName =
 /// later be compared between batches, not necessarily so some yet-unpublished
 /// official stop registry name.
 let normaliseStopName =
-    let singleCommaName = Regex(@"([^,]+), *([^,]*)")
     let doubleCommaName = Regex(@"([^,]+), *([^,]*), *([^,]*)")
     let emptyToNone s = if s = "" then None else Some s
     fun (stop: Stop) ->
         let newTown, newDistrict, newNearbyPlace =
-            let scMatch = singleCommaName.Match(stop.town)
             let dcMatch = doubleCommaName.Match(stop.town)
-            if stop.district.IsNone && stop.nearbyTownId.IsNone then
-                if scMatch.Success then
-                    scMatch.Groups.[1].Value,
-                    emptyToNone scMatch.Groups.[2].Value,
-                    None
-                else if dcMatch.Success then
-                    scMatch.Groups.[1].Value,
-                    emptyToNone scMatch.Groups.[2].Value,
-                    emptyToNone scMatch.Groups.[3].Value
-                else
-                    stop.town, None, None
+            if stop.district.IsNone && stop.nearbyTownId.IsNone
+               && dcMatch.Success then
+                dcMatch.Groups.[1].Value,
+                emptyToNone dcMatch.Groups.[2].Value,
+                emptyToNone dcMatch.Groups.[3].Value
             else if stop.district.IsNone then
                 stop.town, stop.nearbyPlace, None
             else
