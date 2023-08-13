@@ -162,9 +162,10 @@ const StopMatch = {
         },
     },
     setup(props) {
-        const {stop, odd} = props;
+        const {odd} = props;
+        const stop = Vue.toRef(props, "stop");
         const expanded = Vue.ref(false);
-        const radius = Vue.computed(() => getRadius(stop.matches));
+        const radius = Vue.computed(() => getRadius(stop.value.matches));
         return {
             stop, odd, expanded, radius
         };
