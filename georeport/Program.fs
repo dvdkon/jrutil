@@ -16,6 +16,7 @@ georeport, a tool for asessing coverage of stop geodata
 Usage:
     georeport.exe report [options]
     georeport.exe jdf-to-stop-names [--cz-sk-only] <JDF-in-dir>
+    georeport.exe czptt-to-stop-list <CZPTT-in-dir>
 
 report options:
     --rail-stops=PATH         Path to CSV of railway stops
@@ -75,6 +76,12 @@ let main argv =
             argValue args "<JDF-in-dir>"
             |> jdfStopNames (argFlagSet args "--cz-sk-only")
             |> Seq.iter (fun s -> printfn "%s" s)
+
+            0
+        else if argFlagSet args "czptt-to-stop-list" then
+            argValue args "<CZPTT-in-dir>"
+            |> czpttStopList
+            |> Seq.iter (fun (i, n) -> printfn "%s,\"%s\"" i n)
 
             0
         else

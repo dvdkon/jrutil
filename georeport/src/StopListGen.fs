@@ -32,3 +32,21 @@ let jdfStopNames czSkOnly jdfDir =
             Log.Error(e, "Error reading stops from {JDF}", batchPath)
             set [])
     |> Set.unionMany
+
+let czpttStopList czpttDir =
+    CzPtt.parseAll czpttDir
+    |> Seq.map (fun doc ->
+        doc.CzpttcisMessage |> Option.map (fun cisMsg ->
+            cisMsg.CzpttInformation.CzpttLocations
+            |> Array.map (fun loc ->
+                loc.Location.LocationPrimaryCode
+                |> Option.map Utils.normaliseSr70
+                |> Option.defaultValue "",
+                loc.Location.PrimaryLocationName
+                |> Option.defaultValue ""
+            )
+            |> set
+        )
+        |> Option.defaultValue Set.empty)
+    |> Set.unionMany
+    |> Set.filter (fun t -> t <> ("", ""))
