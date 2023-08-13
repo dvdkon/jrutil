@@ -1,4 +1,4 @@
-// This file is part of JrUnify and is licenced under the GNU GPLv3 or later
+// This file is part of JrUnify and is licenced under the GNU AGPLv3 or later
 // (c) 2019 David Koňařík
 
 module JrUnify.CzPtt

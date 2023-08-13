@@ -1,4 +1,4 @@
--- This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+-- This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 -- (c) 2019 David Koňařík
 
 -- This script is supposed to be templated by JrUtil.Gtfs.GtfsMerge.templateSql
