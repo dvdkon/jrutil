@@ -21,6 +21,7 @@ let jdfStopNames czSkOnly jdfDir =
             |> Array.filter (fun s ->
                 not czSkOnly || List.contains s.country ["CZ"; "SK"; ""])
             |> Array.map JdfFixups.moveNearbyTownFromName
+            |> Array.map JdfFixups.normaliseStopName
             |> Array.map (fun s ->
                 sprintf "%s,%s,%s"
                         s.town

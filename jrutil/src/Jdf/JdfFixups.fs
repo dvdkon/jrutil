@@ -9,9 +9,9 @@ open System.Text.RegularExpressions
 
 open JrUtil.JdfModel
 
-// Some JDF batches in CIS JŘ public exports have the nearby town two-letter id
-// appended to the town name like so: "Praha [AB]". This function will move it
-// to its rightful place three columns to the right.
+/// Some JDF batches in CIS JŘ public exports have the nearby town two-letter id
+/// appended to the town name like so: "Praha [AB]". This function will move it
+/// to its rightful place three columns to the right.
 let moveNearbyTownFromName =
     let ntRegex = Regex(@"(.*) \[(..)\]$")
     fun (stop: Stop) ->
@@ -23,3 +23,38 @@ let moveNearbyTownFromName =
                 nearbyTownId = Some m.Groups.[2].Value
         }
         else stop
+
+/// In the public CIS JŘ exports, stops don't have consistent naming.
+/// Sometimes, the whole name, delimited by commas, is in "town".
+/// When "districy" should be empty, it sometimes has the value of
+/// "nearbyPlace".
+/// This function will take a Stop and give it a normalised name that can
+/// later be compared between batches, not necessarily so some yet-unpublished
+/// official stop registry name.
+let normaliseStopName =
+    let singleCommaName = Regex(@"([^,]+), *([^,]*)")
+    let doubleCommaName = Regex(@"([^,]+), *([^,]*), *([^,]*)")
+    let emptyToNone s = if s = "" then None else Some s
+    fun (stop: Stop) ->
+        let newTown, newDistrict, newNearbyPlace =
+            let scMatch = singleCommaName.Match(stop.town)
+            let dcMatch = doubleCommaName.Match(stop.town)
+            if stop.district.IsNone && stop.nearbyTownId.IsNone then
+                if scMatch.Success then
+                    scMatch.Groups.[1].Value,
+                    emptyToNone scMatch.Groups.[2].Value,
+                    None
+                else if dcMatch.Success then
+                    scMatch.Groups.[1].Value,
+                    emptyToNone scMatch.Groups.[2].Value,
+                    emptyToNone scMatch.Groups.[3].Value
+                else
+                    stop.town, None, None
+            else if stop.district.IsNone then
+                stop.town, stop.nearbyPlace, None
+            else
+                stop.town, stop.district, stop.nearbyPlace
+        { stop with
+            town = newTown
+            district = newDistrict
+            nearbyPlace = newNearbyPlace }
