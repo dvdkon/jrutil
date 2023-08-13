@@ -33,15 +33,37 @@ function matchDescription(match, verbose) {
         } else {
             return "External by name";
         }
+    } else if(match.matchType.Case == "None") {
+        return "No match";
     }
     throw "Unhandled matchType: " + match.matchType.Case;
 }
 
 function matchedName(match) {
-	if(["OsmByName", "ExternalByName"].includes(match.matchType.Case)) {
-		return match.matchType.Fields[1].stopName;
-	}
-	return "";
+    if(["OsmByName", "ExternalByName"].includes(match.matchType.Case)) {
+        return match.matchType.Fields[1].stopName;
+    }
+    return "";
+}
+
+function matchIsPerfect(match) {
+    return ["OsmByTag", "ExternalById"].includes(match.matchType.Case)
+        || match.matchType.Fields[1].score == 1;
+}
+
+function avg(nums) {
+    return nums.reduce((a,b) => a + b, 0) / nums.length;
+}
+
+function getRadius(matches) {
+    if(matches.length == 0)
+        return null;
+    const avgLat = avg(matches.map(m => m.lat));
+    const avgLon = avg(matches.map(m => m.lon));
+    const radiusDeg = Math.max(...matches.map(m =>
+        Math.sqrt(Math.pow(m.lat - avgLat, 2)
+                  + Math.pow(m.lon - avgLon, 2))));
+    return radiusDeg * 60;
 }
 
 const MatchRow = {
@@ -51,7 +73,7 @@ const MatchRow = {
     },
     methods: {
         matchDescription,
-		matchedName,
+        matchedName,
     },
     setup({matches, match: selectedMatch}) {
         return {
@@ -70,9 +92,9 @@ const MatchRow = {
                                   iconSize: null,
                               }),
                     }).bindTooltip(
-						matchDescription(match, true) + "<br>"
-						+ matchedName(match))
-					.addTo(stopMarkers);
+                        matchDescription(match, true) + "<br>"
+                        + matchedName(match))
+                    .addTo(stopMarkers);
                 }
                 for(let match of matches) {
                     if(match == selectedMatch) {
@@ -113,6 +135,7 @@ const StopMatch = {
         MatchRow,
     },
     methods: {
+        matchIsPerfect,
         bestMatchDescription(matches) {
             if(matches.length == 0) {
                 return "No match";
@@ -138,10 +161,12 @@ const StopMatch = {
             }
         },
     },
-    setup({stop, odd}) {
+    setup(props) {
+        const {stop, odd} = props;
         const expanded = Vue.ref(false);
+        const radius = Vue.computed(() => getRadius(stop.matches));
         return {
-            stop, odd, expanded,
+            stop, odd, expanded, radius
         };
     },
     template: `
@@ -150,8 +175,8 @@ const StopMatch = {
             <td :class="bestMatchClass(stop.matches)">
                 {{bestMatchDescription(stop.matches)}}
             </td>
-            <td v-if="stop.radius !== null" :class="radiusClass(stop.radius)">
-                {{stop.radius.toFixed(2)}}'
+            <td v-if="radius !== null" :class="radiusClass(radius)">
+                {{radius.toFixed(2)}}'
             </td>
             <td v-else></td>
             <td><button v-if="stop.matches.length > 0"
@@ -171,8 +196,56 @@ const StopMatch = {
     `,
 };
 
+const MatchSummary = {
+    props: {
+        stops: Array,
+    },
+    setup(props) {
+        const stops = Vue.toRef(props, "stops");
+        const summaryRows = Vue.computed(() => {
+            const topMatchCounts = {};
+            for(let stop of stops.value) {
+                let type = "None";
+                if(stop.matches.length > 0) {
+                    type = stop.matches[0].matchType.Case;
+                }
+                if(!topMatchCounts[type]) {
+                    topMatchCounts[type] = 0;
+                }
+                topMatchCounts[type]++;
+            }
+
+            const summaryRows = [];
+            for(const [type, count] of Object.entries(topMatchCounts)) {
+                summaryRows.push([
+                    type,
+                    matchDescription({matchType: {Case: type}}),
+                    (count / stops.value.length * 100).toFixed(5) + "%",
+                    count,
+                ]);
+            }
+            return summaryRows.sort((a, b) => b[3] - a[3]);
+        });
+        return { summaryRows };
+    },
+    template: `
+        <h3>Best match by type</h3>
+        <div class="matches-by-type">
+            <table>
+                <tbody>
+                    <tr v-for="row in summaryRows" :class="'match-' + row[0]">
+                        <td>{{row[1]}}</td>
+                        <td>{{row[2]}}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    `,
+};
+
 const StopsTable = {
     components: {
+        MatchSummary,
         StopMatch,
     },
     props: {
@@ -184,6 +257,7 @@ const StopsTable = {
         const query = Vue.ref("");
         const sortKey = Vue.ref(null);
         const sortMul = Vue.ref(1);
+        const perfectMatchesOnly = Vue.ref(false);
         const stopsFilteredSorted = Vue.computed(() => {
             let stopsfs = stops
             stopsfs =
@@ -191,6 +265,13 @@ const StopsTable = {
                 ? stops.filter(s =>
                     s.name.toLowerCase().includes(query.value.toLowerCase()))
                 : stops;
+
+            if(perfectMatchesOnly.value) {
+                stopsfs = stopsfs.map(s => ({
+                    name: s.name,
+                    matches: s.matches.filter(m => matchIsPerfect(m)),
+                }));
+            }
 
             if(sortKey.value == "name") {
                 stopsfs.sort((s1, s2) =>
@@ -200,17 +281,27 @@ const StopsTable = {
                     sortMul.value * (matchesPriority(s1.matches)
                                      - matchesPriority(s2.matches)));
             } else if(sortKey.value == "radius") {
-                stopsfs.sort((s1, s2) =>
-                    sortMul.value * (s1.radius - s2.radius));
+                stopsfs.sort((s1, s2) => {
+                    const matches1 = s1.matches
+                        .filter(m => !perfectMatchesOnly.value
+                                     || matchIsPerfect(m));
+                    const matches2 = s2.matches
+                        .filter(m => !perfectMatchesOnly.value
+                                     || matchIsPerfect(m));
+                    const radius1 = getRadius(matches1) || -1;
+                    const radius2 = getRadius(matches2) || -1;
+                    return sortMul.value * (radius1 - radius2);
+                });
             }
+
             return stopsfs;
         });
-		const pageBounded = Vue.computed(() => {
+        const pageBounded = Vue.computed(() => {
             if(page.value * pageSize >= stopsFilteredSorted.value.length) {
-				page.value = 0;
+                page.value = 0;
             }
-			return page.value;
-		});
+            return page.value;
+        });
         const stopsPaged = Vue.computed(() => {
             return stopsFilteredSorted.value
                 .slice(pageBounded.value * pageSize,
@@ -218,10 +309,12 @@ const StopsTable = {
         });
         return {
             page,
-			pageBounded,
+            pageBounded,
             query,
+            stopsFilteredSorted,
             stopsPaged,
             sortKey,
+            perfectMatchesOnly,
             sortBy(key) {
                 if(sortKey.value == key) {
                     sortMul.value *= -1;
@@ -244,10 +337,16 @@ const StopsTable = {
         };
     },
     template: `
+        <match-summary :stops="stopsFilteredSorted">
+        </match-summary>
         <div class="search">
             <input type="text"
                    placeholder="Search query"
                    v-model="query">
+            <label>
+                <input type=checkbox v-model="perfectMatchesOnly">
+                Perfect matches only
+            </label>
         </div>
         <table>
             <thead>

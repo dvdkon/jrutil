@@ -13,7 +13,6 @@ open GeoReport.Processing
 type StopWithMatch = {
     name: string
     matches: StopMatch array
-    radius: float option
 }
 
 let globalStyle = File.ReadAllText(__SOURCE_DIRECTORY__ + "/style.css")
@@ -39,37 +38,7 @@ let processForJs stopMatches =
             name = name
             matches = matches
                       |> Array.sortBy (fun m -> matchPriority m.matchType)
-            radius = matchRadiusStr matches
         })
-
-let matchSummaryTable stopMatches =
-    let topMatch tm =
-        let tmopt = Option.map (fun m -> (Seq.head m).matchType) tm
-        match tmopt with
-        | Some (OsmByTag _) -> "OsmByTag", "OSM by tag"
-        | Some (OsmByName _) -> "OsmByName", "OSM by name"
-        | Some (ExternalById _) -> "ExternalById", "External by ID"
-        | Some (ExternalByName _) -> "ExternalByName", "External by name"
-        | None -> "None", "No match"
-
-    let topMatchTypes =
-        stopMatches
-        |> Seq.map (fun (_, ms) -> topMatches ms)
-        |> Seq.groupBy topMatch
-        |> Seq.map (fun (mt, ms) ->
-            mt, (float <| Seq.length ms) / (float <| Seq.length stopMatches))
-        |> Seq.sortBy (fun (mt, c) -> -c)
-
-    div [] [
-        h3 [] [str "Best match by type"]
-        table [_class "matches-by-type"] [
-            for ((cls, desc), count) in topMatchTypes ->
-            tr [_class <| "match-" + cls] [
-                td [] [div [] [str desc]]
-                td [] [str (sprintf "%f%%" (count*100.0))]
-            ]
-        ]
-    ]
 
 let resultPage railMatches otherMatches =
     let serializerOpts = 
@@ -99,11 +68,9 @@ let resultPage railMatches otherMatches =
             main [] [
                 div [_class "tables"] [
                     h1 [] [str "Railway stops"]
-                    matchSummaryTable railMatches
                     tag "stops-table" [attr ":stops" "railMatches"] []
 
                     h1 [] [str "Other stops"]
-                    matchSummaryTable otherMatches
                     tag "stops-table" [attr ":stops" "otherMatches"] []
 
                     footer [] [
