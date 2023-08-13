@@ -133,7 +133,8 @@ let getRailStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
                     lat = lat
                     lon = lon
                 })
-        stop.Name, Array.concat [ nameMatches; sr70Matches ])
+        sprintf "[%s] %s" stop.Sr70 stop.Name,
+        Array.concat [ nameMatches; sr70Matches ])
     |> Seq.toArray
 
 let getOtherStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
