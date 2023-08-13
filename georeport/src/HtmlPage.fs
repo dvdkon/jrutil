@@ -17,7 +17,7 @@ type StopWithMatch = {
 
 let globalStyle = File.ReadAllText(__SOURCE_DIRECTORY__ + "/style.css")
 let globalScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/script.js")
-let vueJsScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/../thirdparty/vue.global.js")
+let vueJsScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/../thirdparty/vue.global.prod.js")
 let leafletStyle = File.ReadAllText(__SOURCE_DIRECTORY__ + "/../thirdparty/leaflet.css")
 let leafletScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/../thirdparty/leaflet.js")
 
