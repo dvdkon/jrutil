@@ -16,6 +16,7 @@ open Serilog.Sinks.SystemConsole.Themes
 open Serilog.Formatting.Json
 open NodaTime
 open NodaTime.Text
+open NetTopologySuite.Geometries
 
 #nowarn "0342"
 
@@ -217,6 +218,14 @@ let setupLogging (logFile: string option) () =
             loggerFactory <- loggerFactory.WriteTo.File(lf))
     Log.Logger <- loggerFactory.CreateLogger()
 
+/// Useful for wrapping long computations for logging, e.g.
+/// `logWrappedOp "Computing Pi" (getDigitsOfPi 1000)`
+let logWrappedOp (msg: string) f =
+    Log.Information("{Operation}...", msg)
+    let v = f ()
+    Log.Information("{Operation} finished", msg)
+    v
+
 // Computed UIC checksum digit
 // Algorithm source: https://github.com/proggy/uic/
 // Works for computing sixth digit of SR70 ID
@@ -230,3 +239,27 @@ let normaliseSr70 (sr70: string) =
     if sr70.Length > 5
     then sr70.[..4]
     else sr70.PadLeft(5, '0')
+
+/// Like pairwise, but the previous element is returned as an option, so the
+/// first element is (None, head)
+let tryPairwise s =
+    Seq.concat [
+        seq { None, Seq.head s }
+        Seq.pairwise s |> Seq.map (fun (a, b) -> Some a, b)
+    ]
+
+let leftJoinOn xkey ykey xs ys =
+    let ysMap = ys |> Seq.map (fun y -> ykey y, y) |> Map
+    let st = new System.Diagnostics.StackTrace();
+    xs |> Seq.map (fun x -> x, ysMap |> Map.tryFind (xkey x))
+
+exception JoinException of string
+    with override this.Message = this.Data0
+
+let innerJoinOn xkey ykey xs ys =
+    leftJoinOn xkey ykey xs ys
+    |> Seq.map (fun (x, yo) ->
+        x, match yo with
+           | Some y -> y
+           | None -> raise (JoinException (sprintf
+                "Could not match left key %A" (xkey x))))

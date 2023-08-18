@@ -11,8 +11,9 @@ rozc., rozcestí
 odb., odbočka
 žel., železniční
 aut., autobusové
-st., stanice, stanoviště
-nádr., nádraží
+# aut.nádr. and aut.st. are sometimes used as synonyms, so
+# we combine the entries
+nádr., st., nádraží, stanice, stanoviště
 zast., zastávka
 rest., restaurace
 sídl., sídliště
@@ -27,7 +28,7 @@ hor., horní
 dol., dolní
 vel., velký, velká, velké
 
-n., nad
+n., nad, nisou
 p., pod
 l., labem
 orl., orlicí, orlických

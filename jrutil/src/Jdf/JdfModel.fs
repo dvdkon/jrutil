@@ -90,8 +90,10 @@ type Stop = {
     town: string
     district: string option
     nearbyPlace: string option // In practice used for the stop name
-    nearbyTownId: string option
-    country: string
+    // Two-letter abbreviation of Czech Republic okres + AB for Prague
+    // Custom enum for CIS JŘ based on SPZ prefixes (see data/regions.json)
+    regionId: string option
+    country: string option
     [<CsvSpread(6)>]
     attributes: int option array
 }
@@ -208,8 +210,8 @@ type TripGroup = {
 type RouteStop = {
     routeId: string
     // The stop's ID within this route
-    // I'm not sure what this is or how it's used
-    // TBD probably by analysis of existing files
+    // Sequential, signifies place within printed timetable
+    // (and therefore generally order of stop calls)
     routeStopId: int64 // TODO
     zone: string option
     stopId: int64
@@ -239,6 +241,8 @@ type TripStopTime =
 type TripStop = {
     routeId: string
     tripId: int64
+    // For odd trips, the order they visit the stops is lowest-to-highest. For
+    // even trips, it's in reverse.
     routeStopId: int64
     stopId: int64
     stopPostId: int64 option

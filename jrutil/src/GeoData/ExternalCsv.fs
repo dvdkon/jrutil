@@ -14,7 +14,7 @@ open JrUtil.SqlRecordStore
 
 type OtherStops = CsvProvider<
     HasHeaders = false,
-    Schema = "name(string), lat(float), lon(float)">
+    Schema = "name(string), lat(float), lon(float), region(string option)">
 type CzRailStops = CsvProvider<
     HasHeaders = false,
     Schema = "sr70(string), name(string), lat(float), lon(float)">

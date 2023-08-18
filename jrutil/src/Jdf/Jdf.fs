@@ -192,3 +192,9 @@ let rec findJdfBatches (path: string) =
         |> Seq.collect findJdfBatches
         |> Seq.toList
     else []
+
+let jdfStopNameString (stop: Stop) =
+    sprintf "%s,%s,%s"
+            stop.town
+            (stop.district |> Option.defaultValue "")
+            (stop.nearbyPlace |> Option.defaultValue "")
