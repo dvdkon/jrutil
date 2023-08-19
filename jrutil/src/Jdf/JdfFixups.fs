@@ -18,11 +18,16 @@ open JrUtil.GeoData.CzRegions
 open JrUtil.GeoData.EurTowns
 open JrUtil.GeoData.StopMatcher
 
+type GeodataPrecision =
+    | StopPrecise
+    | TownPrecise
+
 type JdfStopGeodata = {
     regionId: string option
     country: string option
     // The CRS is assumed to be ETRS89-Extended
     point: Point
+    precision: GeodataPrecision
 }
 type JdfStopToMatch = StopToMatch<JdfStopGeodata>
 
@@ -113,6 +118,7 @@ let topStopMatch (stop: Stop) (matches: StopMatch<JdfStopGeodata> array) =
                 point = GeometryCollection(
                             points |> Array.map (fun p -> p :> _)
                         ).Centroid
+                precision = StopPrecise
             }
         }
         else
@@ -175,6 +181,7 @@ let matchByTownName (stop: Stop) mo =
                     regionId = Some r
                     country = Some "CZ"
                     point = (xs.[0].stop.data |> snd).Centroid
+                    precision = TownPrecise
                 }
             }
         | _ -> None
@@ -190,8 +197,6 @@ let matchByTownName (stop: Stop) mo =
         | Some r, None -> czMatch ()
         | None, Some (c, lat, lon) ->
             if Option.isSome mo then mo
-            // TODO: Distinguish between approximate matches like these
-            // (just points to a whole town) and specific stop matches
             else Some {
                 name = stop.town
                 data = {
@@ -200,6 +205,7 @@ let matchByTownName (stop: Stop) mo =
                     point =
                         wgs84Factory.CreatePoint(Coordinate(lon, lat))
                         |> pointWgs84ToEtrs89Ex
+                    precision = TownPrecise
                 }
             }
         | _ -> mo
@@ -442,76 +448,6 @@ let addSecondaryMatches
             augmentedStopIds |> Set.contains s.id |> not)
     ]
 
-/// WARN: Expects tripsStops to be for one trip only and sorted by call order
-let checkMatchDistances
-        (tripStops: TripStop array)
-        (stopsWithMatches: (Stop * JdfStopToMatch option) array) =
-    let mutable lastPos = None
-    let mutable lastPosKm = None
-    Utils.innerJoinOn (fun (ts: TripStop) -> ts.stopId)
-                      (fun (s: Stop, m) -> s.id)
-                      tripStops stopsWithMatches
-    |> Seq.map (fun (tripStop, (stop, matchOpt)) ->
-        let warning =
-            match lastPos, lastPosKm, matchOpt, tripStop.kilometer with
-            | Some (lp: Point), Some lkm, Some m, Some km ->
-                let dist = lp.Distance(m.data.point) / 1000.0
-                let kmDiff = abs (km - lkm)
-                if dist > float (kmDiff + 2m)
-                then Some <| "Distance between matches is too high "
-                   + sprintf "(got %f, expected %M between %A and %A)"
-                             dist (kmDiff) lastPos m.data.point
-                else None
-            | _ -> None
-
-        match matchOpt, tripStop.kilometer with
-        | Some m, Some km ->
-            lastPos <- Some m.data.point
-            lastPosKm <- Some km
-        | _ -> ()
-
-        warning
-    )
-    |> Seq.choose id
-    |> Seq.toArray
-
-/// WARN: Expects tripsStops to be for one trip only and sorted by call order
-/// or in reverse (first stop first or last)
-let checkRegionDistances
-        (tripStops: TripStop array)
-        (stopsWithMatches: (Stop * JdfStopToMatch option) array) =
-    let mutable lastEdgeDist = None
-    let mutable lastPosKm = None
-    let mutable lastRegion = None
-    Utils.innerJoinOn (fun (ts: TripStop) -> ts.stopId)
-                      (fun (s: Stop, m) -> s.id)
-                      tripStops stopsWithMatches
-    |> Seq.map (fun (tripStop, (stop, matchOpt)) ->
-        let warning =
-            match matchOpt, lastEdgeDist, lastPosKm, lastRegion,
-                  stop.regionId, tripStop.kilometer with
-            | None, Some ekm, Some lpkm, Some lr, Some r, Some km ->
-                let dist = abs (km - lpkm)
-                if lr = r && float (dist - 2m) > ekm
-                then Some <| sprintf "Distance %M between last match \
-                                      and stop %d is too high \
-                                      (could cross region boundary %f away)"
-                                     dist stop.id ekm
-                else None
-            | _ -> None
-
-        match matchOpt, tripStop.kilometer, stop.regionId with
-        | Some m, Some km, Some r ->
-            lastEdgeDist <- Some (distanceToCzRegionEdge m.data.point r / 1000.0)
-            lastPosKm <- Some km
-            lastRegion <- Some r
-        | _ -> ()
-
-        warning
-    )
-    |> Seq.choose id
-    |> Seq.toArray
-
 /// Some JDF batches in the public CIS JŘ data don't use the full triple for
 /// naming stops, but put everything in the town column. This is often used for
 /// intra-town lines, and the stop names don't contain the town name directly.
@@ -662,3 +598,46 @@ let fixPublicCisJrBatch (stopMatcher: StopMatcher<JdfStopGeodata>)
 
     { jdfBatch with stops = augmentedStops |> Array.map fst },
     augmentedStops |> Array.map snd
+
+/// WARN: Expects tripsStops to be for one trip only and sorted by call order
+let checkMatchDistances
+        (tripStops: TripStop array)
+        (stopsWithMatches: (Stop * JdfStopToMatch option) array) =
+    let preciseTolerance = 2m
+    let impreciseTolerance = 20m
+
+    let mutable lastPos = None
+    let mutable lastPosKm = None
+    let mutable lastPrecision = None
+    Utils.innerJoinOn (fun (ts: TripStop) -> ts.stopId)
+                      (fun (s: Stop, m) -> s.id)
+                      tripStops stopsWithMatches
+    |> Seq.map (fun (tripStop, (stop, matchOpt)) ->
+        let warning =
+            match lastPos, lastPosKm, matchOpt, tripStop.kilometer with
+            | Some (lp: Point), Some lkm, Some m, Some km ->
+                let dist = lp.Distance(m.data.point) / 1000.0
+                let kmDiff = abs (km - lkm)
+                let tolerance =
+                    if lastPrecision = Some StopPrecise
+                       && m.data.precision = StopPrecise
+                    then preciseTolerance
+                    else impreciseTolerance
+                if dist > float (kmDiff + tolerance)
+                then Some <| "Distance between matches is too high "
+                   + sprintf "(got %f, expected %M between %A and %A)"
+                             dist (kmDiff) lastPos m.data.point
+                else None
+            | _ -> None
+
+        match matchOpt, tripStop.kilometer with
+        | Some m, Some km ->
+            lastPos <- Some m.data.point
+            lastPosKm <- Some km
+            lastPrecision <- Some m.data.precision
+        | _ -> ()
+
+        warning
+    )
+    |> Seq.choose id
+    |> Seq.toArray
