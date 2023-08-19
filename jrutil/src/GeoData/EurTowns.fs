@@ -9,22 +9,25 @@
 ///     import csv, sys, gzip
 ///     csv.field_size_limit(sys.maxsize)
 ///     filtered = []
-///     for r in csv.reader(gzip.open("planet-latest_geonames.tsv.gz", "tr"), dialect="excel-tab"):
+///     for r in csv.reader(gzip.open("planet-latest_geonames.tsv.gz", "tr"),
+///                         dialect="excel-tab"):
 ///         if r[5] in ["administrative", "city", "town", "village", "hamlet"] \
-///             and r[15] in ["at", "be", "bg", "hr", "cy", "dk", "ee", 
+///             and r[15] in ["at", "be", "bg", "hr", "cy", "dk", "ee",
 ///                           "fi", "fr", "de", "gr", "hu", "ie", "it", "lv",
 ///                           "lt", "lu", "mt", "nl", "pl", "pt", "ro", "sk",
 ///                           "si", "es", "se", "gb", "ua", "ch", "no", "li",
 ///                           "ba", "me", "md", "mk", "al", "rs", "tr"]:
-///             filtered.append((r[0], r[1], r[8], r[15]))
-///     filtered.sort(key=lambda r: r[2])
+///             filtered.append((r[0], int(r[8]), r[15], r[7], r[6]))
+///             for n in r[1].split(","):
+///                 filtered.append((n, int(r[8]) + 10, r[15], r[7], r[6]))
+///     filtered.sort(key=lambda r: r[1])
 ///     map_uniq = {}
 ///     for r in filtered:
-///         for n in [r[0]] + r[1].split(","):
-///             n = n.strip()
-///             if n in map_uniq: continue
-///             map_uniq[n] = r[3]
-///     csv.writer(open("eur_towns_countries.csv", "w")).writerows(map_uniq.items())
+///         n = r[0].strip()
+///         if n in map_uniq: continue
+///         map_uniq[n] = (r[2], r[3], r[4])
+///     csv.writer(open("eur_towns_countries.csv", "w")) \
+///         .writerows((k, *v) for k, v in map_uniq.items())
 module JrUtil.GeoData.EurTowns
 
 open System.IO
@@ -37,7 +40,7 @@ let eurTownsCountriesFile = __SOURCE_DIRECTORY__ + "/../../data/eur_towns_countr
 
 type EurTownCountry = CsvProvider<
     HasHeaders = false,
-    Schema = "name(string), countryCode(string)">
+    Schema = "name(string), countryCode(string), lat(float), lon(float)">
 
 let eurTownCountries =
     memoizeVoidFunc <| fun () ->

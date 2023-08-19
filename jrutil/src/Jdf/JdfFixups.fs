@@ -41,6 +41,7 @@ let moveRegionFromName =
         then {
             stop with
                 town = m.Groups.[1].Value
+                country = Some "CZ"
                 regionId = Some m.Groups.[2].Value
         }
         else stop
@@ -120,13 +121,12 @@ let topStopMatch (stop: Stop) (matches: StopMatch<JdfStopGeodata> array) =
                       jdfStopNameString stop, radius)
             None
 
-let addStopRegionsFromMatch =
-    Seq.map (fun (stop: Stop, match_) ->
-        match stop.regionId, match_ with
-        | None, Some m ->
-            { stop with regionId = m.data.regionId;
-                        country = m.data.country }, match_
-        | _ -> stop, match_)
+let addRegionFromMatch (stop: Stop) match_ =
+    match stop.regionId, match_ with
+    | None, Some m ->
+        { stop with regionId = m.data.regionId;
+                    country = m.data.country }
+    | _ -> stop
 
 let czTownNameMatcher =
     Utils.memoizeVoidFunc
@@ -135,44 +135,75 @@ let czTownNameMatcher =
             // Sure, it's a *Stop* matcher, but it works for parts of a stop's
             // name too
             new StopMatcher<_>(
-                townsWithRegions().Rows
-                |> Seq.map (fun r ->
-                    { name = r.Name; data = r.RegionId })
+                czechTownsPolygons ()
+                |> Seq.map (fun (n, r, p) ->
+                    { name = n
+                      data = r, p
+                    })
                 |> Seq.toArray)
-
-let addStopRegionsFromCzTownName ss =
-    ss |> Seq.map (fun (stop: Stop, m) ->
-        match stop.regionId, stop.country with
-        | None, None | None, Some "CZ" ->
-            let rs = czTownNameMatcher().matchStop(stop.town)
-                     |> Array.filter (fun m -> m.score = 1f)
-                     |> Array.map (fun m -> m.stop.data)
-                     |> set
-                     |> Set.toArray
-            match rs with
-            | [| r |] ->
-                { stop with regionId = Some r; country = Some "CZ" }, m
-            | _ -> stop, m
-        | _ -> stop, m)
 
 let eurTownNameMatcher =
     Utils.memoizeVoidFunc <| fun () ->
         Utils.logWrappedOp "Creating European town name matcher" <| fun () ->
             new StopMatcher<_>(
                 eurTownCountries ()
-                |> Seq.map (fun r -> { name = r.Name;
-                                       data = r.CountryCode.ToUpper() })
+                |> Seq.map (fun r ->
+                    { name = r.Name
+                      data = r.CountryCode.ToUpper(), r.Lat, r.Lon })
                 |> Seq.toArray)
 
-let addStopCountriesFromEurTownName ss =
-    ss |> Seq.map (fun (stop: Stop, m) ->
-        match stop.country with
-        | Some _ -> stop, m
-        | None ->
-            let c = eurTownNameMatcher().matchStop(stop.town)
-                    |> Array.tryFind (fun m -> m.score = 1f)
-                    |> Option.map (fun m -> m.stop.data)
-            { stop with country = c }, m)
+let matchConflictsWithEurCity (m: StopToMatch<JdfStopGeodata>) =
+    // Some Czech towns share names with ones with other countries. Since we
+    // only have coordinates for Czech stops (for now), we need to check if we
+    // aren't possibly matching a foreign town to a Czech stop.
+    // Correct matches that seemingly conflict can be added in secondary
+    // matching, where distance is considered.
+    let town = m.name.Split(",").[0]
+    eurTownNameMatcher().matchStop(town)
+    |> Seq.exists (fun tm -> tm.score = 1f)
+
+let matchByTownName (stop: Stop) mo =
+    let czMatch () =
+        let rs = czTownNameMatcher().matchStop(stop.town)
+                 |> Array.filter (fun m -> m.score = 1f)
+                 |> Array.groupBy (fun m -> m.stop.name, m.stop.data |> fst)
+        match rs with
+        | [| (n, r), xs |] ->
+            Some {
+                name = n
+                data = {
+                    regionId = Some r
+                    country = Some "CZ"
+                    point = (xs.[0].stop.data |> snd).Centroid
+                }
+            }
+        | _ -> None
+
+    match stop.country, stop.regionId with
+    | Some "CZ", None -> czMatch ()
+    | None, None ->
+        let eurTown =
+            eurTownNameMatcher().matchStop(stop.town)
+            |> Array.tryFind (fun m -> m.score = 1f)
+            |> Option.map (fun m -> m.stop.data)
+        match czMatch (), eurTown with
+        | Some r, None -> czMatch ()
+        | None, Some (c, lat, lon) ->
+            if Option.isSome mo then mo
+            // TODO: Distinguish between approximate matches like these
+            // (just points to a whole town) and specific stop matches
+            else Some {
+                name = stop.town
+                data = {
+                    regionId = None
+                    country = Some c
+                    point =
+                        wgs84Factory.CreatePoint(Coordinate(lon, lat))
+                        |> pointWgs84ToEtrs89Ex
+                }
+            }
+        | _ -> mo
+    | _ -> mo
 
 let distanceToCzRegionEdge (stop1Pos: Point) stop2RegionId =
     let region = (czechRegionPolygons ()).[stop2RegionId]
@@ -235,7 +266,7 @@ let fillStopRegionsFromPrevious
                           | Some (lc, lr, lkm, _, led), Some km
                             when Some lc = newStop.country
                               && Some lr = newStop.regionId ->
-                              float (km - lkm) > led
+                              float (abs (km - lkm)) > led
                           | _ -> true)
                 // If we changed the region but our change is uncertain,
                 // revert it
@@ -254,18 +285,21 @@ let fillStopRegionsFromPrevious
                     let regions =
                         czTownNameMatcher().matchStop(s.town)
                         |> Array.filter (fun m -> m.score = 1f)
-                        |> Array.map (fun m -> m.stop.data)
-                        |> Array.filter (fun r ->
-                            let poly = czechRegionPolygons().[r]
+                        |> Array.filter (fun m ->
+                            let region, poly = m.stop.data
                             Seq.zip tss lastPosKmPerTrip
                             |> Seq.exists (fun (tso, lpo) ->
                                 let kmOpt =
                                     tso |> Option.bind (fun ts -> ts.kilometer)
                                 match lpo, kmOpt with
                                 | Some (_, _, lkm, lp, _), Some km ->
+                                    Log.Debug("D1 {Town} {Reg} {KmOpt} {Dist}", s.town, region, kmOpt, poly.Distance(lp) / 1000.0)
                                     poly.Distance(lp) / 1000.0
-                                     < float (km - lkm + 1m)
+                                     < float (abs (km - lkm) + 1m)
                                 | _ -> false))
+                        |> Array.map (fun m -> m.stop.data |> fst)
+                        |> set
+                        |> Set.toArray
                     match regions with
                     | [| r |] ->
                         Log.Debug("Picked region by distance \
@@ -344,27 +378,6 @@ let groupedTripsMatrices (routeStops: RouteStop array)
 
     tripsByRem 1L, tripsByRem 0L
 
-// routeStops and tripStops must be for one route only
-let addRegions trips
-               (stopsWithMatches: (Stop * JdfStopToMatch option) array) =
-    let augmented =
-        stopsWithMatches
-        |> addStopRegionsFromMatch
-        |> addStopRegionsFromCzTownName
-        |> addStopCountriesFromEurTownName
-        |> Seq.toArray
-    // Check if there is still a stop which needs a region assigned
-    if augmented
-       |> Array.exists (fun (s, _) ->
-           s.regionId.IsNone
-           && [|Some "CZ"; None|] |> Array.contains s.country) then
-        let forwardTrips, backwardTrips = trips
-
-        augmented
-        |> fillStopRegionsFromPrevious forwardTrips
-        |> fillStopRegionsFromPrevious backwardTrips
-    else augmented
-
 /// Will add matches and regions disambiguated by previous matches' positions
 /// and km data from tripStops
 let addSecondaryMatches
@@ -399,7 +412,7 @@ let addSecondaryMatches
                         lastPosKmPerTrip.[i] <- Some (m.data.point, km)
                         Some m
                     | None, Some km, Some (lp, lkm) ->
-                        let kmDiff = km - lkm
+                        let kmDiff = abs (km - lkm)
                         ams
                         |> Seq.filter (fun m ->
                             m.stop.data.point.Distance(lp) / 1000.0
@@ -443,10 +456,11 @@ let checkMatchDistances
             match lastPos, lastPosKm, matchOpt, tripStop.kilometer with
             | Some (lp: Point), Some lkm, Some m, Some km ->
                 let dist = lp.Distance(m.data.point) / 1000.0
-                if dist > float (km - lkm + 2m)
+                let kmDiff = abs (km - lkm)
+                if dist > float (kmDiff + 2m)
                 then Some <| "Distance between matches is too high "
                    + sprintf "(got %f, expected %M between %A and %A)"
-                             dist (km - lkm ) lastPos m.data.point
+                             dist (kmDiff) lastPos m.data.point
                 else None
             | _ -> None
 
@@ -621,16 +635,30 @@ let fixPublicCisJrBatch (stopMatcher: StopMatcher<JdfStopGeodata>)
     let stopsWithAllMatches =
         stops
         |> Array.map (fun s -> s, matchStopByName stopMatcher s)
-    let stopsWithTopMatches =
+
+    let ifUnfinished f swm =
+        if swm |> Seq.exists (fun (s: Stop, _) ->
+            s.country.IsNone || (s.country = Some "CZ" && s.regionId.IsNone))
+        then f swm
+        else swm
+
+    let augmentedStops =
         stopsWithAllMatches
-        |> Array.map (fun (s, ms) -> s, topStopMatch s ms, ms)
+        |> Array.map (fun (s, ms) ->
+            let tm = topStopMatch s ms
+            if tm |> Option.map matchConflictsWithEurCity = Some true
+            then s, None, ms
+            else s, tm, ms)
+        |> Array.map (fun (s, mo, ams) ->
+            s, matchByTownName s mo, ams)
         |> addSecondaryMatches tripsMatrix1
         |> addSecondaryMatches tripsMatrix2
-        |> Array.map (fun (s, mo, _) -> s, mo)
-
-    let stopsWithRegions =
-        addRegions (tripsMatrix1, tripsMatrix2) stopsWithTopMatches
+        |> Array.map (fun (s, mo, ams) -> addRegionFromMatch s mo, mo)
+        |> ifUnfinished (fillStopRegionsFromPrevious tripsMatrix1)
+        |> ifUnfinished (fillStopRegionsFromPrevious (Array.rev tripsMatrix1))
+        |> ifUnfinished (fillStopRegionsFromPrevious tripsMatrix2)
+        |> ifUnfinished (fillStopRegionsFromPrevious (Array.rev tripsMatrix2))
         |> Seq.toArray
 
-    { jdfBatch with stops = stopsWithRegions |> Array.map fst },
-    stopsWithRegions |> Array.map snd
+    { jdfBatch with stops = augmentedStops |> Array.map fst },
+    augmentedStops |> Array.map snd
