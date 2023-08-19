@@ -40,6 +40,9 @@ cidl., cidlinou
 bez., bezdězem
 jev., jevišovkou
 mor., moravě, moravou
+des., desnou
+bystř., bystřicí
+sáz., sázavou
 h., horách
 zdrav., zdravotnická
 heřm., heřmanice

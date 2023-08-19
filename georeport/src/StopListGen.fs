@@ -19,8 +19,9 @@ let jdfStopNames czSkOnly jdfDir =
             let stops: JdfModel.Stop array = stopsParser batchPath
             stops
             |> Array.filter (fun s ->
-                not czSkOnly || List.contains s.country ["CZ"; "SK"; ""])
-            |> Array.map JdfFixups.moveNearbyTownFromName
+                not czSkOnly
+                || List.contains s.country [Some "CZ"; Some "SK"; None])
+            |> Array.map JdfFixups.moveRegionFromName
             |> Array.map JdfFixups.normaliseStopName
             |> Array.map (fun s ->
                 sprintf "%s,%s,%s"

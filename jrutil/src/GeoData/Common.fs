@@ -9,9 +9,6 @@ open ProjNet.IO.CoordinateSystems
 open ProjNet.CoordinateSystems
 open ProjNet.CoordinateSystems.Transformations
 
-let wgs84Factory = GeometryFactory(PrecisionModel(), 4326)
-let webMercatorFactory = GeometryFactory(PrecisionModel(), 4326)
-
 // Common coordinate systems
 let wgs84 = (CoordinateSystemWktReader.Parse(
     """GEOGCS["GCS_WGS_1984",
@@ -70,6 +67,10 @@ let etrs89Ex = (CoordinateSystemWktReader.Parse(
 let wgs84Srid = 4326
 let webMercatorSrid = 3857
 let etrs89ExSrid = 3035
+
+let wgs84Factory = GeometryFactory(PrecisionModel(), wgs84Srid)
+let webMercatorFactory = GeometryFactory(PrecisionModel(), webMercatorSrid)
+let etrs89ExFactory = GeometryFactory(PrecisionModel(), etrs89ExSrid)
 
 let coordTransformFactory = CoordinateTransformationFactory()
 let wgs84ToWebMercator = coordTransformFactory.CreateFromCoordinateSystems(

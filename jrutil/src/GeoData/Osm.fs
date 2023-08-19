@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.GeoData.Osm
 
@@ -9,9 +9,14 @@ open System.Text
 open System.Threading
 open System.Security.Cryptography
 
+open Serilog
 open FSharp.Data
+open NetTopologySuite.Geometries
 
 open JrUtil.SqlRecordStore
+open JrUtil.GeoData.CzRegions
+open JrUtil.GeoData.Common
+open JrUtil.GeoData.StopMatcher
 open JrUtil.Utils
 
 let czechRepBBox = [| 48.195; 12.000; 51.385; 18.951 |]
@@ -77,10 +82,28 @@ let czRailStopName (stop: CzRailStops.Element) =
     |> Option.orElse stop.Tags.NameCs
     |> Option.defaultValue "" // TODO: Log stops without name
 
-let czOtherStopName (stop: OtherStops.Element) =
-    stop.Tags.OfficialName
-    |> Option.orElse stop.Tags.Name
-    |> Option.defaultValue ""
+let czOtherStopNameRegion =
+    // Used for synonym matching
+    let matcher = new StopMatcher<_>([||])
+    fun (stop: OtherStops.Element) ->
+        // Stops within cities often omit the city's name on the pole, so we
+        // have to add it back in. We assume official_name to be the full name.
+        let point =
+            wgs84Factory.CreatePoint(
+                Coordinate(float stop.Lon, float stop.Lat))
+            |> pointWgs84ToEtrs89Ex
+        match stop.Tags.OfficialName,
+              stop.Tags.Name,
+              czechTownByPoint () point with
+        | None, None, _ -> "", None
+        | Some n, _, None -> n, None
+        | Some n, _, Some (_, r, _) -> n, Some r
+        | None, Some n, None -> n, None
+        | None, Some n, Some (tn, r, _) ->
+            if matcher.nameSimilarity(
+                stopNameToTokens n, stopNameToTokens tn) = 1f
+            then n, Some r
+            else tn + "," + n, Some r
 
 let getCzOtherStops overpassUrl cacheDir =
     let subdivisions = 4;
@@ -100,10 +123,10 @@ let getCzOtherStops overpassUrl cacheDir =
                 ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
                 (
                     node(area.cz)[highway=bus_stop];
-                    node(area.cz)[public_transport=platform][!train];
+                    node(area.cz)[public_transport=platform][!train][!railway];
                     node(area.cz)[public_transport=pole];
                     node(area.cz)[railway=tram_stop];
-                    node(area.cz)[public_transport=station][!train];
+                    node(area.cz)[public_transport=station][!train][!railway];
                     node(area.cz)[amenity=bus_station];
                 );
                 out;
