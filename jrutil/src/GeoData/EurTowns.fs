@@ -6,7 +6,7 @@
 /// This data is licenced under the ODbL, see https://www.openstreetmap.org/copyright
 ///
 /// Created by the following Python script:
-///     import csv, sys, gzip
+///     import csv, sys, gzip, math
 ///     csv.field_size_limit(sys.maxsize)
 ///     filtered = []
 ///     for r in csv.reader(gzip.open("planet-latest_geonames.tsv.gz", "tr"),
@@ -17,15 +17,19 @@
 ///                           "lt", "lu", "mt", "nl", "pl", "pt", "ro", "sk",
 ///                           "si", "es", "se", "gb", "ua", "ch", "no", "li",
 ///                           "ba", "me", "md", "mk", "al", "rs", "tr"]:
-///             filtered.append((r[0], int(r[8]), r[15], r[7], r[6]))
+///             filtered.append((r[0], int(r[8]), r[15], float(r[7]), float(r[6])))
 ///             for n in r[1].split(","):
-///                 filtered.append((n, int(r[8]) + 10, r[15], r[7], r[6]))
+///                 filtered.append((n, int(r[8]) + 10, r[15], float(r[7]), float(r[6])))
 ///     filtered.sort(key=lambda r: r[1])
 ///     map_uniq = {}
 ///     for r in filtered:
 ///         n = r[0].strip()
-///         if n in map_uniq: continue
-///         map_uniq[n] = (r[2], r[3], r[4])
+///         if n in map_uniq:
+///             c, lat, lon = map_uniq[n]
+///             if lat is not None and math.sqrt((lat - r[3])**2 + (lon - r[4])**2) > 0.1:
+///                 map_uniq[n] = (c, None, None)
+///         else:
+///             map_uniq[n] = (r[2], r[3], r[4])
 ///     csv.writer(open("eur_towns_countries.csv", "w")) \
 ///         .writerows((k, *v) for k, v in map_uniq.items())
 module JrUtil.GeoData.EurTowns
@@ -40,7 +44,7 @@ let eurTownsCountriesFile = __SOURCE_DIRECTORY__ + "/../../data/eur_towns_countr
 
 type EurTownCountry = CsvProvider<
     HasHeaders = false,
-    Schema = "name(string), countryCode(string), lat(float), lon(float)">
+    Schema = "name(string), countryCode(string), lat(float option), lon(float option)">
 
 let eurTownCountries =
     memoizeVoidFunc <| fun () ->

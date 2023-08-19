@@ -187,29 +187,33 @@ let matchByTownName (stop: Stop) mo =
         | _ -> None
 
     match stop.country, stop.regionId with
-    | Some "CZ", None -> czMatch ()
+    | Some "CZ", None -> stop, czMatch ()
     | None, None ->
         let eurTown =
             eurTownNameMatcher().matchStop(stop.town)
             |> Array.tryFind (fun m -> m.score = 1f)
             |> Option.map (fun m -> m.stop.data)
         match czMatch (), eurTown with
-        | Some r, None -> czMatch ()
-        | None, Some (c, lat, lon) ->
-            if Option.isSome mo then mo
-            else Some {
-                name = stop.town
-                data = {
-                    regionId = None
-                    country = Some c
-                    point =
-                        wgs84Factory.CreatePoint(Coordinate(lon, lat))
-                        |> pointWgs84ToEtrs89Ex
-                    precision = TownPrecise
+        | Some r, None -> stop, czMatch ()
+        | None, Some (c, lato, lono) ->
+            match mo, lato, lono with
+            | Some _, _, _ -> stop, mo
+            | None, Some lat, Some lon ->
+                { stop with country = Some c },
+                Some {
+                    name = stop.town
+                    data = {
+                        regionId = None
+                        country = Some c
+                        point =
+                            wgs84Factory.CreatePoint(Coordinate(lon, lat))
+                            |> pointWgs84ToEtrs89Ex
+                        precision = TownPrecise
+                    }
                 }
-            }
-        | _ -> mo
-    | _ -> mo
+            | _ -> stop, None
+        | _ -> stop, mo
+    | _ -> stop, mo
 
 let distanceToCzRegionEdge (stop1Pos: Point) stop2RegionId =
     let region = (czechRegionPolygons ()).[stop2RegionId]
@@ -586,7 +590,8 @@ let fixPublicCisJrBatch (stopMatcher: StopMatcher<JdfStopGeodata>)
             then s, None, ms
             else s, tm, ms)
         |> Array.map (fun (s, mo, ams) ->
-            s, matchByTownName s mo, ams)
+            let s2, mo2 = matchByTownName s mo
+            s2, mo2, ams)
         |> addSecondaryMatches tripsMatrix1
         |> addSecondaryMatches tripsMatrix2
         |> Array.map (fun (s, mo, ams) -> addRegionFromMatch s mo, mo)
