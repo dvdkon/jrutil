@@ -13,7 +13,6 @@ open Serilog
 open FSharp.Data
 open NetTopologySuite.Geometries
 
-open JrUtil.SqlRecordStore
 open JrUtil.GeoData.CzRegions
 open JrUtil.GeoData.Common
 open JrUtil.GeoData.StopMatcher

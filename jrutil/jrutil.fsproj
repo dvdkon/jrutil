@@ -38,9 +38,6 @@
     <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/GeoData/Osm.fs" />
     <Compile Include="src/GeoData/ExternalCsv.fs" />
-    <Compile Include="src/GeoData/SqlCzptt.fs" />
-    <Compile Include="src/GeoData/SqlOther.fs" />
-    <Compile Include="src/Gtfs/GtfsMerge.fs" />
     <Compile Include="src/RealTime/RealTimeModel.fs" />
     <Compile Include="src/RealTime/RealTimeSql.fs" />
     <Compile Include="src/UndatedTimes.fs" />
@@ -64,7 +61,6 @@
     <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
-    <PackageReference Include="Destructurama.FSharp" Version="1.2.0" />
     <PackageReference Include="NodaTime" Version="3.0.0" />
   </ItemGroup>
 

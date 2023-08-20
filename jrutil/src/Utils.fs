@@ -202,7 +202,6 @@ let setupLogging (logFile: string option) () =
         LoggerConfiguration()
          .MinimumLevel.Debug()
          .Enrich.FromLogContext()
-         .Destructure.FSharpTypes()
          .WriteTo.Console(
              standardErrorFromLevel = LogEventLevel.Verbose,
              applyThemeToRedirectedOutput = true,
