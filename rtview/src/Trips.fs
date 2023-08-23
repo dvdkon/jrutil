@@ -3,6 +3,7 @@
 
 namespace RtView
 
+open System
 open System.IO
 open System.Text.Json
 open System.Collections.Generic
@@ -421,7 +422,8 @@ SELECT
         for x in 0..bitmap.GetLength(0) - 1 do
             for y in 0..bitmap.GetLength(1) - 1 do
                 let yInv = bitmap.GetLength(1) - y - 1
-                let alpha = (256 * bitmap.[x, yInv].Count) / maxCount
+                let relCount = float bitmap.[x, yInv].Count / float maxCount
+                let alpha = int <| 256.0 * Math.Sin(relCount * Math.PI / 2.0)
                 png.SetPixel(
                     Pixel(color.R, color.G, color.B, byte alpha, false), x, y)
                 |> ignore
