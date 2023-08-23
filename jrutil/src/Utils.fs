@@ -157,8 +157,8 @@ let optArgValue (args: IDictionary<string, ArgValue>) name =
     match args.TryGetValue(name) with
     | true, a ->
         let s, v = a.TryAsString()
-        assert s
-        Some v
+        if s then Some v
+        else None
     | false, _ -> None
 
 let argValues (args: IDictionary<string, ArgValue>) name =
