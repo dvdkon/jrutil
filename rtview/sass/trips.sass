@@ -2,6 +2,17 @@
     h1
         margin-bottom: 10px
 
+    .controls
+        display: grid
+        grid-template-columns: auto
+        gap: 10px
+
+        .show-table
+            input
+                margin-left: 0
+            *
+                vertical-align: middle
+
     .ssg-trips
         margin-bottom: 10px
 
@@ -15,3 +26,7 @@
     table
         td:nth-child(1)
             min-width: 200px // Fit stop names on one line
+
+    .delay-heatmap
+        width: 100%
+        image-rendering: pixelated

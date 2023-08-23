@@ -2,7 +2,6 @@
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
-    <WebSharperSourceMap>True</WebSharperSourceMap>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,24 +10,8 @@
     <Compile Include="src/Routes.fs" />
     <Compile Include="src/Trips.fs" />
     <Compile Include="src/Trip.fs" />
-    <Compile Include="src/Main.fs" />
+    <Compile Include="src/PublicApi.fs" />
     <Compile Include="Startup.fs" />
-    <None Include="wsconfig.json" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="WebSharper" Version="5.0.0.119" />
-    <PackageReference Include="WebSharper.FSharp" Version="5.0.0.119" />
-    <PackageReference Include="WebSharper.UI" Version="5.0.0.119" />
-    <PackageReference Include="WebSharper.AspNetCore" Version="5.0.0.119" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- This can't be a ProjectReference, since then the editor would base
-    its autocomplete on the source, not the generated DLL -->
-    <Reference Include="WebSharper.ECharts">
-      <HintPath>../thirdparty/WebSharper.ECharts/bin/Release/netstandard2.0/WebSharper.ECharts.dll</HintPath>
-    </Reference>
   </ItemGroup>
 
   <ItemGroup>
@@ -38,8 +21,18 @@
   <ItemGroup>
     <Watch Include="sass/*.sass" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BigGustave" Version="1.0.6" />
+    <PackageReference Include="Giraffe.ViewEngine" Version="1.4.0" />
+  </ItemGroup>
+
   <Target Name="CompileSass" BeforeTargets="BeforeBuild">
-    <Exec Command="sassc --sass sass/main.sass wwwroot/Content/rtview.sass.css" />
+    <Exec Command="sassc --sass sass/main.sass wwwroot/rtview.css" />
+  </Target>
+
+  <Target Name="DownloadJsLibraries" BeforeTargets="Build">
+    <DownloadFile SourceUrl="https://unpkg.com/chart.js@4.3.3/dist/chart.umd.js" DestinationFolder="$(MSBuildProjectDirectory)/wwwroot" />
   </Target>
 
 </Project>

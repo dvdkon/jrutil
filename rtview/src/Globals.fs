@@ -1,17 +1,16 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2020 David Koňařík
+// (c) 2023 David Koňařík
 
 namespace RtView
 
 open System.Threading
-open WebSharper
 open Npgsql
 
 open JrUtil.SqlRecordStore
 
 module ServerGlobals =
-    let mutable dbConnStr = Unchecked.defaultof<string>
-    let getDbConn () = getPostgresqlConnection dbConnStr
+    let mutable dbConnStr = None
+    let getDbConn () = getPostgresqlConnection (Option.get dbConnStr)
 
     let mutable routeSummariesRefreshTimer = Unchecked.defaultof<Timer>
 
@@ -101,48 +100,6 @@ module ServerGlobals =
         ), null, 10*60*1000, 10*60*1000)
 
     let init dbConnStr_ =
-        dbConnStr <- dbConnStr_
+        dbConnStr <- Some dbConnStr_
         use c = getDbConn ()
         createSqlViews c
-
-[<JavaScript>]
-module ClientGlobals =
-    open WebSharper.UI
-
-    type Locations =
-        | [<EndPoint "/">] Homepage
-        | [<Query("fromDate", "toDate", "search")>]
-          Routes of fromDate: string option
-                  * toDate: string option
-                  * search: string option
-        | [<Query("fromDate", "toDate")>]
-          Trips of tripId: string
-                 * fromDate: string option
-                 * toDate: string option
-        | Trip of tripId: string * date: string
-
-    let mutable router = Unchecked.defaultof<Sitelets.Router<Locations>>
-    let mutable location = Unchecked.defaultof<Var<Locations>>
-    let setLocation newLoc =
-        if location.Value <> newLoc then location.Value <- newLoc
-
-    type LoadingTask = {
-        id: int
-        description: string
-    }
-
-    let loadingTasks: Var<LoadingTask list> = Var.Create([])
-    let private random = System.Random()
-    let asyncWithLoading description innerAsync =
-        let id = random.Next()
-        loadingTasks.Value <- {
-                id = id
-                description = description
-            } :: loadingTasks.Value
-        async {
-            let! _ = innerAsync
-            loadingTasks.Value <-
-                loadingTasks.Value
-                |> List.filter (fun lt -> lt.id <> id)
-        } |> Async.Start
-        innerAsync
