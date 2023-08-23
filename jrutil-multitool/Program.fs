@@ -2,7 +2,6 @@
 // (c) 2023 David Koňařík
 
 open System.IO
-open Docopt
 open FSharp.Data
 
 open JrUtil
