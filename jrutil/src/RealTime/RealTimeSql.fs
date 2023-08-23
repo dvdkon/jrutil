@@ -206,11 +206,20 @@ let insertStops conn (stops: Stop seq) =
                     WHERE id = id_ AND validDateRange = existing_.validDateRange;
 
                     INSERT INTO stops (id, validDateRange, name, lat, lon)
-                    VALUES (id_, newRange_, name_, lat_, lon_);
+                    VALUES (id_, newRange_, name_, lat_, lon_)
+                    ON CONFLICT (id, validDateRange) DO UPDATE SET
+                        name = name_,
+                        lat = lat_,
+                        lon = lon_;
                 END IF;
             ELSE
                 INSERT INTO stops (id, validDateRange, name, lat, lon)
-                VALUES (id_, newRange_, name_, lat_, lon_);
+                VALUES (id_, newRange_, name_, lat_, lon_)
+                ON CONFLICT (id, validDateRange) DO UPDATE SET
+                    name = name_,
+                    lat = lat_,
+                    lon = lon_;
+
             END IF;
         END;
         $$""" []
