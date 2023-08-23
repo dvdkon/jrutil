@@ -325,7 +325,7 @@ SELECT
             |> Seq.exactlyOne
         let stops = JsonSerializer.Deserialize<TripDelayStop array>
                         (out.["stops"] :?> string)
-        let delays = JsonSerializer.Deserialize<float array array>
+        let delays = JsonSerializer.Deserialize<float option array array>
                         (out.["delays"] :?> string)
         stops, delays
 
@@ -366,13 +366,13 @@ SELECT
         ]
 
     let generateHeatmap (stops: TripDelayStop array)
-                        (delays: float array array) =
+                        (delays: float option array array) =
         let xRes = 120.0
         let yRes = 60.0
         let color = Pixel(0uy, 0uy, 255uy)
 
         let xs = stops |> Array.map (fun t -> t.x)
-        let ys = delays |> Array.collect id
+        let ys = delays |> Array.collect id |> Array.choose id
         let xMin = (xs |> Array.min |> floor) / xRes |> int
         let xMax = (xs |> Array.max |> ceil) / xRes |> int
         let yMin = (ys |> Array.min |> floor) / yRes |> int
@@ -386,18 +386,28 @@ SELECT
 
         for tripIdx, trip in delays |> Seq.indexed do
             let addStop stopIdx delay () =
-                mark tripIdx (stops.[stopIdx].x / xRes |> int) (delay / yRes |> int) ()
+                mark tripIdx
+                     (stops.[stopIdx].x / xRes |> int)
+                     (delay / yRes |> int) ()
             let addLineBetweenStops stopIdx1 delay1 stopIdx2 delay2 () =
                 let x1 = stops.[stopIdx1].x
                 let x2 = stops.[stopIdx2].x
                 let slope = (delay2 - delay1) / (x2 - x1)
                 for x in seq {0. .. ((x2 - x1) / xRes)} do
-                    let y = (((slope * x * xRes) / yRes + delay1) / yRes) |> int
-                    mark tripIdx ((x + x1/xRes) |> int) y ()
+                    let y = ((slope * x * xRes) / yRes + delay1) / yRes |> int
+                    mark tripIdx (x + x1/xRes |> int) y ()
 
-            for ((prevStop, prevDelay), (stop, delay)) in trip |> Seq.indexed |> Seq.pairwise do
+            let tripSomes =
+                trip
+                |> Seq.indexed
+                |> Seq.choose (fun (s, dopt) ->
+                    dopt |> Option.map (fun d -> s, d))
+                |> Seq.cache
+            for ((prevStop, prevDelay), (stop, delay))
+                    in tripSomes |> Seq.pairwise do
                 addLineBetweenStops prevStop prevDelay stop delay ()
-            addStop (trip.Length - 1) trip.[trip.Length - 1] ()
+            let lastStop, lastDelay = tripSomes |> Seq.last
+            addStop lastStop lastDelay ()
 
         let maxCount =
             seq {
@@ -406,7 +416,8 @@ SELECT
                         yield bitmap.[x, y].Count
             } |> Seq.max
 
-        let png = PngBuilder.Create(bitmap.GetLength(0), bitmap.GetLength(1), true)
+        let png = PngBuilder.Create(
+            bitmap.GetLength(0), bitmap.GetLength(1), true)
         for x in 0..bitmap.GetLength(0) - 1 do
             for y in 0..bitmap.GetLength(1) - 1 do
                 let yInv = bitmap.GetLength(1) - y - 1
