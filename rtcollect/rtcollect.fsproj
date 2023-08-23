@@ -14,7 +14,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../thirdparty/docopt.fs/Build/Docopt.fsproj" />
     <ProjectReference Include="../jrutil/jrutil.fsproj" />
   </ItemGroup>
 

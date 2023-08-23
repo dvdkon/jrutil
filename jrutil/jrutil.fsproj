@@ -62,10 +62,7 @@
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
     <PackageReference Include="NodaTime" Version="3.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../thirdparty/docopt.fs/Build/Docopt.fsproj" />
+    <PackageReference Include="docopt.net" Version="0.8.1" />
   </ItemGroup>
 
 </Project>

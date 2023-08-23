@@ -9,7 +9,8 @@ open System.Diagnostics
 open System.Globalization
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
-open Docopt
+open System.Collections.Generic
+open DocoptNet
 open Serilog
 open Serilog.Events
 open Serilog.Sinks.SystemConsole.Themes
@@ -99,9 +100,13 @@ let pariter<'a> threadCount func (inputs: 'a seq) =
     processingTask.Wait()
 
 // Used DateTime to parse and the converts the result to LocalDate
+let tryParseDate (format: string) (str: string) =
+    let success, dt = DateTime.TryParseExact(
+        str, format, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal)
+    if success then Some <| LocalDate.FromDateTime(dt)
+    else None
 let parseDate format str =
-    let dt = DateTime.ParseExact(str, format, CultureInfo.InvariantCulture)
-    LocalDate.FromDateTime(dt)
+    tryParseDate format str |> Option.get
 
 let parseTime format str =
     let pattern = LocalTimePattern.Create(format, CultureInfo.InvariantCulture)
@@ -113,6 +118,9 @@ let parsePeriod (format: string) (str: string) =
     let timespan =
         TimeSpan.ParseExact(str, format, CultureInfo.InvariantCulture)
     Period.FromMilliseconds(int64 timespan.TotalMilliseconds)
+
+let dateToIso (date: LocalDate) =
+    date.ToString("uuuu-MM-dd", CultureInfo.InvariantCulture)
 
 let rec dateRange (startDate: LocalDate) (endDate: LocalDate) =
     // Create a list of Dates containing all days between startDate
@@ -133,50 +141,43 @@ let dateToday () =
 
 let constant x _ = x
 
-let argFlagSet (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.Flag | Arguments.Result.Flags _ -> true
-    | Arguments.Result.None -> false
-    | _ -> raise (ArgvException (sprintf "Expected %A to be a Flag or Flags while processing %s"
-                                         args.[name] name))
+let argFlagSet (args: IDictionary<string, ArgValue>) name =
+    let arg = args.[name]
+    let s, v = arg.TryAsBoolean()
+    assert s
+    v
 
-let argValue (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.Argument x -> x
-    | Arguments.Result.None ->
-        raise (ArgvException (sprintf "Argument not found: %s" name))
-    | _ -> raise (ArgvException (sprintf "Expected %A to be an Argument"
-                                         args.[name]))
+let argValue (args: IDictionary<string, ArgValue>) name =
+    let arg = args.[name]
+    let s, v = arg.TryAsString()
+    assert s
+    v
 
-let optArgValue (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.None -> None
-    | Arguments.Result.Argument x -> Some x
-    | _ -> raise (ArgvException (sprintf "Expected %A to be an Argument or None"
-                                         args.[name]))
+let optArgValue (args: IDictionary<string, ArgValue>) name =
+    match args.TryGetValue(name) with
+    | true, a ->
+        let s, v = a.TryAsString()
+        assert s
+        Some v
+    | false, _ -> None
 
-let argValues (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.Arguments x -> x
-    | Arguments.Result.None ->
-        raise (ArgvException (sprintf "Argument not found: %s" name))
-    | _ -> raise (ArgvException (sprintf "Expected %A to be Arguments"
-                                         args.[name]))
+let argValues (args: IDictionary<string, ArgValue>) name =
+    let arg = args.[name]
+    let s, v = arg.TryAsStringList()
+    assert s
+    v
 
 let withProcessedArgs docstring (args: string array) fn =
-    if args.Length = 0 then
+    match Docopt.CreateParser(docstring)
+                .Parse(args) with
+    | :? IArgumentsResult<_> as r -> fn r.Arguments
+    | :? IHelpResult | :? IVersionResult ->
         printfn "%s" docstring
         0
-    else
-        try
-            let docopt = Docopt(docstring)
-            let args = docopt.Parse(args)
-
-            fn args
-        with
-        | ArgvException(msg) ->
-            printfn "%s" msg
-            1
+    | :? IInputErrorResult as e ->
+        printfn "%s" e.Error
+        1
+    | _ -> assert false; 1
 
 let measureTime msg func =
     let sw = Stopwatch.StartNew()
