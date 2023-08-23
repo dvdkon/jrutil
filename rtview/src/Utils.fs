@@ -1,19 +1,18 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
+// (c) 2023 David Koňařík
 
 module RtView.Utils
 
-open WebSharper
-open WebSharper.UI.Html
-open WebSharper.UI.Client
-open WebSharper.ECharts
+open System.Web
+open Microsoft.AspNetCore.Mvc
+open NodaTime
+open Giraffe.ViewEngine
 
+open JrUtil.Utils
 open JrUtil.SqlRecordStore
 open RtView.ServerGlobals
-open RtView.ClientGlobals
 
-[<Remote>]
-let getTripName (tripId: string) (startDate: string) () =
+let getTripName (tripId: string) (startDate: LocalDate) () =
     use c = getDbConn ()
     let name = sqlQueryOne c """
             SELECT COALESCE(shortName, @tripId)
@@ -23,107 +22,86 @@ let getTripName (tripId: string) (startDate: string) () =
             LIMIT 1
             """ ["tripId", box tripId
                  "startDate", box startDate]
-    async { return name :?> string }
+    name :?> string
 
-[<JavaScript>]
-let createChart (cssCls: string) (optsGetter: ECharts -> Async<EChartOption>) =
-    div [
-        attr.``class`` cssCls
-        on.afterRender (fun el ->
-            let chart = Echarts.Init(el :?> JavaScript.HTMLElement)
-            JavaScript.JS.Window.AddEventListener("resize", fun () ->
-                chart.Resize())
-            async {
-                let! opts = optsGetter chart
-                chart.SetOption(opts)
-            } |> Async.Start
-        )
-    ] []
+let nullToNone x = if x = null then None else Some x
 
-[<JavaScript>]
-let delayChartXAxis (ticks: float array) (labelMap: Map<float, string>) =
-    XAxis()
-     .SetType("value")
-     .SetAxisLabel(
-        CartesianAxis_Label()
-         .SetCustomValues(ticks)
-         .SetFormatter(fun (v, _) ->
-            // TODO: Why do I get invalid keys?
-            labelMap
-            |> Map.tryFind (float v)
-            |> Option.defaultValue v
-         )
-         .SetRotate(80.)
-     )
-     .SetAxisTick(
-        CartesianAxis_Tick()
-         .SetCustomValues(ticks)
-         .SetAlignWithLabel(true)
-     )
-     .SetMin(fun x -> ticks |> Array.min)
-     .SetMax(fun x -> ticks |> Array.max)
-
-[<JavaScript>]
-let delayChartVisualMap () =
-    VisualMap_Piecewise()
-     .SetType("piecewise")
-     .SetShow(false)
-     .SetDimension(1.)
-     .SetPieces([|
-        // +.2 to avoid problems with lines on boundary
-        VisualMap_PiecesObject()
-         .SetMax(-0.2)
-         .SetColor("#1ae0d3")
-        VisualMap_PiecesObject()
-         .SetMin(-0.2)
-         .SetMax(5.2)
-         .SetColor("#1ae070")
-        VisualMap_PiecesObject()
-         .SetMin(5.2)
-         .SetMax(10.2)
-         .SetColor("#e0d31a")
-        VisualMap_PiecesObject()
-         .SetMin(10.2)
-         .SetColor("#e01a28")
-     |])
-
-[<JavaScript>]
-let delayChartGrid () =
-    Grid()
-     .SetContainLabel(true)
-     .SetTop(10.)
-     .SetLeft(10.)
-     .SetRight(10.)
-     .SetBottom(50.) // XXX: Labels won't fit inside without this
-
-[<JavaScript>]
 let dateRangeOrDefaults fromDateParam toDateParam =
-    let dateString (d: JavaScript.Date) = d.ToISOString().Split([|'T'|]).[0]
-    let weekAgo = JavaScript.Date()
-    weekAgo.SetDate(weekAgo.GetDate() - 7)
-    let today = JavaScript.Date()
-    fromDateParam |> Option.defaultValue (dateString weekAgo),
-    toDateParam |> Option.defaultValue (dateString today)
+    let today = dateToday ()
+    let weekAgo = today.PlusWeeks(-1)
+    let orDefault d v = if v = LocalDate() then d else v
+    fromDateParam |> orDefault weekAgo,
+    toDateParam |> orDefault today
 
-[<JavaScript>]
 let dateRangeControl
-        fromDate toDate
-        (onSet: string option -> string option -> unit -> unit) =
-    div [attr.``class`` "date-range"] [
+        (fromDate: LocalDate) (toDate: LocalDate) =
+    div [_class "date-range"] [
         label [] [
-            text "From:"
-            input [attr.``type`` "date"
-                   attr.value fromDate
-                   on.change (fun el _ ->
-                       onSet (BindVar.StringGet(el)) (Some toDate) ()
-                   )] []
+            str "From:"
+            input [_type "date"
+                   _name "fromDate"
+                   _value <| dateToIso fromDate]
         ]
         label [] [
-            text "To:"
-            input [attr.``type`` "date"
-                   attr.value toDate
-                   on.change (fun el _ ->
-                       onSet (Some fromDate) (BindVar.StringGet(el)) ()
-                  )] []
+            str "To:"
+            input [_type "date"
+                   _name "toDate"
+                   _value <| dateToIso toDate]
+        ]
+        button [] [str "Set"]
+    ]
+
+let empty = str ""
+
+let pageMaster t content =
+    html [_lang "en"] [
+        head [] [
+            title [] [str $"RtView: {t}"]
+            meta [_charset "utf-8"]
+            meta [_name "viewport"
+                  _content "width=device-width, initial-scale=1.0"]
+            script [_src "/rtview.js"; _defer] []
+            script [_src "/chart.umd.js"; _defer] []
+            link [_rel "stylesheet"
+                  _type "text/css"
+                  _href "/rtview.css"]
+        ]
+        body [] [
+            content
+
+            footer [] [
+                ul [] [
+                    li [] [
+                        str "RtView je součástí projektu "
+                        a [_href "https://gitlab.com/dvdkon/jrutil"] [
+                            str "JrUtil"
+                        ]]
+                    li [] [a [_href "/docs.html"] [str "Dokumentace"]]
+                    li [] [a [_href "/api.html"] [str "API"]]
+                    li [] [a [_href "/kontakt.html"] [str "Kontakt"]]
+                ]
+            ]
         ]
     ]
+
+let htmlResult title html =
+    let text =
+        pageMaster title html
+        |> RenderView.AsString.htmlDocument
+    ContentResult(Content = text, ContentType = "text/html")
+
+let htmlFragmentResult html =
+    let text = RenderView.AsString.htmlNode html
+    ContentResult(Content = text, ContentType = "text/html")
+
+module Links =
+    let routes fromDate toDate (search: string) page =
+        sprintf "/Routes?fromDate=%s&toDate=%s&search=%s&page=%d"
+                (dateToIso fromDate) (dateToIso toDate)
+                (HttpUtility.UrlEncode(search))
+                page
+    let trips id fromDate toDate =
+        sprintf "/Trips/%s?fromDate=%s&toDate=%s"
+                id (dateToIso fromDate) (dateToIso toDate)
+    let trip id startDate =
+        sprintf "/Trip/%s/%s" id (startDate.ToString())

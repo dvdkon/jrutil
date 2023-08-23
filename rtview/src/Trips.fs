@@ -1,33 +1,77 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2021 David Koňařík
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
+// (c) 2023 David Koňařík
 
-module RtView.Trips
+namespace RtView
 
+open System.IO
+open System.Text.Json
 open System.Collections.Generic
-open WebSharper
+open Microsoft.AspNetCore.Mvc
+open Giraffe.ViewEngine
 open NodaTime
+open BigGustave
 
+open JrUtil.Utils
+open JrUtil.SqlRecordStore
 open RtView.Utils
+open RtView.ServerGlobals
 
-module Server =
-    open RtView.ServerGlobals
-    open JrUtil.SqlRecordStore
+type StopSeqGroup = {
+    date: LocalDate // Acts as an ID
+    dates: LocalDate array
+}
 
-    [<JavaScript>]
-    type StopSeqGroup = {
-        date: string // Acts as an ID
-        dates: string array
-    }
+type WebTripStopAgg = {
+    stopId: string
+    stopName: string
+    shouldArriveAt: string option
+    medArrivalDelay: float option
+    p15ArrivalDelay: float option
+    p85ArrivalDelay: float option
+    shouldDepartAt: string option
+    medDepartureDelay: float option
+    p15DepartureDelay: float option
+    p85DepartureDelay: float option
+}
+
+type DelayChartAvgItem = {
+    x: float
+    p15Delay: float
+    y: float
+    p85Delay: float
+    stopName: string
+}
+
+type AggDelayChartLabel = {
+    x: float
+    label: string
+}
+
+type AggDelayChartData = {
+    data: DelayChartAvgItem array
+    labels: AggDelayChartLabel array
+}
+
+type TripDelayStop = {
+    x: float
+    label: string option
+    dwellTime: float option
+    arrival: bool
+    departure: bool
+}
+
+[<Route("Trips/{tripId}")>]
+type TripsController() =
+    inherit ControllerBase()
 
     // Trips are divided into groups by their stop sequence, signified by the
     // tripStartDate of any trip of the group
-    [<Remote>]
-    let stopSeqGroups (tripId: string) (fromDate: string) (toDate: string) () =
+    let getStopSeqGroups (tripId: string)
+                         (fromDate: LocalDate) (toDate: LocalDate) () =
         use c = getDbConn ()
-        let tsDates =
-            sqlQueryRec<StopSeqGroup> c """
+        sqlQueryRec<StopSeqGroup> c """
 -- TODO: Less nested query
-SELECT date::text AS date, dates::text[] AS dates
+SELECT date AS date, dates AS dates
 FROM (
     SELECT MIN(tripStartDate) AS date,
            COUNT(tripStartDate) AS c,
@@ -47,34 +91,17 @@ FROM (
     GROUP BY stopSeq
 ) AS i
 ORDER BY c DESC
-            """ ["tripId", box tripId
-                 "fromDate", box fromDate
-                 "toDate", box toDate]
-            |> Seq.toArray
-        async { return tsDates }
+        """ ["tripId", box tripId
+             "fromDate", box fromDate
+             "toDate", box toDate]
+        |> Seq.toArray
 
-    [<JavaScript>]
-    type WebTripStop = {
-        stopId: string
-        stopName: string
-        shouldArriveAt: string option
-        medArrivalDelay: float option
-        p15ArrivalDelay: float option
-        p85ArrivalDelay: float option
-        shouldDepartAt: string option
-        medDepartureDelay: float option
-        p15DepartureDelay: float option
-        p85DepartureDelay: float option
-    }
-
-    [<Remote>]
-    let tripStops (tripId: string)
-                  (tripStartDate: string)
-                  (fromDate: string) (toDate: string)
-                  () =
+    let getTripStops (tripId: string)
+                     (tripStartDate: LocalDate)
+                     (fromDate: LocalDate) (toDate: LocalDate)
+                     () =
         use c = getDbConn ()
-        let stops =
-            sqlQueryRec<WebTripStop> c """
+        sqlQueryRec<WebTripStopAgg> c """
 SELECT
     stopId, stopName,
     -- MIN() is here just for SQL semantics, all trips in an SSG should have identical planned times
@@ -92,39 +119,16 @@ WHERE tripId = @tripId
               WHERE sd = sh.tripStartDate)
 -- I know that there is exactly one stopId/stopName for tripStopIndex, but PostgreSQL doesn't
 GROUP BY tripStopIndex, stopId, stopName
-            """ ["tripId", box tripId
-                 "tripStartDate", box tripStartDate
-                 "fromDate", box fromDate
-                 "toDate", box toDate]
-            |> Seq.toArray
-        async { return stops }
+        """ ["tripId", box tripId
+             "tripStartDate", box tripStartDate
+             "fromDate", box fromDate
+             "toDate", box toDate]
+        |> Seq.toArray
 
-    [<JavaScript>]
-    type DelayChartAvgItem = {
-        x: float
-        p15Delay: float
-        delay: float
-        p85Delay: float
-        stopName: string
-    }
-
-    [<JavaScript>]
-    type DelayChartLabel = {
-        x: float
-        label: string
-    }
-
-    [<JavaScript>]
-    type DelayChartData = {
-        data: DelayChartAvgItem array
-        labels: DelayChartLabel array
-    }
-
-    [<Remote>]
-    let tripDelayChart (tripId: string)
-                       (tripStartDate: string)
-                       (fromDate: string) (toDate: string)
-                       () =
+    let getTripDelayChart (tripId: string)
+                          (ssgDate: LocalDate)
+                          (fromDate: LocalDate) (toDate: LocalDate)
+                          () =
         use c = getDbConn ()
         let out =
             sqlQuery c """
@@ -215,7 +219,7 @@ SELECT
     (SELECT json_agg(json_build_object(
         'x', x,
         'p15Delay', p15Delay,
-        'delay', delay,
+        'y', delay,
         'p85Delay', p85Delay,
         'stopName', stopName))
      FROM data) AS data,
@@ -223,30 +227,16 @@ SELECT
         'x', x, 'label', label))
      FROM labels) AS labels;
             """ ["tripId", box tripId
-                 "tripStartDate", box tripStartDate
+                 "tripStartDate", box ssgDate
                  "fromDate", box fromDate
                  "toDate", box toDate]
             |> Seq.exactlyOne
-        let data =
-            Json.Deserialize<DelayChartAvgItem array> (out.["data"] :?> string)
-        let labels =
-            Json.Deserialize<DelayChartLabel array> (out.["labels"] :?> string)
-        async { return { data = data; labels = labels } }
+        $"""{{"data":{out.["data"]},"labels":{out.["labels"]}}}"""
 
-    [<JavaScript>]
-    type TripDelayStop = {
-        x: float
-        label: string option
-        dwellTime: float option
-        arrival: bool
-        departure: bool
-    }
-
-    [<Remote>]
-    let tripDelays (tripId: string)
-                   (tripStartDate: string)
-                   (fromDate: string) (toDate: string)
-                   () =
+    let getTripDelays (tripId: string)
+                      (ssgDate: LocalDate)
+                      (fromDate: LocalDate) (toDate: LocalDate)
+                      () =
         use c = getDbConn ()
         let out =
             sqlQuery c """
@@ -329,337 +319,188 @@ SELECT
         'departure', departure))
      FROM tripStops) AS stops;
             """ ["tripId", box tripId
-                 "tripStartDate", box tripStartDate
+                 "tripStartDate", box ssgDate
                  "fromDate", box fromDate
                  "toDate", box toDate]
             |> Seq.exactlyOne
-        let stops = Json.Deserialize<TripDelayStop array> (out.["stops"] :?> string)
-        let delays = Json.Deserialize<float array array> (out.["delays"] :?> string)
-        async { return (stops, delays) }
+        let stops = JsonSerializer.Deserialize<TripDelayStop array>
+                        (out.["stops"] :?> string)
+        let delays = JsonSerializer.Deserialize<float array array>
+                        (out.["delays"] :?> string)
+        stops, delays
 
-[<JavaScript>]
-module Client =
-    open WebSharper.UI
-    open WebSharper.UI.Html
-    open WebSharper.UI.Client
-    open WebSharper.ECharts
-    open RtView.ClientGlobals
-
-    type ChartType = LineAndBounds | Heatmap
-
-    let showTable = Var.Create(true)
-    let chartType = Var.Create(LineAndBounds)
-
-    let tripsPage tripId fromDateParam toDateParam () =
-        let fromDate, toDate = dateRangeOrDefaults fromDateParam toDateParam
-
-        let stopsTable (stops: Server.WebTripStop array) =
-            table [] [
-                thead [] [
-                    th [] [text "Stop"]
-                    th [] [text "Exp. arr."]
-                    th [] [text "15th% arr. delay"]
-                    th [] [text "Median arr. delay"]
-                    th [] [text "85th% arr. delay"]
-                    th [] [text "Exp. dep."]
-                    th [] [text "15th% dep. delay"]
-                    th [] [text "Median dep. delay"]
-                    th [] [text "85th% dep. delay"]
+    let stopsTable (stops: WebTripStopAgg array) =
+        table [] [
+            thead [] [
+                th [] [str "Stop"]
+                th [] [str "Exp. arr."]
+                th [] [str "15th% arr. delay"]
+                th [] [str "Median arr. delay"]
+                th [] [str "85th% arr. delay"]
+                th [] [str "Exp. dep."]
+                th [] [str "15th% dep. delay"]
+                th [] [str "Median dep. delay"]
+                th [] [str "85th% dep. delay"]
+            ]
+            tbody [] [
+                for stop in stops do
+                let delay d =
+                    d
+                    |> Option.map (sprintf "%0.1f")
+                    |> Option.defaultValue ""
+                    |> str
+                tr [] [
+                    td [] [str stop.stopName]
+                    td [] [
+                        str <| Option.defaultValue "" stop.shouldArriveAt]
+                    td [] [delay stop.p15ArrivalDelay ]
+                    td [] [delay stop.medArrivalDelay]
+                    td [] [delay stop.p85ArrivalDelay]
+                    td [] [
+                        str <| Option.defaultValue "" stop.shouldDepartAt]
+                    td [] [delay stop.p15DepartureDelay]
+                    td [] [delay stop.medDepartureDelay]
+                    td [] [delay stop.p85DepartureDelay]
                 ]
-                tbody [] [
-                    for stop in stops do
-                    let delay d =
-                        d
-                        |> Option.map (sprintf "%0.1f")
-                        |> Option.defaultValue ""
-                        |> text
-                    tr [] [
-                        td [] [text stop.stopName]
-                        td [] [
-                            text <| Option.defaultValue "" stop.shouldArriveAt]
-                        td [] [delay stop.p15ArrivalDelay ]
-                        td [] [delay stop.medArrivalDelay]
-                        td [] [delay stop.p85ArrivalDelay]
-                        td [] [
-                            text <| Option.defaultValue "" stop.shouldDepartAt]
-                        td [] [delay stop.p15DepartureDelay]
-                        td [] [delay stop.medDepartureDelay]
-                        td [] [delay stop.p85DepartureDelay]
+            ]
+        ]
+
+    let generateHeatmap (stops: TripDelayStop array)
+                        (delays: float array array) =
+        let xRes = 120.0
+        let yRes = 60.0
+        let color = Pixel(0uy, 0uy, 255uy)
+
+        let xs = stops |> Array.map (fun t -> t.x)
+        let ys = delays |> Array.collect id
+        let xMin = (xs |> Array.min |> floor) / xRes |> int
+        let xMax = (xs |> Array.max |> ceil) / xRes |> int
+        let yMin = (ys |> Array.min |> floor) / yRes |> int
+        let yMax = (ys |> Array.max |> ceil) / yRes |> int
+
+        let bitmap = Array2D.init (xMax - xMin + 1)
+                                  (yMax - yMin + 1)
+                                  (fun _ _ -> HashSet())
+        let mark tripIdx x y () =
+            bitmap.[x - xMin, y - yMin].Add(tripIdx) |> ignore
+
+        for tripIdx, trip in delays |> Seq.indexed do
+            let addStop stopIdx delay () =
+                mark tripIdx (stops.[stopIdx].x / xRes |> int) (delay / yRes |> int) ()
+            let addLineBetweenStops stopIdx1 delay1 stopIdx2 delay2 () =
+                let x1 = stops.[stopIdx1].x
+                let x2 = stops.[stopIdx2].x
+                let slope = (delay2 - delay1) / (x2 - x1)
+                for x in seq {0. .. ((x2 - x1) / xRes)} do
+                    let y = (((slope * x * xRes) / yRes + delay1) / yRes) |> int
+                    mark tripIdx ((x + x1/xRes) |> int) y ()
+
+            for ((prevStop, prevDelay), (stop, delay)) in trip |> Seq.indexed |> Seq.pairwise do
+                addLineBetweenStops prevStop prevDelay stop delay ()
+            addStop (trip.Length - 1) trip.[trip.Length - 1] ()
+
+        let maxCount =
+            seq {
+                for x in 0..bitmap.GetLength(0) - 1 do
+                    for y in 0..bitmap.GetLength(1) - 1 do
+                        yield bitmap.[x, y].Count
+            } |> Seq.max
+
+        let png = PngBuilder.Create(bitmap.GetLength(0), bitmap.GetLength(1), true)
+        for x in 0..bitmap.GetLength(0) - 1 do
+            for y in 0..bitmap.GetLength(1) - 1 do
+                let yInv = bitmap.GetLength(1) - y - 1
+                let alpha = (256 * bitmap.[x, yInv].Count) / maxCount
+                png.SetPixel(
+                    Pixel(color.R, color.G, color.B, byte alpha, false), x, y)
+                |> ignore
+        let memStream = new MemoryStream()
+        png.Save(memStream)
+        memStream.Seek(0, SeekOrigin.Begin) |> ignore
+        memStream
+
+    member this.get(
+            tripId: string,
+            fromDate: LocalDate,
+            toDate: LocalDate) =
+        let fromDate, toDate = dateRangeOrDefaults fromDate toDate
+        let stopSeqGroups =
+            getStopSeqGroups tripId fromDate toDate ()
+            |> Array.map (fun ssg ->
+                ssg,
+                getTripName tripId ssg.date (),
+                getTripStops tripId ssg.date fromDate toDate ())
+        let tripName = getTripName tripId fromDate ()
+
+        div [_class "trips-page"] [
+            yield form [_class "controls"; _method "GET"] [
+                dateRangeControl fromDate toDate
+                label [_class "chart-type"] [
+                    str "Chart type: "
+                    select [] [
+                        option [_value "lineAndBounds"] [
+                            str "Median and percentile bounds"
+                        ]
+                        option [_value "heatmap"] [str "Heatmap"]
                     ]
+                ]
+                label [_class "show-table"] [
+                    input [_type "checkbox"; _checked]
+                    span [] [str " Show table"]
                 ]
             ]
 
-        let lineChartOpts (data: Server.DelayChartData) =
-            let seriesData =
-                data.data |> Array.map (fun i -> [|
-                    // Having to cast to float is actually a bug in WS
-                    // A param (X|Y)[] gets compiled to X[] and Y[]. We also
-                    // need obj[]
-                    i.x
-                    i.delay
-                    box i :?> float
-                |])
-            let ticks =
-                data.labels |> Array.map (fun l -> l.x)
-            let labelMap =
-                data.labels |> Array.map (fun l -> l.x, l.label) |> Map
-            let minY =
-                data.data |> Array.map (fun i -> i.p15Delay) |> Array.min
-            let botY = if minY < -5. then floor (minY - 1.) else -5.
-            let maxY =
-                data.data |> Array.map (fun i -> i.p85Delay) |> Array.max
-            let topY = if maxY > 10. then ceil (maxY + 1.) else 10.
-
-            let bandRenderer (pars: SeriesCustom_RenderItemParams,
-                              api: SeriesCustom_RenderItemApi) =
-                let i = int pars.DataIndex.Value
-                let j = i + 1
-                let points =
-                    if j >= data.data.Length
-                    then [||]
-                    else [|
-                            [| data.data.[i].x; data.data.[i].p85Delay |]
-                            [| data.data.[i].x; data.data.[i].p15Delay |]
-                            [| data.data.[j].x; data.data.[j].p15Delay |]
-                            [| data.data.[j].x; data.data.[j].p85Delay |]
-                        // TODO: Give api.coord the proper type
-                        |] |> Array.map (api.Coord :> obj :?> float array -> float array)
-                SeriesCustom_RenderItemReturnPolygon()
-                 .SetType("polygon")
-                 .SetShape(
-                   SeriesCustom_RenderItemReturnPolygon_shape(points :> obj :?> obj array))
-                 .SetStyle(
-                   SeriesCustom_RenderItemReturnPolygon_style()
-                    .SetFill("#aaa5")
-                 )
-
-            EChartOption()
-             .SetGrid([|delayChartGrid ()|])
-             .SetXAxis(delayChartXAxis ticks labelMap)
-             .SetYAxis(
-                YAxis()
-                 .SetType("value")
-                 .SetMin(fun x -> botY)
-                 .SetMax(fun x -> topY)
-                 .SetInterval(5.) // TODO: Sometimes doesn't work
-             )
-             .SetTooltip(
-                Tooltip()
-                 .SetShow(true)
-                 .SetTrigger("axis")
-                 .SetFormatter(fun (pars: Tooltip_Format array,
-                                    ticket: string,
-                                    callback: JavaScript.FuncWithArgs<
-                                        (string * string),Unit>) ->
-                    let data = pars.[0].Data.Value :?> obj array
-                    let item = data.[2] :?> Server.DelayChartAvgItem
-                    sprintf "%s<br>85th%% delay: %.1f min<br>Median delay: %.1f min<br>15th%% delay: %.1f"
-                            item.stopName item.p85Delay item.delay
-                            item.p15Delay
-                 )
-             )
-             .SetAxisPointer(
-                AxisPointer()
-                 .SetSnap(true)
-             )
-             .SetSeries([|
-                SeriesCustom()
-                 .SetType("custom")
-                 .SetData(data.data :> obj :?> SeriesCustom_DataObject array)
-                 .SetRenderItem(bandRenderer)
-                 // TODO: Fix the bindings so this isn't needed!
-                 // This is because internally interface inheritance is
-                 // flattened due to "duplicate method" problems
-                 :> obj :?> SeriesLine
-                SeriesLine()
-                 .SetType("line")
-                 .SetData(seriesData)
-                 .SetShowSymbol(false)
-             |])
-             .SetVisualMap([|delayChartVisualMap ()|])
-
-        let heatmapChartOpts xRes yRes (stops: Server.TripDelayStop array) (delays: float array array) =
-            let xs = stops |> Array.map (fun t -> t.x)
-            let ys = delays |> Array.collect id
-            let xMin = (xs |> Array.min |> floor) / xRes |> int
-            let xMax = (xs |> Array.max |> ceil) / xRes |> int
-            let yMin = (ys |> Array.min |> floor) / yRes |> int
-            let yMax = (ys |> Array.max |> ceil) / yRes |> int
-
-            let bitmap = Array2D.init (xMax - xMin + 1) (yMax - yMin + 1) (fun _ _ -> JavaScript.Array())
-            let mark tripIdx x y () =
-                let tripArr = bitmap.[x - xMin, y - yMin]
-                if tripArr.IndexOf(tripIdx) = -1 then tripArr.Push(tripIdx) |> ignore
-
-            for tripIdx, trip in delays |> Seq.indexed do
-                let addStop stopIdx delay () =
-                    mark tripIdx (stops.[stopIdx].x / xRes |> int) (delay / yRes |> int) ()
-                let addLineBetweenStops stopIdx1 delay1 stopIdx2 delay2 () =
-                    let x1 = stops.[stopIdx1].x
-                    let x2 = stops.[stopIdx2].x
-                    let slope = (delay2 - delay1) / (x2 - x1)
-                    for x in seq {0. .. ((x2 - x1) / xRes)} do
-                        let y = (((slope * x * xRes) / yRes + delay1) / yRes) |> int
-                        mark tripIdx ((x + x1/xRes) |> int) y ()
-
-                for ((prevStop, prevDelay), (stop, delay)) in trip |> Seq.indexed |> Seq.pairwise do
-                    addLineBetweenStops prevStop prevDelay stop delay ()
-                addStop (trip.Length - 1) trip.[trip.Length - 1] ()
-
-            let heatmapPoints =
-                Seq.allPairs (seq {0..(bitmap |> Array2D.length1)-1})
-                             (seq {0..(bitmap |> Array2D.length2)-1})
-                |> Seq.map (fun (x, y) -> [| float x; float y; bitmap.[x, y].Length |> float |])
-                |> Seq.filter (fun a -> a.[2] <> 0.)
-                |> Seq.toArray
-
-            let labelMap =
-                stops
-                |> Array.sortByDescending (fun s -> s.dwellTime)
-                |> Array.take 10
-                |> Array.map (fun s -> s.x / xRes |> int, s.label)
-                |> Array.groupBy (fun (x, _) -> x)
-                |> Array.map (fun (x, ns) -> (x, Array.head ns |> snd))
-                |> Array.append [|
-                    xMin, stops.[0].label
-                    xMax, stops.[stops.Length-1].label
-                |]
-                |> Map
-
-            EChartOption()
-             .SetGrid([|delayChartGrid ()|])
-             .SetXAxis(
-                XAxis()
-                 .SetType("category")
-                 .SetData([| xMin..xMax |] |> Array.map float)
-                 .SetAxisLabel(
-                    CartesianAxis_Label()
-                     .SetInterval(fun (i, v) -> labelMap |> Map.containsKey (int v))
-                     .SetFormatter(fun (v, _) ->
-                        labelMap
-                        |> Map.tryFind (int v)
-                        |> Option.bind id
-                        |> Option.defaultValue (string v)
-                     )
-                     .SetRotate(80.)
-                 )
-                 .SetAxisTick(
-                    CartesianAxis_Tick()
-                     .SetInterval(fun (i, v) -> labelMap |> Map.containsKey (int v))
-                     .SetAlignWithLabel(true)
-                 )
-             )
-             .SetYAxis(
-                YAxis()
-                 .SetType("category")
-                 .SetData([| yMin..yMax |] |> Array.map (fun y -> float y * yRes / 60.))
-                 .SetAxisTick(
-                    CartesianAxis_Tick()
-                     .SetAlignWithLabel(true)
-                     .SetInterval(fun i v -> (int v) % 5 = 0)
-                 )
-                 .SetAxisLabel(
-                    CartesianAxis_Label()
-                     .SetInterval(fun i v -> (int v) % 5 = 0)
-                 )
-             )
-             .SetSeries([|
-                SeriesHeatmap()
-                 .SetType("heatmap")
-                 .SetData(heatmapPoints)
-             |])
-             .SetVisualMap([|
-                VisualMap_Continuous()
-                 .SetMin(1.)
-                 .SetMax(float delays.Length) // Trip count
-                 .SetInRange(
-                    VisualMap_RangeObject()
-                     .SetColor([|"#99e"|])
-                     .SetOpacity([|1. / float delays.Length; 1.|])
-                 )
-                 .SetShow(false)
-             |])
-
-        let stopSeqGroups = Var.Create([||])
-        async {
-            let! ssgs =
-                asyncWithLoading "Loading stop sequence group list" <|
-                    Server.stopSeqGroups tripId fromDate toDate ()
-            stopSeqGroups.Value <- ssgs
-        } |> Async.Start
-
-        div [attr.``class`` "trips-page"] [
-            dateRangeControl fromDate toDate (fun f t () ->
-                setLocation <| Locations.Trips (tripId, f, t)
-            )
-            div [] [label [] [
-                Doc.CheckBox [] showTable
-                text "Show table"
-            ]]
-            div [] [label [] [
-                text "Chart type: "
-                Doc.Select
-                    []
-                    (fun k -> Map.find k <| Map [
-                        LineAndBounds, "Median and percentile bounds"
-                        Heatmap, "Heatmap"
-                    ])
-                    [LineAndBounds; Heatmap]
-                    chartType
-            ]]
-
-            stopSeqGroups.View.DocSeqCached (fun (ssg: Server.StopSeqGroup) ->
-                let tripName = Var.Create("")
-                async {
-                    let! tn = getTripName tripId ssg.date ()
-                    tripName.Value <- tn
-                } |> Async.Start
-
-                let stops =
-                    showTable.View.MapAsyncLoading
-                        [||]
-                        (fun show ->
-                            if not show then async { return [||] }
-                            else async {
-                                let! s =
-                                    asyncWithLoading "Loading trip stop list..." <|
-                                        Server.tripStops tripId ssg.date fromDate toDate ()
-                                return s
-                            })
-
-                div [] [
-                    tripName.View.Doc (fun tn ->
-                        h1 [] [text (sprintf "Trip %s (SSG %s)" tn ssg.date)])
-                    details [attr.``class`` "ssg-trips"] [
-                        summary [] [text "Trips in SSG"]
-                        ul [] [
-                            for date in ssg.dates ->
-                            let link = router.Link <| Locations.Trip (tripId, date)
-                            li [] [
-                                a [attr.href link] [text date]
-                            ]
+            for ssg, tripName, stops in stopSeqGroups do
+                yield h1 [] [str $"Trip {tripName} (SSG {dateToIso ssg.date})"]
+                yield details [_class "ssg-trips"] [
+                    summary [] [str "Trips in SSG"]
+                    ul [] [
+                        for date in ssg.dates ->
+                        let link = Links.trip tripId date
+                        li [] [
+                            a [_href link] [str <| dateToIso date]
                         ]
                     ]
-
-                    stops.Doc (fun ss -> if ss <> [||] then stopsTable ss else Doc.Empty)
-
-                    chartType.View.Doc (fun ct ->
-                        createChart "delay-chart" (fun c ->
-                            async {
-                                match ct with
-                                | LineAndBounds ->
-                                    let! data =
-                                        asyncWithLoading "Loading trip delay chart..." <|
-                                            Server.tripDelayChart tripId ssg.date fromDate toDate ()
-                                    return lineChartOpts data
-                                | Heatmap ->
-                                    let! (stops, delays) =
-                                        asyncWithLoading "Loading trip delay heatmap..." <|
-                                            Server.tripDelays tripId ssg.date fromDate toDate ()
-                                    return heatmapChartOpts 240. 60. stops delays
-                            }
-                        )
-                    )
                 ]
-            )
+
+                yield stopsTable stops
+
+                yield canvas [
+                    _class "delay-chart"
+                    attr "data-ssg-date" (dateToIso ssg.date)] []
+
+                yield img [
+                    _class "delay-heatmap"
+                    _style "display: none"
+                    _src "data:,"
+                    attr "data-src"
+                         ($"/Trips/{tripId}/heatmap"
+                          + $"?fromDate={dateToIso fromDate}"
+                          + $"&toDate={dateToIso toDate}"
+                          + $"&ssgDate={dateToIso ssg.date}")
+                ]
         ]
+        |> htmlResult $"Trip {tripName}"
+
+    [<HttpGet("chartData")>]
+    member this.chartData(
+            tripId: string,
+            fromDate: LocalDate,
+            toDate: LocalDate,
+            ssgDate: LocalDate) =
+        let fromDate, toDate = dateRangeOrDefaults fromDate toDate
+        this.Content(
+            getTripDelayChart tripId ssgDate fromDate toDate (),
+            "application/json")
+
+    [<HttpGet("heatmap")>]
+    member this.heatmap(
+            tripId: string,
+            fromDate: LocalDate,
+            toDate: LocalDate,
+            ssgDate: LocalDate) =
+        let fromDate, toDate = dateRangeOrDefaults fromDate toDate
+        let stops, delays = getTripDelays tripId ssgDate fromDate toDate ()
+        this.File(
+            generateHeatmap stops delays,
+            "image/png")

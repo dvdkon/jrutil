@@ -4,9 +4,8 @@
         flex-direction: column
         row-gap: 15px
 
-        .search
-            button
-                margin-left: 10px
+        button
+            margin-left: 10px
 
     li
         padding-top: 5px
@@ -16,13 +15,19 @@
         padding-left: 0
 
         .route-heading
-            cursor: pointer
-            .route-name
-                color: $link-color
+            summary
+                cursor: pointer
+                list-style: none
 
-            .route-stops
-                padding-left: 10px
-                color: #666
+                &::marker
+                    display: none
+
+                .route-name
+                    color: $link-color
+
+                .route-stops
+                    padding-left: 10px
+                    color: #666
 
     ul.trips-list
         list-style: inside

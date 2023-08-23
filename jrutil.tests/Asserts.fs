@@ -1,4 +1,4 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2021 David Koňařík
 module JrUtil.Tests.Asserts
 
@@ -23,7 +23,8 @@ let assertEqualWithMsg msg (expected: 'a) (actual: 'a) =
                 sprintf "%s\nExpected: %A\nActual: %A"
                         msg expected actual)
 
-let assertEqual<'a> = assertEqualWithMsg "Objects are not equal!"
+let assertEqual (expected: 'a) (actual: 'a) =
+    assertEqualWithMsg "Objects are not equal!" expected actual
 
 let assertSeqEqual (expected: 'a seq) (actual: 'a seq) =
     if Seq.length actual <> Seq.length expected then

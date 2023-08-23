@@ -2,11 +2,12 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="src/GeoReport.fs" />
+    <Compile Include="src/StopListGen.fs" />
     <Compile Include="src/HtmlPage.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -17,7 +18,23 @@
 
   <ItemGroup>
     <PackageReference Include="FSharp.Data" Version="3.3.3" />
+    <PackageReference Include="FSharp.SystemTextJson" Version="1.1.23" />
     <PackageReference Include="giraffe" Version="4.0.1" />
   </ItemGroup>
+
+  <Target Name="DownloadJsLibraries" BeforeTargets="Build">
+    <DownloadFile
+        SourceUrl="https://unpkg.com/vue@3.3.4/dist/vue.global.prod.js"
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+    <DownloadFile
+        SourceUrl="https://unpkg.com/vue@3.3.4/dist/vue.global.js"
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+    <DownloadFile
+        SourceUrl="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+    <DownloadFile
+        SourceUrl="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+  </Target>
 
 </Project>

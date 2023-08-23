@@ -56,7 +56,7 @@ table
     tr:nth-child(even)
         background-color: #eef
 
-input,button
+input:not([type=checkbox]), button, select
     // This should give us consistent inputs for all types
     height: 24px
     box-sizing: border-box
@@ -73,7 +73,7 @@ input,button
 
     background-color: $white
 
-input[type="submit"],button
+input[type="submit"], button
     background: linear-gradient(0deg, $gray2 0%, $gray3 80%)
 
 .delay-chart

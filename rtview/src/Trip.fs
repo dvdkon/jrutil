@@ -1,70 +1,68 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
+// (c) 2023 David Koňařík
 
-module RtView.Trip
+namespace RtView
 
-open WebSharper
+open System.Text.Json
+open Microsoft.AspNetCore.Mvc
+open Giraffe.ViewEngine
+open NodaTime
 
+open JrUtil.SqlRecordStore
+open JrUtil.Utils
 open RtView.Utils
+open RtView.ServerGlobals
 
-module Server =
-    open RtView.ServerGlobals
-    open JrUtil.SqlRecordStore
+type WebTripStop = {
+    stopId: string
+    stopName: string
+    arrivedAt: string option
+    shouldArriveAt: string option
+    arrivalDelay: decimal option
+    departedAt: string option
+    shouldDepartAt: string option
+    departureDelay: decimal option
+}
 
-    [<JavaScript>]
-    type WebTripStop = {
-        stopId: string
-        stopName: string
-        arrivedAt: string option
-        shouldArriveAt: string option
-        arrivalDelay: float option
-        departedAt: string option
-        shouldDepartAt: string option
-        departureDelay: float option
-    }
+type DelayChartItem = {
+    x: float
+    y: float
+    stopName: string
+}
 
-    [<Remote>]
-    let tripStops (tripId: string) (startDate: string) () =
+type DelayChartLabel = {
+    x: float
+    label: string
+}
+
+type DelayChartData = {
+    data: DelayChartItem array
+    labels: DelayChartLabel array
+}
+
+[<Route("Trip/{tripId}/{tripStartDate}")>]
+type TripController() =
+    inherit ControllerBase()
+
+    let getTripStops (tripId: string) (startDate: LocalDate) () =
         use c = getDbConn ()
-        let stops =
-            sqlQueryRec<WebTripStop> c """
-                SELECT stopId, stopName,
-                       to_char(arrivedAt, 'HH24:MI') AS arrivedAt,
-                       to_char(shouldArriveAt, 'HH24:MI') AS shouldArriveAt,
-                       EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60 AS arrivalDelay,
-                       to_char(departedAt, 'HH24:MI') AS departedAt,
-                       to_char(shouldDepartAt, 'HH24:MI') as shouldDepartAt,
-                       EXTRACT(EPOCH FROM departedAt - shouldDepartAt)/60 AS departureDelay
-                FROM stopHistoryWithNames
-                WHERE tripId = @tripId
-                  AND tripStartDate = @startDate::date
-                ORDER BY tripStopIndex
-                """ ["tripId", box tripId
-                     "startDate", box startDate]
-            |> Seq.toArray
-        async { return stops }
+        sqlQueryRec<WebTripStop> c """
+            SELECT stopId, stopName,
+                   to_char(arrivedAt, 'HH24:MI') AS arrivedAt,
+                   to_char(shouldArriveAt, 'HH24:MI') AS shouldArriveAt,
+                   EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60 AS arrivalDelay,
+                   to_char(departedAt, 'HH24:MI') AS departedAt,
+                   to_char(shouldDepartAt, 'HH24:MI') as shouldDepartAt,
+                   EXTRACT(EPOCH FROM departedAt - shouldDepartAt)/60 AS departureDelay
+            FROM stopHistoryWithNames
+            WHERE tripId = @tripId
+              AND tripStartDate = @startDate::date
+            ORDER BY tripStopIndex
+            """ ["tripId", box tripId
+                 "startDate", box startDate]
+        |> Seq.toArray
 
-    [<JavaScript>]
-    type DelayChartItem = {
-        x: float
-        delay: float
-        stopName: string
-    }
-
-    [<JavaScript>]
-    type DelayChartLabel = {
-        x: float
-        label: string
-    }
-
-    [<JavaScript>]
-    type DelayChartData = {
-        data: DelayChartItem array
-        labels: DelayChartLabel array
-    }
-
-    [<Remote>]
-    let tripDelayChart (tripId: string) (startDate: string) () =
+    let getTripDelayChart (tripId: string) (startDate: LocalDate) () =
         use c = getDbConn ()
         let out =
             sqlQuery c """
@@ -138,7 +136,7 @@ WITH stopHist AS (
 )
 SELECT
     (SELECT json_agg(json_build_object(
-        'x', x, 'delay', delay, 'stopName', stopName))
+        'x', x, 'y', delay, 'stopName', stopName))
      FROM data) AS data,
     (SELECT json_agg(json_build_object(
         'x', x, 'label', label))
@@ -146,136 +144,54 @@ SELECT
                 """ ["tripId", box tripId
                      "startDate", box startDate]
             |> Seq.exactlyOne
-        let data =
-            Json.Deserialize<DelayChartItem array> (out.["data"] :?> string)
-        let labels =
-            Json.Deserialize<DelayChartLabel array> (out.["labels"] :?> string)
-        async { return { data = data; labels = labels } }
+        $"""{{"data":{out.["data"]},"labels":{out.["labels"]}}}"""
 
-[<JavaScript>]
-module Client =
-    open WebSharper.UI
-    open WebSharper.UI.Html
-    open WebSharper.UI.Client
-    open WebSharper.ECharts
-    open RtView.ClientGlobals
+    let stopRow (s: WebTripStop) =
+        tr [] [
+            td [] [str s.stopName]
+            td [] [str (s.shouldArriveAt |> Option.defaultValue "")]
+            td [] [str (s.arrivedAt |> Option.defaultValue "")]
+            td [] [str (s.arrivalDelay
+                         |> Option.map (sprintf "%.1f")
+                         |> Option.defaultValue "")]
+            td [] [str (s.shouldDepartAt |> Option.defaultValue "")]
+            td [] [str (s.departedAt |> Option.defaultValue "")]
+            td [] [str (s.departureDelay
+                         |> Option.map (sprintf "%.1f")
+                         |> Option.defaultValue "")]
+        ]
 
-    type ChartPoint = {
-        x: float
-        y: float
-    }
+    [<HttpGet>]
+    member this.get(
+            tripId: string,
+            tripStartDate: LocalDate) =
+        let tripName = getTripName tripId tripStartDate ()
+        let stops = getTripStops tripId tripStartDate ()
 
-    let tripPage tripId tripStartDate () =
-        let stops = Var.Create([||])
-        async {
-            let! s =
-                asyncWithLoading "Loading trip stop list..." <|
-                    Server.tripStops tripId tripStartDate ()
-            stops.Value <- s
-        } |> Async.Start
-
-        let tripName = Var.Create("")
-        async {
-            let! n =
-                asyncWithLoading "Loading trip name..." <|
-                    getTripName tripId tripStartDate ()
-            tripName.Value <- n
-        } |> Async.Start
-
-        let stopRow (s: Server.WebTripStop) =
-            tr [] [
-                td [] [text s.stopName]
-                td [] [text (s.shouldArriveAt |> Option.defaultValue "")]
-                td [] [text (s.arrivedAt |> Option.defaultValue "")]
-                td [] [text (s.arrivalDelay
-                             |> Option.map (sprintf "%.1f")
-                             |> Option.defaultValue "")]
-                td [] [text (s.shouldDepartAt |> Option.defaultValue "")]
-                td [] [text (s.departedAt |> Option.defaultValue "")]
-                td [] [text (s.departureDelay
-                             |> Option.map (sprintf "%.1f")
-                             |> Option.defaultValue "")]
-            ]
-
-        let chartOpts (data: Server.DelayChartData) =
-            let seriesData =
-                data.data |> Array.map (fun i -> [|
-                    // Having to cast to float is actually a bug in WS
-                    // A param (X|Y)[] gets compiled to X[] and Y[]. We also
-                    // need obj[]
-                    i.x
-                    i.delay
-                    box i.stopName :?> float
-                |])
-            let ticks =
-                data.labels |> Array.map (fun l -> l.x)
-            let labelMap =
-                data.labels |> Array.map (fun l -> l.x, l.label) |> Map
-
-            EChartOption()
-             .SetGrid([|delayChartGrid ()|])
-             .SetXAxis(delayChartXAxis ticks labelMap)
-             .SetYAxis(
-                YAxis()
-                 .SetType("value")
-                 .SetMin(fun x -> if x.Min < -5. then floor (x.Min - 1.) else -5.)
-                 .SetMax(fun x -> if x.Max > 10. then ceil (x.Max + 1.) else 10.)
-                 .SetInterval(5.)
-             )
-             .SetTooltip(
-                Tooltip()
-                 .SetShow(true)
-                 .SetTrigger("axis")
-                 .SetFormatter(fun (pars: Tooltip_Format array,
-                                    ticket: string,
-                                    callback: JavaScript.FuncWithArgs<
-                                        (string * string),Unit>) ->
-                    let data = pars.[0].Data.Value :?> obj array
-                    sprintf "%s<br>Delay: %.0f min"
-                            (data.[2] :?> string)
-                            (data.[1] :?> float)
-                 )
-             )
-             .SetAxisPointer(
-                AxisPointer()
-                 .SetSnap(true)
-             )
-             .SetSeries([|
-                SeriesLine()
-                 .SetType("line")
-                 .SetData(seriesData)
-                 .SetShowSymbol(false)
-                 // Disabled since SmoothMonotone is broken with points too
-                 // close on the X axis
-                 .SetSmooth(false)
-                 .SetSmoothMonotone("x")
-             |])
-             .SetVisualMap([|delayChartVisualMap ()|])
-
-        div [attr.``class`` "trip-page"] [
-            h1 [] [
-                tripName.View.Doc (fun n ->
-                    text (sprintf "Trip %s on %s" n tripStartDate))]
+        div [_class "trip-page"] [
+            h1 [] [str $"Trip {tripName} on {dateToIso tripStartDate}"]
             table [] [
                 thead [] [
-                    th [] [text "Stop"]
-                    th [] [text "Exp. arr."]
-                    th [] [text "Arr."]
-                    th [] [text "Arr. delay"]
-                    th [] [text "Exp. dep."]
-                    th [] [text "Dep."]
-                    th [] [text "Dep. delay"]
+                    th [] [str "Stop"]
+                    th [] [str "Exp. arr."]
+                    th [] [str "Arr."]
+                    th [] [str "Arr. delay"]
+                    th [] [str "Exp. dep."]
+                    th [] [str "Dep."]
+                    th [] [str "Dep. delay"]
                 ]
                 tbody [] [
-                    stops.View.DocSeqCached stopRow
+                    for stop in stops -> stopRow stop
                 ]
             ]
-            createChart "delay-chart" (fun c ->
-                async {
-                    let! data =
-                        asyncWithLoading "Loading trip delay chart..." <|
-                            Server.tripDelayChart tripId tripStartDate ()
-                    return chartOpts data
-                }
-            )
+            canvas [_class "delay-chart"] []
         ]
+        |> htmlResult $"Trip {tripName} on {dateToIso tripStartDate}"
+
+    [<HttpGet("chartData")>]
+    member this.chartData(
+            tripId: string,
+            tripStartDate: LocalDate) =
+        this.Content(
+            getTripDelayChart tripId tripStartDate (),
+            "application/json")

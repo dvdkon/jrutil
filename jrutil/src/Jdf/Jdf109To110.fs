@@ -1,4 +1,4 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2018 David Koňařík
 
 module JrUtil.Jdf109To110
@@ -55,7 +55,7 @@ let jdf109To110Converter () =
                          (idDistGG())
     let routeInfoAC = getAutoCopier<Jdf109Model.RouteInfo, JdfModel.RouteInfo>
                           (idDistGG())
-    let routeTimeAC = getAutoCopier<Jdf109Model.RouteTime, JdfModel.RouteTime>
+    let serviceNoteAC = getAutoCopier<Jdf109Model.ServiceNote, JdfModel.ServiceNote>
                           (idDistGG())
     let agencyAltAC = getAutoCopier<Jdf109Model.AgencyAlternation,
                                     JdfModel.AgencyAlternation>
@@ -77,8 +77,8 @@ let jdf109To110Converter () =
         "tripStops", (fun b -> Array.map tripStopAC b.tripStops |> box)
         "routeInfo", (fun b ->
             Array.map routeInfoAC b.routeInfo |> box)
-        "routeTimes", (fun b ->
-            Array.map routeTimeAC b.routeTimes |> box)
+        "serviceNotes", (fun b ->
+            Array.map serviceNoteAC b.serviceNotes |> box)
         "agencyAlternations", (fun b ->
             Array.map agencyAltAC b.agencyAlternations |> box)
         "alternateRouteNames", (fun b ->

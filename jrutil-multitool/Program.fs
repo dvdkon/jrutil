@@ -1,5 +1,5 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2019 David Koňařík
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
+// (c) 2023 David Koňařík
 
 open System.IO
 open Docopt
@@ -15,7 +15,6 @@ jrutil, a tool for working with czech public transport data
 Usage:
     jrutil-multitool.exe jdf-to-gtfs [--stop-coords-by-id=FILE] <JDF-in-dir> <GTFS-out-dir>
     jrutil-multitool.exe czptt-to-gtfs <CzPtt-in-file> <GTFS-out-dir>
-    jrutil-multitool.exe load-gtfs-to-db <db-connstr> <GTFS-in-dir>
     jrutil-multitool.exe --help
 
 Options:
@@ -91,25 +90,14 @@ let main (args: string array) =
                 try
                     let czptt = CzPtt.parseFile inpath
                     let gtfs =
-                        CzPtt.gtfsFeed czptt
+                        czptt.CzpttcisMessage
+                        |> Option.get
+                        |> CzPtt.gtfsFeed
                         |> gtfsWithCoords stopCoordsByIdPath
                     gtfsSer out gtfs
                 with
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
-        else if argFlagSet args "load-gtfs-to-db" then
-            let dbConnStr = argValue args "<db-connstr>"
-            let indir = argValue args "<GTFS-in-dir>"
-
-            use dbConn = getPostgresqlConnection dbConnStr
-
-            try
-                Gtfs.sqlCreateGtfsTables dbConn
-                Gtfs.sqlLoadGtfsFeed dbConn indir
-            with
-                | e -> printfn "Error while processing:\n%A" e
-
-            dbConn.Close()
         else printfn "%s" docstring
         0
     )

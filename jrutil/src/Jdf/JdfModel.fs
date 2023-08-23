@@ -1,4 +1,4 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2020 David Koňařík
 
 module JrUtil.JdfModel
@@ -90,8 +90,10 @@ type Stop = {
     town: string
     district: string option
     nearbyPlace: string option // In practice used for the stop name
-    nearbyTownId: string option
-    country: string
+    // Two-letter abbreviation of Czech Republic okres + AB for Prague
+    // Custom enum for CIS JŘ based on SPZ prefixes (see data/regions.json)
+    regionId: string option
+    country: string option
     [<CsvSpread(6)>]
     attributes: int option array
 }
@@ -208,8 +210,8 @@ type TripGroup = {
 type RouteStop = {
     routeId: string
     // The stop's ID within this route
-    // I'm not sure what this is or how it's used
-    // TBD probably by analysis of existing files
+    // Sequential, signifies place within printed timetable
+    // (and therefore generally order of stop calls)
     routeStopId: int64 // TODO
     zone: string option
     stopId: int64
@@ -239,6 +241,8 @@ type TripStopTime =
 type TripStop = {
     routeId: string
     tripId: int64
+    // For odd trips, the order they visit the stops is lowest-to-highest. For
+    // even trips, it's in reverse.
     routeStopId: int64
     stopId: int64
     stopPostId: int64 option
@@ -261,7 +265,7 @@ type RouteInfo = {
     routeDistinction: int
 }
 
-type RouteTimeType =
+type ServiceNoteType =
     | [<StrValue("1")>] Service
     | [<StrValue("2")>] ServiceAlso
     | [<StrValue("3")>] ServiceOnly
@@ -271,12 +275,12 @@ type RouteTimeType =
     | [<StrValue("7")>] ServiceOddWeeksFromTo
     | [<StrValue("8")>] ServiceEvenWeeksFromTo
 
-type RouteTime = {
+type ServiceNote = {
     routeId: string
     tripId: int64
     id: int64
     designation: string
-    timeType: RouteTimeType option
+    noteType: ServiceNoteType option
     dateFrom: LocalDate option
     dateTo: LocalDate option
     note: string option
@@ -340,7 +344,7 @@ type JdfBatch = {
     tripStops: TripStop array
     routeInfo: RouteInfo array
     attributeRefs: AttributeRef array
-    routeTimes: RouteTime array
+    serviceNotes: ServiceNote array
     transfers: Transfer array
     agencyAlternations: AgencyAlternation array
     alternateRouteNames: AlternateRouteName array

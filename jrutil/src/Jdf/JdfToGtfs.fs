@@ -1,4 +1,4 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2019 David Koňařík
 
 module JrUtil.JdfToGtfs
@@ -9,11 +9,12 @@ open NodaTime
 open Serilog
 
 open JrUtil
+open JrUtil
 open JrUtil.Holidays
 
 // Information that is lost in the conversion:
 // Textual notes about routes
-// "Označení časového kódu" - attributes stored in RouteTime
+// "Označení časového kódu" - attributes stored in ServiceNote
 // Details of accessibility attributes
 // Transfer attributes
 // "Stop exclusivity" attributes (can't go A->C, or C->B, but B->C is fine)
@@ -158,16 +159,55 @@ let getGtfsRoutes: JdfModel.JdfBatch -> GtfsModel.Route array = fun jdfBatch ->
         sortOrder = None
     })
 
+let tripDateRanges (jdfBatch: JdfModel.JdfBatch)
+                   routeId routeDistinction tripId =
+    let route =
+        jdfBatch.routes
+        |> Array.find (fun r -> r.id = routeId
+                             && r.idDistinction = routeDistinction)
+    let tripServiceInfos = // TODO: Use hash table for lookup?
+        jdfBatch.serviceNotes
+        |> Seq.filter (fun rt ->
+            rt.routeId = routeId
+            && rt.routeDistinction = routeDistinction
+            && rt.tripId = tripId
+            && rt.noteType = Some JdfModel.Service)
+        |> Seq.toList
+    match tripServiceInfos with
+    // No "Service" entry, just use full timetable validity
+    | [] ->
+        [DateInterval(route.timetableValidFrom, route.timetableValidTo)]
+    | tsi ->
+        tsi |> List.map (fun rt ->
+            DateInterval(
+                rt.dateFrom.Value,
+                rt.dateTo |> Option.defaultValue rt.dateFrom.Value))
+
+let dateRangesHoles (ranges: DateInterval list) =
+    ranges
+    |> List.sortBy (fun r -> r.Start)
+    |> List.pairwise
+    |> List.filter (fun (a, b) -> a.Intersection(b) = null
+                                  && a.End + Period.FromDays(1) <> b.Start)
+    |> List.map (fun (a, b) -> DateInterval(a.End + Period.FromDays(1),
+                                            b.Start - Period.FromDays(1)))
+
 let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
     jdfBatch.routes
     |> Array.collect (fun jdfRoute ->
-        let fromDate = jdfRoute.timetableValidFrom
-        let toDate = jdfRoute.timetableValidTo
+        let routeFromDate = jdfRoute.timetableValidFrom
+        let routeToDate = jdfRoute.timetableValidTo
         jdfBatch.trips
         |> Array.filter
             (fun t -> t.routeId = jdfRoute.id
                       && t.routeDistinction = jdfRoute.idDistinction)
         |> Array.map (fun jdfTrip ->
+            let dateRanges =
+                tripDateRanges jdfBatch jdfRoute.id jdfRoute.idDistinction
+                               jdfTrip.id
+            let fromDate = dateRanges |> Seq.map (fun r -> r.Start) |> Seq.min
+            let toDate = dateRanges |> Seq.map (fun r -> r.End) |> Seq.max
+
             let attrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
             let servicedDays =
                 attrs
@@ -181,17 +221,17 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
                     | _ -> []
                 )
 
-            let jdfRouteTimes =
-                jdfBatch.routeTimes
+            let jdfNotes =
+                jdfBatch.serviceNotes
                 |> Array.filter (fun rt ->
                     rt.routeId = jdfRoute.id
                     && rt.routeDistinction = jdfRoute.idDistinction
                     && rt.tripId = jdfTrip.id)
 
             let serviceOnlyEntryExists =
-                jdfRouteTimes
+                jdfNotes
                 |> Array.exists
-                    (fun rt -> rt.timeType = Some JdfModel.ServiceOnly)
+                    (fun rt -> rt.noteType = Some JdfModel.ServiceOnly)
             let weekdays =
                 if servicedDays.Length = 0
                 then [| for i in [1..7] -> not serviceOnlyEntryExists |]
@@ -208,8 +248,6 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
             }
             calendarEntry
         )
-        |> Array.filter (fun ce ->
-            ce.weekdayService <> [|for i in [1..7] -> false|])
     )
 
 
@@ -225,97 +263,129 @@ let getGtfsCalendarExceptions:
     let designationNumRegex = Regex(@"\d\d")
 
     fun jdfBatch ->
-        jdfBatch.routes
-        |> Array.collect (fun jdfRoute ->
-            let exceptions =
-                jdfBatch.routeTimes
-                |> Seq.filter (fun rt ->
-                    rt.routeId = jdfRoute.id
-                    && rt.routeDistinction = jdfRoute.idDistinction)
-                |> Seq.collect (fun jdfRouteTime ->
-                    if designationNumRegex.IsMatch(jdfRouteTime.designation) then
-                        let id = jdfTripId jdfRouteTime.routeId
-                                           jdfRouteTime.routeDistinction
-                                           jdfRouteTime.tripId
-                        let jdfCalExc date excType =
-                            let exc: GtfsModel.CalendarException = {
-                                id = id
-                                date = date
-                                exceptionType = excType
-                            }
-                            exc
+        jdfBatch.trips
+        |> Array.collect (fun jdfTrip ->
+            let dateRanges =
+                tripDateRanges jdfBatch jdfTrip.routeId
+                               jdfTrip.routeDistinction jdfTrip.id
+            let fromDate = dateRanges |> Seq.map (fun r -> r.Start) |> Seq.min
+            let toDate = dateRanges |> Seq.map (fun r -> r.End) |> Seq.max
+            let holeDates =
+                dateRangesHoles dateRanges
+                |> List.collect (fun h -> Utils.dateRange h.Start h.End)
 
-                        // None would indicate data that this function doesn't know
-                        // how to deal with
-                        let timeType = jdfRouteTime.timeType.Value
-                        match timeType with
-                        | JdfModel.Service ->
-                            jdfDateRange jdfRouteTime.dateFrom jdfRouteTime.dateTo
-                            |> List.map
-                                (fun date -> jdfCalExc date GtfsModel.ServiceAdded)
-                        | JdfModel.ServiceAlso | JdfModel.ServiceOnly ->
-                            [jdfCalExc jdfRouteTime.dateFrom.Value
-                                       GtfsModel.ServiceAdded]
-                        | JdfModel.NoService ->
-                            [jdfCalExc jdfRouteTime.dateFrom.Value
-                                       GtfsModel.ServiceRemoved]
-                        | _ ->
-                            Log.Warning("Unhandled JDF timeType: {TimeType}", timeType)
-                            [] //TBD
-                        // Service only on odd/even weeks will require also looking
-                        // at the trip's attributes to determine which weekdays to
-                        // include
-                    else
-                        // These have to be handled at the trip level. They're
-                        // just trip attributes in all but name
-                        Log.Warning("Unhandled JDF designation: {Designation}",
-                                    jdfRouteTime.designation)
-                        []
-                )
-                |> Seq.groupBy (fun ce -> (ce.id, ce.date))
-                // Take only one exception per date
-                // The JDF spec doesn't specify any priority for these entries,
-                // but real data may need at least some ordering (for example,
-                // single-day excpetions have a higher priority than multi-day ones)
-                |> Seq.map (fun (_, cexcs) -> cexcs |> Seq.last)
+            let jdfNotes =
+                jdfBatch.serviceNotes
+                |> Seq.filter (fun n ->
+                    n.routeId = jdfTrip.routeId
+                    && n.routeDistinction = jdfTrip.routeDistinction
+                    && n.tripId = jdfTrip.id
+                    && designationNumRegex.IsMatch(n.designation))
+                // Pre-process for ease of use
+                |> Seq.map (fun n -> {
+                    n with
+                        dateTo = n.dateTo |> Option.orElse n.dateFrom
+                })
+            let serviceOnlyNoteExists =
+                jdfNotes
+                |> Seq.exists
+                    (fun rt -> rt.noteType = Some JdfModel.ServiceOnly)
+            let negativeExceptionDates =
+                jdfNotes
+                |> Seq.filter (fun je -> je.noteType = Some JdfModel.NoService)
+                |> Seq.collect (fun je ->
+                    Utils.dateRange je.dateFrom.Value je.dateTo.Value)
+                // When "service only" is found, getGtfsCalendar sets schedule
+                // to no regular service, so we don't need to mask it out
+                |> Seq.append (if serviceOnlyNoteExists then [] else holeDates)
+                |> set
 
-            let holidays =
-                jdfBatch.trips
-                |> Seq.filter (fun trip ->
-                    trip.routeId = jdfRoute.id
-                    && trip.routeDistinction = jdfRoute.idDistinction)
-                |> Seq.collect (fun jdfTrip ->
-                    let id = jdfTripId jdfTrip.routeId
-                                       jdfTrip.routeDistinction
-                                       jdfTrip.id
-                    let attrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
-                    let excType =
-                        if attrs |> Set.contains JdfModel.HolidaySundayService
-                        then GtfsModel.ServiceAdded
-                        else GtfsModel.ServiceRemoved
-                    let fromDate = jdfRoute.timetableValidFrom
-                    let toDate = jdfRoute.timetableValidTo
-                    let years = [fromDate.Year .. toDate.Year]
-                    years
-                    |> Seq.collect (fun year ->
-                        czechHolidays year
-                        |> Seq.map (fun (d, m) -> LocalDate(year, m, d))
-                        |> Seq.filter (fun date ->
-                            date >= fromDate && date <= toDate)
-                        |> Seq.map (fun date ->
-                            let exc: GtfsModel.CalendarException = {
-                                id = id
-                                date = date
-                                exceptionType = excType
-                            }
-                            exc
-                        )))
-            Seq.append exceptions holidays
-            |> Seq.groupBy (fun ex -> (ex.id, ex.date))
-            // For duplicate exceptions, take the first one, which will
-            // hopefully be from exceptions and not holidays
-            |> Seq.map (fun (_, exs) -> Seq.head exs)
-            |> Seq.toArray
+            let positiveExceptionDates =
+                jdfNotes
+                |> Seq.filter (fun je -> Seq.contains je.noteType [
+                    Some JdfModel.ServiceAlso
+                    Some JdfModel.ServiceOnly
+                ])
+                |> Seq.collect (fun je ->
+                    Utils.dateRange je.dateFrom.Value je.dateTo.Value)
+                |> set
+
+            let tripAttrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
+            let holidayExcType =
+                if tripAttrs |> Set.contains JdfModel.HolidaySundayService
+                then Some GtfsModel.ServiceAdded
+                elif tripAttrs |> Set.contains JdfModel.WeekdayService
+                then Some GtfsModel.ServiceRemoved
+                else None
+            let years = [fromDate.Year .. toDate.Year]
+            let allHolidayDates =
+                years
+                |> Seq.collect (fun year ->
+                    czechHolidays year
+                    |> Seq.map (fun (d, m) -> LocalDate(year, m, d))
+                    |> Seq.filter (fun date ->
+                        dateRanges |> Seq.exists (fun r -> r.Contains(date))))
+                |> set
+            let holidayDates =
+                if holidayExcType = Some GtfsModel.ServiceAdded
+                then allHolidayDates - negativeExceptionDates
+                elif holidayExcType = Some GtfsModel.ServiceRemoved
+                then allHolidayDates - positiveExceptionDates
+                else set []
+
+            let unsupportedNoteTypes =
+                jdfNotes
+                |> Seq.map (fun n -> n.noteType)
+                |> set
+                |> Set.filter (fun t -> not <| Seq.contains t [
+                    Some JdfModel.Service
+                    Some JdfModel.ServiceAlso
+                    Some JdfModel.ServiceOnly
+                    Some JdfModel.NoService
+                ])
+            for t in unsupportedNoteTypes do
+                Log.Warning("Unhandled JDF service note: {Type}", t)
+
+            let unsupportedDesignations =
+                jdfNotes
+                |> Seq.map (fun t -> t.designation)
+                |> set
+                |> Seq.filter (fun d -> not <| designationNumRegex.IsMatch(d))
+            for d in unsupportedDesignations do
+                Log.Warning("Unhandled JDF service note: {Designation}", d)
+
+            let gtfsId = jdfTripId jdfTrip.routeId jdfTrip.routeDistinction
+                                   jdfTrip.id
+
+            let positiveExceptions =
+                positiveExceptionDates
+                |> Set.union (
+                    if holidayExcType = Some GtfsModel.ServiceAdded
+                    then holidayDates
+                    else set [])
+                |> Seq.map (fun d -> ({
+                    id = gtfsId
+                    date = d
+                    exceptionType = GtfsModel.ServiceAdded
+                }: GtfsModel.CalendarException))
+
+            let negativeExceptions =
+                negativeExceptionDates
+                |> Set.union (
+                    if holidayExcType = Some GtfsModel.ServiceRemoved
+                    then holidayDates
+                    else set [])
+                |> Seq.map (fun d -> ({
+                    id = gtfsId
+                    date = d
+                    exceptionType = GtfsModel.ServiceRemoved
+                }: GtfsModel.CalendarException))
+
+            Seq.concat [
+                positiveExceptions
+                negativeExceptions
+            ]
+            |> Array.ofSeq
         )
 
 

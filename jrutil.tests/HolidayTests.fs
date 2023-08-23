@@ -1,4 +1,4 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2021 David Koňařík
 namespace JrUtil.Tests
 
@@ -30,4 +30,4 @@ type HolidayTests() =
             25, 12
             26, 12
         ])
-        
+

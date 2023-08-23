@@ -3,5 +3,8 @@
 /db
 .fake
 .ionide
-/rtview/wwwroot/Content/*
-!/rtview/wwwroot/Content/.gitkeep
+!/rtview/wwwroot/rtview.js
+/georeport/thirdparty
+/rtview/wwwroot/chart.umd.js
+/rtview/wwwroot/rtview.css
+/scripts/*/

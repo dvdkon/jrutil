@@ -1,5 +1,5 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2018 David Koňařík
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
+// (c) 2023 David Koňařík
 
 module JrUtil.Jdf
 
@@ -35,21 +35,22 @@ let stopZone batch (stop: Stop) =
 
 let jdfBatchDirVersion path =
     let versionFile =
-        File.ReadAllText(
-            (findPathCaseInsensitive path "VerzeJDF.txt") |> Option.get
-        ).Trim()
-    (Regex("^\"([0-9.]+)\"[;,]")).Match(versionFile).Groups.[1].Value
+        tryReadJdfText path "VerzeJDF.txt"
+        |> Option.get
+    (Regex("^\"([0-9.]+)\"[;,]")).Match(versionFile.Trim()).Groups.[1].Value
 
+let fileParserTry name =
+    // TODO: Is putting the parser in a variable better for performance?
+    let parser = getJdfParser
+    fun (path: string) ->
+        tryReadJdfText path name
+        |> Option.map parser
 let fileParser name =
-    // TODO: Is this necessary?
-    let parser = getJdfFileParser
-    fun path -> parser ((findPathCaseInsensitive path name) |> Option.get)
+    let inner = fileParserTry name
+    fun path -> inner path |> Option.get
 let fileParserOrEmpty name =
-    let parser = getJdfFileParser
-    fun path ->
-        match findPathCaseInsensitive path name with
-        | Some p -> parser p
-        | None -> [||]
+    let inner = fileParserTry name
+    fun path -> inner path |> Option.defaultValue [||]
 
 let jdf111BatchDirParser () =
     let versionParser = fileParser "VerzeJDF.txt"
@@ -64,7 +65,7 @@ let jdf111BatchDirParser () =
     let tripStopsParser = fileParser "Zasspoje.txt"
     let routeInfoParser = fileParserOrEmpty "Udaje.txt"
     let attributeRefsParser = fileParser "Pevnykod.txt"
-    let routeTimesParser = fileParser "Caskody.txt"
+    let serviceNotesParser = fileParser "Caskody.txt"
     let transfersParser = fileParserOrEmpty "Navaznosti.txt"
     let agencyAlternationsParser = fileParserOrEmpty "Altdop.txt"
     let alternateRouteNamesParser = fileParserOrEmpty "Altlinky.txt"
@@ -83,7 +84,7 @@ let jdf111BatchDirParser () =
             tripStops = tripStopsParser path
             routeInfo = routeInfoParser path
             attributeRefs = attributeRefsParser path
-            routeTimes = routeTimesParser path
+            serviceNotes = serviceNotesParser path
             transfers = transfersParser path
             agencyAlternations = agencyAlternationsParser path
             alternateRouteNames = alternateRouteNamesParser path
@@ -104,7 +105,7 @@ let jdf110BatchDirParser () =
     let tripStopsParser = fileParser "Zasspoje.txt"
     let routeInfoParser = fileParserOrEmpty "Udaje.txt"
     let attributeRefsParser = fileParser "Pevnykod.txt"
-    let routeTimesParser = fileParser "Caskody.txt"
+    let serviceNotesParser = fileParser "Caskody.txt"
     let transfersParser = fileParserOrEmpty "Navaznosti.txt"
     let agencyAlternationsParser = fileParserOrEmpty "Altdop.txt"
     let alternateRouteNamesParser = fileParserOrEmpty "Altlinky.txt"
@@ -123,7 +124,7 @@ let jdf110BatchDirParser () =
             tripStops = tripStopsParser path
             routeInfo = routeInfoParser path
             attributeRefs = attributeRefsParser path
-            routeTimes = routeTimesParser path
+            serviceNotes = serviceNotesParser path
             transfers = transfersParser path
             agencyAlternations = agencyAlternationsParser path
             alternateRouteNames = alternateRouteNamesParser path
@@ -141,7 +142,7 @@ let jdf109BatchDirParser () =
     let tripStopsParser = fileParser "Zasspoje.txt"
     let routeInfoParser = fileParserOrEmpty "Udaje.txt"
     let attributeRefsParser = fileParser "Pevnykod.txt"
-    let routeTimesParser = fileParser "Caskody.txt"
+    let serviceNotesParser = fileParser "Caskody.txt"
     let agencyAlternationsParser = fileParserOrEmpty "Altdop.txt"
     let alternateRouteNamesParser = fileParserOrEmpty "Altlinky.txt"
     let reservationOptionsParser = fileParserOrEmpty "Mistenky.txt"
@@ -156,7 +157,7 @@ let jdf109BatchDirParser () =
             tripStops = tripStopsParser path
             routeInfo = routeInfoParser path
             attributeRefs = attributeRefsParser path
-            routeTimes = routeTimesParser path
+            serviceNotes = serviceNotesParser path
             agencyAlternations = agencyAlternationsParser path
             alternateRouteNames = alternateRouteNamesParser path
             reservationOptions = reservationOptionsParser path
@@ -179,3 +180,21 @@ let jdfBatchDirParser () =
             |> jdf109To110Conv
             |> jdf110To111Conv
         | v -> failwithf "Unknown JDF version: \"%s\"" v
+
+let rec findJdfBatches (path: string) =
+    if Path.GetFileName(path).ToLower() = "verzejdf.txt" then
+        [Path.GetDirectoryName(path)]
+    else if Path.GetExtension(path).ToLower() = ".zip" then
+        [path]
+    else if Directory.Exists(path) then
+        Seq.concat [Directory.EnumerateFiles(path);
+                    Directory.EnumerateDirectories(path)]
+        |> Seq.collect findJdfBatches
+        |> Seq.toList
+    else []
+
+let jdfStopNameString (stop: Stop) =
+    sprintf "%s,%s,%s"
+            stop.town
+            (stop.district |> Option.defaultValue "")
+            (stop.nearbyPlace |> Option.defaultValue "")

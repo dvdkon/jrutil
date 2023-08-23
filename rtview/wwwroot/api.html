@@ -4,20 +4,20 @@
 		<title>RtView – API</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<link rel="stylesheet" type="text/css" href="/Content/rtview.sass.css" />
+		<link rel="stylesheet" type="text/css" href="/rtview.css" />
 	</head>
 	<body>
 		<h1>API</h1>
 		<p>
 			JrUtil obsahuje veřejné API, kterým lze získat čistá data získaná z
-			RtCollect. Všechny endpointy vrací CSV z PostgreSQL. Všechny data
-			data jsou očekávana ve formátu <code>YYYY-mm-dd</code>. Parametry
+			RtCollect. Všechny endpointy vrací CSV z PostgreSQL. Data jsou
+			očekávana ve formátu <code>YYYY-mm-dd</code>. Parametry
 			<code>fromDate</code> a <code>toDate</code> se vztahují na datum
 			vyjetí spoje.
 		</p>
 
 		<p>
-			Na užívání vrácených dat nejsou kladeny žádná omezení ve smyslu
+			Na užívání vrácených dat nejsou kladena žádná omezení ve smyslu
 			autorského práva nebo zvláštního práva pořizovatele databáze.
 		</p>
 
@@ -25,8 +25,8 @@
 			<dt><code class="url">/api/stops</code><code>?stopIdLike=</code></dt>
 			<dd>
 				Vrátí seznam zastávek, jejichž název odpovídá vzoru
-				<code>stopIdLike</code> (použijte <code>%</code> pro všechny
-				zastávky, nezapomeňte jej ale enkódovat jako <code>%25</code>!.
+				<code>stopIdLike</code>. (Použijte <code>%</code> pro všechny
+				zastávky, nezapomeňte jej ale enkódovat jako <code>%25</code>!)
 			</dd>
 
 			<dt><code class="url">/api/tripdetails</code><code>?tripIdLike=&fromDate=&toDate=</code></dt>

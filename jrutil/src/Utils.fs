@@ -1,5 +1,5 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
-// (c) 2020 David Koňařík
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
+// (c) 2023 David Koňařík
 
 module JrUtil.Utils
 
@@ -8,11 +8,16 @@ open System.IO
 open System.Diagnostics
 open System.Globalization
 open System.Collections.Concurrent
-open Docopt
+open System.Runtime.InteropServices
+open System.Collections.Generic
+open DocoptNet
 open Serilog
+open Serilog.Events
+open Serilog.Sinks.SystemConsole.Themes
 open Serilog.Formatting.Json
 open NodaTime
 open NodaTime.Text
+open NetTopologySuite.Geometries
 
 #nowarn "0342"
 
@@ -95,9 +100,13 @@ let pariter<'a> threadCount func (inputs: 'a seq) =
     processingTask.Wait()
 
 // Used DateTime to parse and the converts the result to LocalDate
+let tryParseDate (format: string) (str: string) =
+    let success, dt = DateTime.TryParseExact(
+        str, format, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal)
+    if success then Some <| LocalDate.FromDateTime(dt)
+    else None
 let parseDate format str =
-    let dt = DateTime.ParseExact(str, format, CultureInfo.InvariantCulture)
-    LocalDate.FromDateTime(dt)
+    tryParseDate format str |> Option.get
 
 let parseTime format str =
     let pattern = LocalTimePattern.Create(format, CultureInfo.InvariantCulture)
@@ -109,6 +118,9 @@ let parsePeriod (format: string) (str: string) =
     let timespan =
         TimeSpan.ParseExact(str, format, CultureInfo.InvariantCulture)
     Period.FromMilliseconds(int64 timespan.TotalMilliseconds)
+
+let dateToIso (date: LocalDate) =
+    date.ToString("uuuu-MM-dd", CultureInfo.InvariantCulture)
 
 let rec dateRange (startDate: LocalDate) (endDate: LocalDate) =
     // Create a list of Dates containing all days between startDate
@@ -129,50 +141,43 @@ let dateToday () =
 
 let constant x _ = x
 
-let argFlagSet (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.Flag | Arguments.Result.Flags _ -> true
-    | Arguments.Result.None -> false
-    | _ -> raise (ArgvException (sprintf "Expected %A to be a Flag or Flags while processing %s"
-                                         args.[name] name))
+let argFlagSet (args: IDictionary<string, ArgValue>) name =
+    let arg = args.[name]
+    let s, v = arg.TryAsBoolean()
+    assert s
+    v
 
-let argValue (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.Argument x -> x
-    | Arguments.Result.None ->
-        raise (ArgvException (sprintf "Argument not found: %s" name))
-    | _ -> raise (ArgvException (sprintf "Expected %A to be an Argument"
-                                         args.[name]))
+let argValue (args: IDictionary<string, ArgValue>) name =
+    let arg = args.[name]
+    let s, v = arg.TryAsString()
+    assert s
+    v
 
-let optArgValue (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.None -> None
-    | Arguments.Result.Argument x -> Some x
-    | _ -> raise (ArgvException (sprintf "Expected %A to be an Argument or None"
-                                         args.[name]))
+let optArgValue (args: IDictionary<string, ArgValue>) name =
+    match args.TryGetValue(name) with
+    | true, a ->
+        let s, v = a.TryAsString()
+        assert s
+        Some v
+    | false, _ -> None
 
-let argValues (args: Arguments.Dictionary) name =
-    match args.[name] with
-    | Arguments.Result.Arguments x -> x
-    | Arguments.Result.None ->
-        raise (ArgvException (sprintf "Argument not found: %s" name))
-    | _ -> raise (ArgvException (sprintf "Expected %A to be Arguments"
-                                         args.[name]))
+let argValues (args: IDictionary<string, ArgValue>) name =
+    let arg = args.[name]
+    let s, v = arg.TryAsStringList()
+    assert s
+    v
 
 let withProcessedArgs docstring (args: string array) fn =
-    if args.Length = 0 then
+    match Docopt.CreateParser(docstring)
+                .Parse(args) with
+    | :? IArgumentsResult<_> as r -> fn r.Arguments
+    | :? IHelpResult | :? IVersionResult ->
         printfn "%s" docstring
         0
-    else
-        try
-            let docopt = Docopt(docstring)
-            let args = docopt.Parse(args)
-
-            fn args
-        with
-        | ArgvException(msg) ->
-            printfn "%s" msg
-            1
+    | :? IInputErrorResult as e ->
+        printfn "%s" e.Error
+        1
+    | _ -> assert false; 1
 
 let measureTime msg func =
     let sw = Stopwatch.StartNew()
@@ -193,13 +198,68 @@ let findPathCaseInsensitive dirPath (filename: string) =
         failwithf "Multiple files found when looking for %s in %s (case insensitive)"
                   filename dirPath
 
-let setupLogging logFile () =
+let setupLogging (logFile: string option) () =
     let mutable loggerFactory =
         LoggerConfiguration()
          .MinimumLevel.Debug()
          .Enrich.FromLogContext()
-         .Destructure.FSharpTypes()
-         .WriteTo.Console()
+         .WriteTo.Console(
+             standardErrorFromLevel = LogEventLevel.Verbose,
+             applyThemeToRedirectedOutput = true,
+             theme = if RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                     then SystemConsoleTheme.Literate :> ConsoleTheme
+                     else AnsiConsoleTheme.Literate :> ConsoleTheme)
     logFile |> Option.iter (fun lf ->
-        loggerFactory <- loggerFactory.WriteTo.File(JsonFormatter(), lf))
+        if lf.StartsWith("display:") then
+            loggerFactory <- loggerFactory.WriteTo.File(lf.[8..])
+        else if lf.StartsWith("json:") then
+            loggerFactory <- loggerFactory.WriteTo.File(JsonFormatter(), lf.[5..])
+        else
+            loggerFactory <- loggerFactory.WriteTo.File(lf))
     Log.Logger <- loggerFactory.CreateLogger()
+
+/// Useful for wrapping long computations for logging, e.g.
+/// `logWrappedOp "Computing Pi" (getDigitsOfPi 1000)`
+let logWrappedOp (msg: string) f =
+    Log.Information("{Operation}...", msg)
+    let v = f ()
+    Log.Information("{Operation} finished", msg)
+    v
+
+// Computed UIC checksum digit
+// Algorithm source: https://github.com/proggy/uic/
+// Works for computing sixth digit of SR70 ID
+let uicChecksum (digits: int array) =
+    (digits
+    |> Array.mapi (fun i d -> if (digits.Length - i) % 2 = 1 then d * 2 else d)
+    |> Array.sum) % 10
+
+let normaliseSr70 (sr70: string) =
+    // Strip checksum digit
+    if sr70.Length > 5
+    then sr70.[..4]
+    else sr70.PadLeft(5, '0')
+
+/// Like pairwise, but the previous element is returned as an option, so the
+/// first element is (None, head)
+let tryPairwise s =
+    Seq.concat [
+        seq { None, Seq.head s }
+        Seq.pairwise s |> Seq.map (fun (a, b) -> Some a, b)
+    ]
+
+let leftJoinOn xkey ykey xs ys =
+    let ysMap = ys |> Seq.map (fun y -> ykey y, y) |> Map
+    let st = new System.Diagnostics.StackTrace();
+    xs |> Seq.map (fun x -> x, ysMap |> Map.tryFind (xkey x))
+
+exception JoinException of string
+    with override this.Message = this.Data0
+
+let innerJoinOn xkey ykey xs ys =
+    leftJoinOn xkey ykey xs ys
+    |> Seq.map (fun (x, yo) ->
+        x, match yo with
+           | Some y -> y
+           | None -> raise (JoinException (sprintf
+                "Could not match left key %A" (xkey x))))

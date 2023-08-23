@@ -1,4 +1,4 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2018 David Koňařík
 
 module JrUtil.Jdf110Model
@@ -77,7 +77,7 @@ type JdfBatch = {
     tripStops: TripStop array
     routeInfo: JdfModel.RouteInfo array
     attributeRefs: JdfModel.AttributeRef array
-    routeTimes: JdfModel.RouteTime array
+    serviceNotes: JdfModel.ServiceNote array
     transfers: Transfer array
     agencyAlternations: JdfModel.AgencyAlternation array
     alternateRouteNames: JdfModel.AlternateRouteName array

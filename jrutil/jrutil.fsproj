@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <!--
-  This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+  This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
   (c) 2021 David Koňařík
   -->
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +23,11 @@
     <Compile Include="src/Jdf/Jdf109Model.fs" />
     <Compile Include="src/Jdf/Jdf109To110.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
+    <Compile Include="src/GeoData/Common.fs" />
+    <Compile Include="src/GeoData/CzRegions.fs" />
+    <Compile Include="src/GeoData/EurTowns.fs" />
+    <Compile Include="src/GeoData/StopMatcher.fs" />
+    <Compile Include="src/Jdf/JdfFixups.fs" />
     <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
     <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
     <Compile Include="src/Gtfs/GtfsParser.fs" />
@@ -33,9 +38,6 @@
     <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/GeoData/Osm.fs" />
     <Compile Include="src/GeoData/ExternalCsv.fs" />
-    <Compile Include="src/GeoData/SqlCzptt.fs" />
-    <Compile Include="src/GeoData/SqlOther.fs" />
-    <Compile Include="src/Gtfs/GtfsMerge.fs" />
     <Compile Include="src/RealTime/RealTimeModel.fs" />
     <Compile Include="src/RealTime/RealTimeSql.fs" />
     <Compile Include="src/UndatedTimes.fs" />
@@ -44,21 +46,23 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Lucene.Net" Version="4.8.0-beta00016" />
+    <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00016" />
+    <PackageReference Include="NetTopologySuite" Version="2.5.0" />
+    <PackageReference Include="NetTopologySuite.Features" Version="2.1.0" />
+    <PackageReference Include="NetTopologySuite.IO.GeoJSON4STJ" Version="3.0.0" />
+    <PackageReference Include="ProjNet" Version="2.0.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
     <PackageReference Include="FSharp.Data" Version="3.3.3" />
     <PackageReference Include="Npgsql" Version="4.1.4" />
     <PackageReference Include="Npgsql.NodaTime" Version="4.1.4" />
     <PackageReference Include="Scriban" Version="1.2.7" />
-    <PackageReference Include="Serilog" Version="2.9.0" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
-    <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
+    <PackageReference Include="Serilog" Version="3.0.1" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
-    <PackageReference Include="Destructurama.FSharp" Version="1.1.1-dev-00035" />
     <PackageReference Include="NodaTime" Version="3.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../thirdparty/docopt.fs/Build/Docopt.fsproj" />
+    <PackageReference Include="docopt.net" Version="0.8.1" />
   </ItemGroup>
 
 </Project>

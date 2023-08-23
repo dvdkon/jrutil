@@ -1,13 +1,15 @@
-// This file is part of JrUtil and is licenced under the GNU GPLv3 or later
+// This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2019 David Koňařík
 
 module JrUtil.CzPtt
 
 open System
 open System.IO
+open System.IO.Compression
 open System.Globalization
 open FSharp.Data
 open NodaTime
+open Serilog
 
 open JrUtil.Utils
 open JrUtil.UnionCodec
@@ -95,10 +97,38 @@ let commercialTrafficTypes =
         ("9006", ("Leo Expres Tenders", "LET"))
     ]
 
+let parseText (text: string) =
+    let doc = CzPttXml.Parse(text)
+    doc
+
 let parseFile (path: string) =
-    // .Load() uses the executable as the PWD, hence the workaround
-    let doc = CzPttXml.Parse(File.ReadAllText(path))
-    doc.CzpttcisMessage.Value
+    parseText (File.ReadAllText(path))
+
+/// Takes a path and finds all .xml documents under that path (incl. in ZIP
+/// files) and parses them
+let rec parseAll (path: string) =
+    if path.ToLower().EndsWith(".xml.zip") then
+        // GZip is not ZIP, but tell that to SŽ
+        // The data's good, so I don't complain
+        use stream = File.Open(path, FileMode.Open)
+        use gzStream = new GZipStream(stream, CompressionMode.Decompress)
+        use reader = new StreamReader(gzStream)
+        let doc =  parseText <| reader.ReadToEnd()
+        seq { doc }
+    else if Path.GetExtension(path).ToLower() = ".xml" then
+        seq { parseFile path }
+    else if Path.GetExtension(path).ToLower() = ".zip" then
+        ZipFile.OpenRead(path).Entries
+        |> Seq.filter (fun entry ->
+            Path.GetExtension(entry.Name).ToLower() = ".zip")
+        |> Seq.map (fun entry ->
+            use reader = new StreamReader(entry.Open())
+            parseText <| reader.ReadToEnd())
+    else if Directory.Exists(path) then
+        Seq.concat [Directory.EnumerateFiles(path);
+                    Directory.EnumerateDirectories(path)]
+        |> Seq.collect parseAll
+    else Seq.empty
 
 let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
     let ttAbbr = loc.TrafficType |> Option.map (fun tt -> trafficTypes.[tt])
@@ -181,16 +211,17 @@ let gtfsTripId czptt =
 
 let gtfsStationId (loc: CzPttXml.CzpttLocation) =
     sprintf "-SR80ST-%s-%s"
-            loc.CountryCodeIso
-            (loc.LocationPrimaryCode |> Option.get)
+            loc.Location.CountryCodeIso
+            (loc.Location.LocationPrimaryCode |> Option.get)
 
 let gtfsStopId (loc: CzPttXml.CzpttLocation) =
     let platform =
-        loc.LocationSubsidiaryIdentification
-        |> Option.map (fun lsi -> lsi.LocationSubsidiaryCode.Value)
+        loc.Location.LocationSubsidiaryIdentification
+        |> Option.map (fun lsi ->
+            lsi.LocationSubsidiaryCode.Value)
     sprintf "-SR80S-%s-%s%s"
-            loc.CountryCodeIso
-            (loc.LocationPrimaryCode |> Option.get)
+            loc.Location.CountryCodeIso
+            (loc.Location.LocationPrimaryCode |> Option.get)
             (platform
              |> Option.map (fun p -> "-" + p)
              |> Option.defaultValue "")
@@ -240,7 +271,7 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
                  then gtfsStationId loc
                  else gtfsStopId loc
             code = None
-            name = loc.PrimaryLocationName |> Option.defaultValue ""
+            name = loc.Location.PrimaryLocationName |> Option.defaultValue ""
             description = None
             lat = None
             lon = None
@@ -265,7 +296,7 @@ let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
             platformCode = platform
         }
 
-        match loc.LocationSubsidiaryIdentification with
+        match loc.Location.LocationSubsidiaryIdentification with
         | Some lsi ->
             let platformCode = lsi.LocationSubsidiaryCode.Value
             let station = createStop Station None None
