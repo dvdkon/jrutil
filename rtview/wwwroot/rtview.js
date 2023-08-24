@@ -63,8 +63,10 @@ function delayLineChartOpts(data, extraDatasets) {
                         axis.ticks = data.labels.map(l => ({value: l.x})),
                     ticks: {
                         callback: x => labelMap[x],
+                        stepSize: 1,
                         minRotation: 80,
                         maxRotation: 80,
+                        autoSkipPadding: 20,
                     },
                     grid: {
                         color: "#ddd",
@@ -115,6 +117,7 @@ function delayLineChartOpts(data, extraDatasets) {
                 mode: "index",
             },
             animation: false,
+            maintainAspectRatio: false,
         },
     };
 }
@@ -149,11 +152,12 @@ function setupChartType(select) {
 function setupSingleTripChart(chartElem) {
     if(chartElem.style.display === "none" || chartElem.dataset.setup) return;
     chartElem.dataset.setup = true;
+    const canvas = chartElem.querySelector("canvas");
 
     fetch(location + "/chartData")
     .then(resp => resp.json())
     .then(data => {
-        new Chart(chartElem, delayLineChartOpts(data, []));
+        new Chart(canvas, delayLineChartOpts(data, []));
     })
     .catch(err => {
         chartElem.innerText = `Failed to get data for chart: ${err}`;
@@ -163,13 +167,14 @@ function setupSingleTripChart(chartElem) {
 function setupAggTripChart(chartElem) {
     if(chartElem.style.display === "none" || chartElem.dataset.setup) return;
     chartElem.dataset.setup = true;
+    const canvas = chartElem.querySelector("canvas");
 
     const ssgDate = chartElem.dataset.ssgDate;
     const pageQs = location.search.substring(1);
     fetch(`${location.pathname}/chartData?${pageQs}&ssgDate=${ssgDate}`)
     .then(resp => resp.json())
     .then(data => {
-        new Chart(chartElem, delayLineChartOpts(data, [
+        new Chart(canvas, delayLineChartOpts(data, [
             {
                 data: data.data,
                 parsing: {

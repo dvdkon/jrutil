@@ -505,9 +505,11 @@ SELECT
 
                 yield stopsTable stops
 
-                yield canvas [
+                yield div [
                     _class "delay-chart"
-                    attr "data-ssg-date" (dateToIso ssg.date)] []
+                    attr "data-ssg-date" (dateToIso ssg.date)] [
+                        canvas [] []
+                ]
 
                 yield img [
                     _class "delay-heatmap"
