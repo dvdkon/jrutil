@@ -7,6 +7,7 @@ open Microsoft.AspNetCore.Mvc
 open Giraffe.ViewEngine
 open NodaTime
 
+open JrUtil.Utils
 open JrUtil.SqlRecordStore
 open RtView.ServerGlobals
 open RtView.Utils
@@ -20,7 +21,7 @@ type WebRoute = {
 
 type WebTrip = {
     tripId: string
-    tripStartDate: string
+    tripStartDate: LocalDate
     shortName: string
 }
 
@@ -72,7 +73,7 @@ type RoutesController() =
     let getTrips (startDateBound: LocalDate * LocalDate) (routeId: string) () =
         use c = getDbConn ()
         sqlQueryRec<WebTrip> c """
-            SELECT tripId, tripStartDate::text,
+            SELECT tripId, tripStartDate,
                    COALESCE(shortName, tripId) AS shortName
             FROM tripDetails
             WHERE routeId = @routeId
@@ -102,7 +103,7 @@ type RoutesController() =
         ul [_class "days-list"] [
             for t in trips ->
             let link = Links.trip t.tripId t.tripStartDate
-            let caption = sprintf "On %s" t.tripStartDate
+            let caption = sprintf "On %s" (dateToIso t.tripStartDate)
             li [] [a [_href link] [str caption]]
         ]
 
