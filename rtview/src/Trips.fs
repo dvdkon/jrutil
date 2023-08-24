@@ -415,12 +415,13 @@ SELECT
                         if y1 < y2
                         then x1, y1, x2, y2, dx, dy
                         else x2, y2, x1, y1, x1 - x2, y1 - y2
+                    let xInc, dx = if dx >= 0 then 1, dx else -1, -dx
                     let mutable d = 2*dx - dy
                     let mutable x = x1
                     for y in y1..y2 do
                         mark tripIdx x y ()
                         if d > 0 then
-                            x <- x + 1
+                            x <- x + xInc
                             d <- d - 2*dy
                         d <- d + 2*dx
 
