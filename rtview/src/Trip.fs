@@ -184,7 +184,9 @@ SELECT
                     for stop in stops -> stopRow stop
                 ]
             ]
-            canvas [_class "delay-chart"] []
+            div [_class "delay-chart"] [
+                canvas [] []
+            ]
         ]
         |> htmlResult $"Trip {tripName} on {dateToIso tripStartDate}"
 
