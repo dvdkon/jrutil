@@ -12,7 +12,10 @@ module ServerGlobals =
     let mutable dbConnStr = None
     let getDbConn () = getPostgresqlConnection (Option.get dbConnStr)
 
-    let mutable routeSummariesRefreshTimer = Unchecked.defaultof<Timer>
+    let routeSummariesRefreshTimer = new Timer((fun _ ->
+        let conn = getDbConn ()
+        executeSql conn "REFRESH MATERIALIZED VIEW routeSummaries" []
+    ))
 
     let createSqlViews conn =
         executeSql conn """
@@ -93,13 +96,12 @@ module ServerGlobals =
             $$
         """ []
 
-        routeSummariesRefreshTimer <- new Timer((fun _ ->
-            let conn = getDbConn ()
-            executeSql conn "REFRESH MATERIALIZED VIEW routeSummaries" []
         // Fire first after 10 minutes, then every 10 minutes
-        ), null, 10*60*1000, 10*60*1000)
+        routeSummariesRefreshTimer.Change(10*60*1000, 10*60*1000) |> ignore
 
     let init dbConnStr_ =
         dbConnStr <- Some dbConnStr_
-        use c = getDbConn ()
-        createSqlViews c
+        Thread(ThreadStart(fun () ->
+            use c = getDbConn ()
+            createSqlViews c
+        )).Start()
