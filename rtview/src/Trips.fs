@@ -373,11 +373,13 @@ SELECT
         let color = Pixel(0uy, 0uy, 255uy)
 
         let xs = stops |> Array.map (fun t -> t.x)
-        let ys = delays |> Array.collect id |> Array.choose id
+        let delayValues = delays |> Array.collect id |> Array.choose id
         let xMin = (xs |> Array.min |> floor) / xRes |> int
         let xMax = (xs |> Array.max |> ceil) / xRes |> int
-        let yMin = (ys |> Array.min |> floor) / yRes |> int
-        let yMax = (ys |> Array.max |> ceil) / yRes |> int
+        let delayMin = (delayValues |> Array.min |> floor)
+        let delayMax = (delayValues |> Array.max |> ceil)
+        let yMin = delayMin / yRes |> int
+        let yMax = delayMax / yRes |> int
         // Convert from time and delay to image x,y
         let proj x delay =
             ((x / xRes |> int) - xMin), ((delay / yRes |> int) - yMin)
@@ -457,7 +459,21 @@ SELECT
         let memStream = new MemoryStream()
         png.Save(memStream)
         memStream.Seek(0, SeekOrigin.Begin) |> ignore
-        memStream
+
+        let stopsForTicks =
+            Seq.concat [
+                seq { stops |> Seq.head; stops |> Seq.last }
+                stops
+                |> Seq.filter (fun s ->
+                    match s.dwellTime with
+                    | Some d -> d > 60
+                    | None -> false)
+            ]
+        memStream, {|
+            delayMin = delayMin
+            delayMax = delayMax
+            stops = stopsForTicks
+        |}
 
     member this.get(
             tripId: string,
@@ -511,15 +527,15 @@ SELECT
                         canvas [] []
                 ]
 
-                yield img [
-                    _class "delay-heatmap"
-                    _style "display: none"
-                    _src "data:,"
-                    attr "data-src"
-                         ($"/Trips/{tripId}/heatmap"
-                          + $"?fromDate={dateToIso fromDate}"
-                          + $"&toDate={dateToIso toDate}"
-                          + $"&ssgDate={dateToIso ssg.date}")
+                yield div [_class "delay-heatmap"
+                           _style "display: none"] [
+                    // Empty GIF data URL
+                    img [_src "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="
+                         attr "data-src"
+                              ($"/Trips/{tripId}/heatmap"
+                               + $"?fromDate={dateToIso fromDate}"
+                               + $"&toDate={dateToIso toDate}"
+                               + $"&ssgDate={dateToIso ssg.date}")]
                 ]
         ]
         |> htmlResult $"Trip {tripName}"
@@ -543,6 +559,6 @@ SELECT
             ssgDate: LocalDate) =
         let fromDate, toDate = dateRangeOrDefaults fromDate toDate
         let stops, delays = getTripDelays tripId ssgDate fromDate toDate ()
-        this.File(
-            generateHeatmap stops delays,
-            "image/png")
+        let pngStream, extra = generateHeatmap stops delays
+        this.Response.Headers.Add("X-Heatmap-Extra", JsonSerializer.Serialize(extra))
+        this.File(pngStream, "image/png")
