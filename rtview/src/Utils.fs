@@ -104,4 +104,4 @@ module Links =
         sprintf "/Trips/%s?fromDate=%s&toDate=%s"
                 id (dateToIso fromDate) (dateToIso toDate)
     let trip id startDate =
-        sprintf "/Trip/%s/%s" id (startDate.ToString())
+        sprintf "/Trip/%s/%s" id (dateToIso startDate)

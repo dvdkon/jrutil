@@ -215,6 +215,12 @@ document.addEventListener("DOMContentLoaded", () => {
     for(const rd of document.querySelectorAll("details.route-heading")) {
         setupRouteDetails(rd);
     }
+});
+
+// Ran after all assets loaded, including Chart.js library and after inputs are
+// populated with final values
+window.addEventListener("load", () => {
+    setupCharts();
     for(const c of document.querySelectorAll(".show-table input")) {
         showTable(c.checked);
         setupShowTable(c);
@@ -223,9 +229,4 @@ document.addEventListener("DOMContentLoaded", () => {
         showChart(s.value);
         setupChartType(s);
     }
-});
-
-// Ran after all assets loaded, including Chart.js library
-window.addEventListener("load", () => {
-    setupCharts();
 });

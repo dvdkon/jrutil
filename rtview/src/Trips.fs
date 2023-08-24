@@ -378,25 +378,51 @@ SELECT
         let xMax = (xs |> Array.max |> ceil) / xRes |> int
         let yMin = (ys |> Array.min |> floor) / yRes |> int
         let yMax = (ys |> Array.max |> ceil) / yRes |> int
+        // Convert from time and delay to image x,y
+        let proj x delay =
+            ((x / xRes |> int) - xMin), ((delay / yRes |> int) - yMin)
 
         let bitmap = Array2D.init (xMax - xMin + 1)
                                   (yMax - yMin + 1)
                                   (fun _ _ -> HashSet())
         let mark tripIdx x y () =
-            bitmap.[x - xMin, y - yMin].Add(tripIdx) |> ignore
+            bitmap.[x, y].Add(tripIdx) |> ignore
 
         for tripIdx, trip in delays |> Seq.indexed do
             let addStop stopIdx delay () =
-                mark tripIdx
-                     (stops.[stopIdx].x / xRes |> int)
-                     (delay / yRes |> int) ()
+                let x, y = proj stops.[stopIdx].x delay
+                mark tripIdx x y ()
             let addLineBetweenStops stopIdx1 delay1 stopIdx2 delay2 () =
-                let x1 = stops.[stopIdx1].x
-                let x2 = stops.[stopIdx2].x
-                let slope = (delay2 - delay1) / (x2 - x1)
-                for x in seq {0. .. ((x2 - x1) / xRes)} do
-                    let y = ((slope * x * xRes) / yRes + delay1) / yRes |> int
-                    mark tripIdx (x + x1/xRes |> int) y ()
+                let x1, y1 = proj stops.[stopIdx1].x delay1
+                let x2, y2 = proj stops.[stopIdx2].x delay2
+                // Bresenham's algorithm
+                let dx = x2 - x1
+                let dy = y2 - y1
+                // We know x1 <= x2, so the algorithm can be a little simpler
+                assert (dx >= 0)
+                if abs dy < abs dx then
+                    let yInc, dy = if dy >= 0 then 1, dy else -1, -dy
+                    let mutable d = 2*dy - dx
+                    let mutable y = y1
+                    for x in x1..x2 do
+                        mark tripIdx x y ()
+                        if d > 0 then
+                            y <- y + yInc
+                            d <- d - 2*dx
+                        d <- d + 2*dy
+                else
+                    let x1, y1, x2, y2, dx, dy =
+                        if y1 < y2
+                        then x1, y1, x2, y2, dx, dy
+                        else x2, y2, x1, y1, x1 - x2, y1 - y2
+                    let mutable d = 2*dx - dy
+                    let mutable x = x1
+                    for y in y1..y2 do
+                        mark tripIdx x y ()
+                        if d > 0 then
+                            x <- x + 1
+                            d <- d - 2*dy
+                        d <- d + 2*dx
 
             let tripSomes =
                 trip
@@ -423,7 +449,7 @@ SELECT
             for y in 0..bitmap.GetLength(1) - 1 do
                 let yInv = bitmap.GetLength(1) - y - 1
                 let relCount = float bitmap.[x, yInv].Count / float maxCount
-                let alpha = int <| 256.0 * Math.Sin(relCount * Math.PI / 2.0)
+                let alpha = int <| 255.0 * Math.Sin(relCount * Math.PI / 2.0)
                 png.SetPixel(
                     Pixel(color.R, color.G, color.B, byte alpha, false), x, y)
                 |> ignore
