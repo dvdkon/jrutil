@@ -201,6 +201,24 @@ async function setupHeatmap(elem) {
     }
 
     new ResizeObserver(addTicks).observe(imgElem);
+
+    async function setSelected(selX, selY) {
+        let url = imgElem.dataset.src
+        if(!url.includes("?")) url += "?"; else url += "&";
+        url += `selectedX=${selX}&selectedY=${selY}`;
+        const resp = await fetch(url);
+        const blob = await resp.blob();
+        const imgUrl = URL.createObjectURL(blob);
+        imgElem.src = imgUrl;
+    }
+
+    imgElem.addEventListener("click", ev => {
+        setSelected(
+            Math.floor(
+                ev.offsetX * imgElem.naturalWidth / imgElem.offsetWidth),
+            Math.floor(
+                ev.offsetY * imgElem.naturalHeight / imgElem.offsetHeight));
+    });
 }
 
 function showChart(type) {

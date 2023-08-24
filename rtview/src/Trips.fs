@@ -367,10 +367,11 @@ SELECT
         ]
 
     let generateHeatmap (stops: TripDelayStop array)
-                        (delays: float option array array) =
+                        (delays: float option array array)
+                        // (X, Y) in final image coordinates
+                        (selected: (int * int) option) =
         let xRes = 120.0
         let yRes = 60.0
-        let color = Pixel(0uy, 0uy, 255uy)
 
         let xs = stops |> Array.map (fun t -> t.x)
         let delayValues = delays |> Array.collect id |> Array.choose id
@@ -384,11 +385,25 @@ SELECT
         let proj x delay =
             ((x / xRes |> int) - xMin), ((delay / yRes |> int) - yMin)
 
-        let bitmap = Array2D.init (xMax - xMin + 1)
-                                  (yMax - yMin + 1)
-                                  (fun _ _ -> HashSet())
+        let bitmap =
+            Array2D.init (xMax - xMin + 1)
+                         (yMax - yMin + 1)
+                         (fun _ _ -> HashSet())
+        let selectedBitmap =
+            Array2D.init (xMax - xMin + 1)
+                         (yMax - yMin + 1)
+                         (fun _ _ -> HashSet())
+        let selectedTrips = HashSet()
+        let selected =
+            selected
+            |> Option.map (fun (x, y) -> x, bitmap.GetLength(1) - y - 1)
         let mark tripIdx x y () =
+            if Some (x, y) = selected then
+                selectedTrips.Add(tripIdx) |> ignore
+
             bitmap.[x, y].Add(tripIdx) |> ignore
+            if selectedTrips.Contains(tripIdx) then
+                selectedBitmap.[x, y].Add(tripIdx) |> ignore
 
         for tripIdx, trip in delays |> Seq.indexed do
             let addStop stopIdx delay () =
@@ -452,9 +467,13 @@ SELECT
             for y in 0..bitmap.GetLength(1) - 1 do
                 let yInv = bitmap.GetLength(1) - y - 1
                 let relCount = float bitmap.[x, yInv].Count / float maxCount
-                let alpha = int <| 255.0 * Math.Sin(relCount * Math.PI / 2.0)
+                let alpha = byte <| 255.0 * Math.Sin(relCount * Math.PI / 2.0)
+                let relSelected =
+                    float selectedBitmap.[x, yInv].Count
+                    / float bitmap.[x, yInv].Count
+                let red = byte <| 255.0 * Math.Pow(relSelected, 0.45)
                 png.SetPixel(
-                    Pixel(color.R, color.G, color.B, byte alpha, false), x, y)
+                    Pixel(red, 0uy, 255uy - red, alpha, false), x, y)
                 |> ignore
         let memStream = new MemoryStream()
         png.Save(memStream)
@@ -556,9 +575,15 @@ SELECT
             tripId: string,
             fromDate: LocalDate,
             toDate: LocalDate,
-            ssgDate: LocalDate) =
+            ssgDate: LocalDate,
+            selectedX: int Nullable,
+            selectedY: int Nullable) =
         let fromDate, toDate = dateRangeOrDefaults fromDate toDate
         let stops, delays = getTripDelays tripId ssgDate fromDate toDate ()
-        let pngStream, extra = generateHeatmap stops delays
+        let selected =
+            if selectedX.HasValue
+            then Some (selectedX.Value, selectedY.Value)
+            else None
+        let pngStream, extra = generateHeatmap stops delays selected
         this.Response.Headers.Add("X-Heatmap-Extra", JsonSerializer.Serialize(extra))
         this.File(pngStream, "image/png")
