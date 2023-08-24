@@ -122,6 +122,87 @@ function delayLineChartOpts(data, extraDatasets) {
     };
 }
 
+async function setupHeatmap(elem) {
+    if(elem.dataset.setup) return;
+    elem.dataset.setup = true;
+
+    const imgElem = elem.querySelector("img");
+    const resp = await fetch(imgElem.dataset.src);
+
+    const blob = await resp.blob();
+    const imgUrl = URL.createObjectURL(blob);
+    imgElem.src = imgUrl;
+
+    const extra = JSON.parse(resp.headers.get("X-Heatmap-Extra"));
+    const maxStopX = Math.max(...extra.stops.map(s => s.x));
+
+    function addYTick(delay) {
+        const relDelay =
+            (delay - extra.delayMin)/(extra.delayMax - extra.delayMin);
+        const top = (1 - relDelay) * imgElem.clientHeight - 1;
+
+        const tickLabelElem = document.createElement("div");
+        tickLabelElem.className = "y-tick-label";
+        // TODO: Some clever way to align middle of text with tick
+        tickLabelElem.style.top = (top - 7) + "px";
+        tickLabelElem.innerText = (delay / 60).toFixed(0);
+        elem.appendChild(tickLabelElem);
+
+        const tickElem = document.createElement("div");
+        tickElem.className = "y-tick";
+        tickElem.style.top = top + "px";
+        elem.appendChild(tickElem);
+
+        const gridlineElem = document.createElement("div");
+        gridlineElem.className = "y-gridline";
+        gridlineElem.style.top = top + "px";
+        gridlineElem.style.width = imgElem.clientWidth + "px";
+        elem.appendChild(gridlineElem);
+    }
+
+    const imgLeft = 40; // Match with CSS
+    function addXTick(stop) {
+        const relX = stop.x/maxStopX;
+        const left = imgLeft + (relX) * imgElem.clientWidth - 1;
+
+        const tickLabelElem = document.createElement("div");
+        tickLabelElem.className = "x-tick-label";
+        tickLabelElem.style.left = left + "px";
+        tickLabelElem.style.top = imgElem.clientHeight + "px";
+        tickLabelElem.innerText = stop.label;
+        elem.appendChild(tickLabelElem);
+
+        const tickElem = document.createElement("div");
+        tickElem.className = "x-tick";
+        tickElem.style.left = left + "px";
+        elem.appendChild(tickElem);
+
+        const gridlineElem = document.createElement("div");
+        gridlineElem.className = "x-gridline";
+        gridlineElem.style.left = left + "px";
+        gridlineElem.style.height = imgElem.clientHeight + "px";
+        elem.appendChild(gridlineElem);
+    }
+
+    function addTicks() {
+        for(const t of elem.querySelectorAll("div")) {
+            elem.removeChild(t);
+        }
+
+        const delayMinRound = Math.ceil(extra.delayMin / 300) * 300;
+        const delayMaxRound = Math.floor(extra.delayMax / 300) * 300;
+        for(let delay = delayMinRound; delay <= delayMaxRound; delay += 300) {
+            addYTick(delay);
+        }
+
+        for(const stop of extra.stops) {
+            addXTick(stop);
+        }
+    }
+
+    new ResizeObserver(addTicks).observe(imgElem);
+}
+
 function showChart(type) {
     if(type === "lineAndBounds") {
         for(const c of document.querySelectorAll(".delay-chart")) {
@@ -138,7 +219,7 @@ function showChart(type) {
         }
         for(const c of document.querySelectorAll(".delay-heatmap")) {
             c.style.display = null;
-            c.src = c.dataset.src;
+            setupHeatmap(c);
         }
     }
 }

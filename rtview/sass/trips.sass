@@ -28,6 +28,56 @@
             min-width: 200px // Fit stop names on one line
 
     .delay-heatmap
-        width: 100%
-        max-height: 300px
-        image-rendering: pixelated
+        height: 400px
+        position: relative
+
+        img
+            position: absolute
+            left: 40px
+            width: calc(100% - 40px)
+            max-height: 300px
+            image-rendering: pixelated
+
+        .y-tick-label
+            position: absolute
+            width: 30px
+            font-size: 9pt
+            text-align: end
+
+        .y-tick, .y-gridline
+            position: absolute
+            box-sizing: border-box
+            height: 0
+            border-top-style: solid
+            border-top-width: 1px
+            border-top-color: #bbb
+
+        .y-tick
+            left: 32px
+            width: 8px
+
+        .y-gridline
+            left: 40px
+            z-index: -1
+
+        .x-tick-label
+            position: absolute
+            transform-origin: right center
+            transform: translate(-100%, 0) rotate(-80deg)
+            font-size: 9pt
+            white-space: nowrap
+
+        .x-tick, .x-gridline
+            position: absolute
+            top: 0
+            box-sizing: border-box
+            height: 0
+            border-left-style: solid
+            border-left-width: 1px
+            border-left-color: #bbb
+
+        .x-tick
+            height: 8px
+
+        .x-gridline
+            z-index: -1
