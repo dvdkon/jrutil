@@ -6,11 +6,16 @@ namespace RtView
 open Microsoft.AspNetCore.Mvc
 open Giraffe.ViewEngine
 open NodaTime
+open FsToolkit.ErrorHandling
 
 open JrUtil.Utils
+open JrUtil.SearchParser
+open JrUtil.SqlSearch
 open JrUtil.SqlRecordStore
 open RtView.ServerGlobals
 open RtView.Utils
+
+#nowarn "40"
 
 type WebRoute = {
     routeId: string
@@ -31,38 +36,86 @@ type RoutesController() =
 
     let routesPerPage = 25
 
-    let getRoutes (startDateBound: LocalDate * LocalDate) 
+    let stopSearchFields = Map [
+        "", stringField "name"
+        "arr", timeField "arrivedAt::time"
+        "dep", timeField "departedAt::time"
+        "parr", timeField "shouldArriveAt::time"
+        "pdep", timeField "shouldDepartAt::time"
+    ]
+
+    let rec searchFields = Map [
+        "", stringField "name"
+        "not", notField (fun () -> searchFields)
+        "routename", stringField "name"
+        "occurs", intField """
+            (SELECT COUNT(*)
+             FROM tripDetails AS td
+             WHERE td.routeId = rs.routeId
+               AND td.tripStartDate >= @dateFrom
+               AND td.tripStartDate <= @dateTo)
+        """
+        "stop", fun pa args -> result {
+            let! inner = innerArgsToSql stopSearchFields pa args
+            return $"""
+                EXISTS (
+                    SELECT FROM tripDetails AS td
+                    INNER JOIN stopHistory AS sh
+                        ON sh.tripId = td.tripId
+                       AND sh.tripStartDate = td.tripStartDate
+                    INNER JOIN stops AS s
+                        ON s.id = sh.stopid
+                       AND s.validDateRange @> sh.tripStartDate
+                    WHERE td.routeId = rs.routeId
+                      AND td.tripStartDate >= @dateFrom
+                      AND td.tripStartDate <= @dateTo
+                      AND {inner}
+                )
+            """
+        }
+    ]
+
+    let getRoutes (startDateBound: LocalDate * LocalDate)
                   (page: int)
                   (searchTerm: string option) () =
         // TODO: Fully async?
         use c = getDbConn ()
 
-        let pars = ["dateFrom", box <| fst startDateBound
-                    "dateTo", box <| snd startDateBound
-                    "searchLike",
-                        box <| "%" + (Option.defaultValue "" searchTerm) + "%"
-                    "page", box <| page - 1
-                    "perPage", box routesPerPage]
+        let searchSql, searchParams =
+            searchTerm
+            |> Option.bind (fun st ->
+                st
+                |> parseSearch
+                |> searchToSql searchFields
+                // TODO: Error reporting
+                |> Option.ofResult)
+            |> Option.defaultValue ("TRUE", ResizeArray())
+
+        let pars = Seq.concat [
+            seq { "dateFrom", box <| fst startDateBound
+                  "dateTo", box <| snd startDateBound
+                  "page", box <| page - 1
+                  "perPage", box routesPerPage }
+            searchParams
+        ]
 
         let routeCount: int64 =
-            sqlQueryOne c """
+            sqlQueryOne c $"""
                 SELECT COUNT(*)
-                FROM routeSummaries
+                FROM routeSummaries AS rs
                 WHERE lastDate >= @dateFrom::date
                   AND firstDate <= @dateTo::date
-                  -- TODO: Full text search also on the stop names
-                  AND name ILIKE @searchLike
+                  AND {searchSql}
                 """ pars
             |> unbox
 
         let routes =
-            sqlQueryRec<WebRoute> c """
+            sqlQueryRec<WebRoute> c $"""
                 SELECT routeId, name, firstStop, lastStop
-                FROM routeSummaries
+                FROM routeSummaries AS rs
                 WHERE lastDate >= @dateFrom::date
                   AND firstDate <= @dateTo::date
-                  -- TODO: Full text search also on the stop names
-                  AND name ILIKE @searchLike
+                  AND {searchSql}
                 ORDER BY routeId
                 LIMIT @perPage
                 OFFSET @page * @perPage

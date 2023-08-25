@@ -108,16 +108,24 @@ let tryParseDate (format: string) (str: string) =
 let parseDate format str =
     tryParseDate format str |> Option.get
 
-let parseTime format str =
+let tryParseTime format str =
     let pattern = LocalTimePattern.Create(format, CultureInfo.InvariantCulture)
     let res = pattern.Parse(str)
-    if res.Success then res.Value
-    else failwithf "Failed to parse time \"%s\" with pattern \"%s\"" str format
+    if res.Success then Some res.Value else None
+let parseTime format str =
+    match tryParseTime format str with
+    | Some t -> t
+    | None -> failwithf "Failed to parse time \"%s\" with pattern \"%s\""
+                        str format
 
-let parsePeriod (format: string) (str: string) =
-    let timespan =
-        TimeSpan.ParseExact(str, format, CultureInfo.InvariantCulture)
-    Period.FromMilliseconds(int64 timespan.TotalMilliseconds)
+let tryParsePeriod (format: string) (str: string) =
+    let success, timespan =
+        TimeSpan.TryParseExact(str, format, CultureInfo.InvariantCulture)
+    if success then
+        Some <| Period.FromMilliseconds(int64 timespan.TotalMilliseconds)
+    else None
+let parsePeriod format str =
+    tryParsePeriod format str |> Option.get
 
 let dateToIso (date: LocalDate) =
     date.ToString("uuuu-MM-dd", CultureInfo.InvariantCulture)
@@ -263,3 +271,7 @@ let innerJoinOn xkey ykey xs ys =
            | Some y -> y
            | None -> raise (JoinException (sprintf
                 "Could not match left key %A" (xkey x))))
+
+let optResult error = function
+    | Some v -> Ok v
+    | None -> Error error
