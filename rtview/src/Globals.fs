@@ -14,7 +14,10 @@ module ServerGlobals =
 
     let routeSummariesRefreshTimer = new Timer((fun _ ->
         let conn = getDbConn ()
-        executeSql conn "REFRESH MATERIALIZED VIEW routeSummaries" []
+        executeSql
+            conn
+            "REFRESH MATERIALIZED VIEW CONCURRENTLY routeSummaries"
+            []
     ))
 
     let createSqlViews conn =
@@ -76,7 +79,8 @@ module ServerGlobals =
                      WHERE sh.tripId = r.tripId
                        AND sh.tripStartDate = r.lastDate
                      ORDER BY tripStopIndex DESC LIMIT 1) AS lastStop
-                FROM routes AS r
+                FROM routes AS r;
+            CREATE UNIQUE INDEX ON routeSummaries (routeId);
             """ []
 
         executeSql conn """
@@ -96,8 +100,8 @@ module ServerGlobals =
             $$
         """ []
 
-        // Fire first after 10 minutes, then every 10 minutes
-        routeSummariesRefreshTimer.Change(10*60*1000, 10*60*1000) |> ignore
+        // Fire first after 60 minutes, then every 60 minutes
+        routeSummariesRefreshTimer.Change(60*60*1000, 60*60*1000) |> ignore
 
     let init dbConnStr_ =
         dbConnStr <- Some dbConnStr_
