@@ -35,3 +35,7 @@ let assertSeqEqual (expected: 'a seq) (actual: 'a seq) =
     |> Seq.iteri (fun i (e, a) ->
         assertEqualWithMsg
             (sprintf "Element %d of collection is not equal!" i) e a)
+
+let assertOk = function
+    | Ok v -> v
+    | Error e -> raise <| new AssertFailedException($"Error! {e}")

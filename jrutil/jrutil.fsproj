@@ -43,9 +43,12 @@
     <Compile Include="src/UndatedTimes.fs" />
     <Compile Include="src/Grapp.fs" />
     <Compile Include="src/Golemio.fs" />
+    <Compile Include="src/SearchParser.fs" />
+    <Compile Include="src/SqlSearch.fs" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FsToolkit.ErrorHandling" Version="4.9.0" />
     <PackageReference Include="Lucene.Net" Version="4.8.0-beta00016" />
     <PackageReference Include="Lucene.Net.Analysis.Common" Version="4.8.0-beta00016" />
     <PackageReference Include="NetTopologySuite" Version="2.5.0" />
