@@ -48,21 +48,10 @@ let readJdfTextFromFile inpath =
     // FSharp.Data's approach, which reads char by char
     File.ReadAllText(inpath, jdfEncoding)
 
-let tryReadJdfTextFromZip zipPath (filename: string) =
-    ZipFile.OpenRead(zipPath).Entries
+let tryReadJdfTextFromZip (zip: ZipArchive) (filename: string) =
+    zip.Entries
     |> Seq.tryFind (fun entry -> entry.Name.ToLower() = filename.ToLower())
     |> Option.map (fun entry ->
         use reader = new StreamReader(entry.Open(), jdfEncoding)
         reader.ReadToEnd()
     )
-
-/// path: Path to JDF batch (folder or .zip)
-/// name: filename inside batch (case-insensitive)jj
-let tryReadJdfText (path: string) name =
-    let ext = Path.GetExtension(path)
-    if Directory.Exists(path) then
-        findPathCaseInsensitive path name
-        |> Option.map readJdfTextFromFile
-    else if ext.ToLower() = ".zip" then
-        tryReadJdfTextFromZip path name
-    else None

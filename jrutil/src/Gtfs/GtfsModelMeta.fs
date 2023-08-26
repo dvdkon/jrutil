@@ -11,7 +11,7 @@ open JrUtil
 
 [<AllowNullLiteral>]
 type CsvSpreadAttribute(headers: string array) =
-    inherit CsvParser.CsvSpreadAttribute(headers.Length)
+    inherit CsvMetadata.CsvSpreadAttribute(headers.Length)
     member this.Headers = headers
 
 [<AllowNullLiteral>]

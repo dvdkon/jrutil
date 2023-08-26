@@ -6,7 +6,7 @@ module JrUtil.Jdf109Model
 open NodaTime
 
 open JrUtil
-open JrUtil.CsvParser
+open JrUtil.CsvMetadata
 
 type JdfVersion = {
     version: string

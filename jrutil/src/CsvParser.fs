@@ -11,15 +11,10 @@ open Microsoft.FSharp.Reflection
 
 open JrUtil.ReflectionUtils
 open JrUtil.UnionCodec
+open JrUtil.CsvMetadata
 
 exception CsvParseException of msg: string
 with override this.Message = this.msg
-
-// Unfortunately needed due to reflection methods returning null
-[<AllowNullLiteral>]
-type CsvSpreadAttribute(len: int) =
-    inherit Attribute()
-    member this.Len = len
 
 let dateTimeParser (formats: string array) (instr: string) =
     let (success, res) =
@@ -81,9 +76,7 @@ let getRowParser<'r> (colParserFor: Type -> (string -> obj)) =
             with
             | _ as e ->
                 raise (CsvParseException
-                        // Unfortunately, there's no way to have multiline
-                        // format strings AFAIK
-                        (sprintf ("Failed parsing field \"%s\" of value \"%s\": %s")
+                        (sprintf "Failed parsing field \"%s\" of value \"%s\": %s"
                                  f.Name x (e.ToString())))
     let colParsers =
         fields |> Array.map getFieldParser

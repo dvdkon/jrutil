@@ -9,13 +9,13 @@ open System.Text
 open System.Threading
 open System.Security.Cryptography
 
-open Serilog
 open FSharp.Data
 open NetTopologySuite.Geometries
 
 open JrUtil.GeoData.CzRegions
 open JrUtil.GeoData.Common
 open JrUtil.GeoData.StopMatcher
+open JrUtil.JdfFixups
 open JrUtil.Utils
 
 let czechRepBBox = [| 48.195; 12.000; 51.385; 18.951 |]
@@ -134,3 +134,20 @@ let getCzOtherStops overpassUrl cacheDir =
             |> (fun os -> os.Elements)
     }
     |> Seq.concat
+
+let czOtherStopsForJdfMatch (stops: OtherStops.Element seq) =
+    stops
+    |> Seq.map (fun s ->
+        let point = wgs84Factory.CreatePoint(Coordinate(float s.Lon, float s.Lat))
+                    |> pointWgs84ToEtrs89Ex
+        let name, region = czOtherStopNameRegion s
+        {
+            name = name
+            data = {
+                country = if region.IsSome then Some "CZ" else None
+                regionId = region
+                point = point
+                precision = StopPrecise
+            }
+        })
+    |> Seq.toArray

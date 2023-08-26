@@ -3,8 +3,8 @@
 
 module GeoReport.StopListGen
 
-open System.IO
 open Serilog
+open Serilog.Context
 
 open JrUtil
 
@@ -13,7 +13,8 @@ let jdfStopNames czSkOnly jdfDir =
 
     Jdf.findJdfBatches jdfDir
     |> Seq.toArray
-    |> Array.map (fun batchPath ->
+    |> Array.map (fun (batchName, batchPath) ->
+        use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
         Log.Information("Reading stops from {JDF}", batchPath)
         try
             let stops: JdfModel.Stop array = stopsParser batchPath

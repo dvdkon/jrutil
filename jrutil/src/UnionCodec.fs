@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.UnionCodec
 
@@ -43,7 +43,12 @@ let getUnionSerializer = memoize <| fun (unionType: Type) ->
     let caseTagGetter = FSharpValue.PreComputeUnionTagReader unionType
     fun (x: obj) ->
         let caseTag = caseTagGetter x
-        let (_, caseStr) = cases |> Array.find (fun (ci, _) -> ci = caseTag)
+        let (_, caseStr) =
+            cases
+            |> Array.tryFind (fun (ci, _) -> ci = caseTag)
+            |> Option.defaultWith (fun () ->
+                failwithf "No string value for union case %A of %A"
+                          caseTag unionType)
         caseStr
 
 let serializeUnion<'u> (u: 'u) =

@@ -13,10 +13,13 @@
     <Compile Include="src/ReflectionUtils.fs" />
     <Compile Include="src/UnionCodec.fs" />
     <Compile Include="src/AutoCopy.fs" />
+    <Compile Include="src/CsvMetadata.fs" />
     <Compile Include="src/CsvParser.fs" />
+    <Compile Include="src/CsvSerializer.fs" />
     <Compile Include="src/SqlRecordStore.fs" />
     <Compile Include="src/Holidays.fs" />
     <Compile Include="src/Jdf/JdfParser.fs" />
+    <Compile Include="src/Jdf/JdfSerializer.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
     <Compile Include="src/Jdf/Jdf110Model.fs" />
     <Compile Include="src/Jdf/Jdf110To111.fs" />

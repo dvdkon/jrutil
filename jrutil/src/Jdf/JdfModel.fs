@@ -4,11 +4,12 @@
 module JrUtil.JdfModel
 
 open System
+open System.Globalization
 open System.Text.RegularExpressions
 open NodaTime
 
 open JrUtil.Utils
-open JrUtil.CsvParser
+open JrUtil.CsvMetadata
 open JrUtil.UnionCodec
 
 // A bit of trickery to deal with F#'s lack of support for mutually recursive
@@ -71,6 +72,13 @@ type Attribute =
              | None -> let dp = getUnionParser typeof<Attribute>
                        attributeDefaultParser <- Some (dp)
                        dp str
+    static member private baseSerializer =
+        getUnionSerializer typeof<Attribute>
+    member this.CsvSerialize() =
+        match this with
+        | DayOfWeekService d -> string d
+        | _ -> Attribute.baseSerializer this
+
 
 // TODO: .NET reflection docs (not the F#-specific ones) say, that field order
 // isn't guaranteed by reflection. Maybe these types' fields will need some
@@ -237,6 +245,11 @@ type TripStopTime =
         | "|" -> Passing
         | "<" -> NotPassing
         | _ -> parseTime "HHmm" str |> StopTime
+    member this.CsvSerialize() =
+        match this with
+        | Passing -> "|"
+        | NotPassing -> "<"
+        | StopTime t -> t.ToString("HHmm", CultureInfo.InvariantCulture)
 
 type TripStop = {
     routeId: string

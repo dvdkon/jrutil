@@ -70,7 +70,7 @@ let main (args: string array) =
             |> Seq.iter (fun (inpath, out) ->
                 printfn "Processing %s" inpath
                 try
-                    let jdf = jdfPar inpath
+                    let jdf = jdfPar (Jdf.FsPath inpath)
                     // TODO: Allow choice for stopIdsCis
                     let gtfs =
                         JdfToGtfs.getGtfsFeed false jdf

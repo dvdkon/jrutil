@@ -3,12 +3,12 @@
 
 module JrUtil.GeoData.ExternalCsv
 
-open System
-open System.IO
-
 open FSharp.Data
+open NetTopologySuite.Geometries
 
-open JrUtil.SqlRecordStore
+open JrUtil.GeoData.Common
+open JrUtil.GeoData.StopMatcher
+open JrUtil.JdfFixups
 
 #nowarn "0058"
 
@@ -18,3 +18,17 @@ type OtherStops = CsvProvider<
 type CzRailStops = CsvProvider<
     HasHeaders = false,
     Schema = "sr70(string), name(string), lat(float), lon(float)">
+
+let otherStopsForJdfMatch (otherStops: OtherStops) =
+    otherStops.Rows
+    |> Seq.map (fun s -> {
+        name = s.Name
+        data = {
+            regionId = s.Region
+            country = if s.Region.IsSome then Some "CZ" else None
+            point = pointWgs84ToEtrs89Ex
+                 <| wgs84Factory.CreatePoint(Coordinate(s.Lon, s.Lat))
+            precision = StopPrecise
+        }
+    })
+    |> Seq.toArray
