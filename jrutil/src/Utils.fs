@@ -14,7 +14,7 @@ open DocoptNet
 open Serilog
 open Serilog.Events
 open Serilog.Sinks.SystemConsole.Themes
-open Serilog.Formatting.Json
+open Serilog.Formatting.Compact
 open NodaTime
 open NodaTime.Text
 open NetTopologySuite.Geometries
@@ -221,7 +221,11 @@ let setupLogging (logFile: string option) () =
         if lf.StartsWith("display:") then
             loggerFactory <- loggerFactory.WriteTo.File(lf.[8..])
         else if lf.StartsWith("json:") then
-            loggerFactory <- loggerFactory.WriteTo.File(JsonFormatter(), lf.[5..])
+            loggerFactory <- loggerFactory.WriteTo.File(
+                CompactJsonFormatter(), lf.[5..])
+        else if lf.StartsWith("rjson:") then
+            loggerFactory <- loggerFactory.WriteTo.File(
+                RenderedCompactJsonFormatter(), lf.[6..])
         else
             loggerFactory <- loggerFactory.WriteTo.File(lf))
     Log.Logger <- loggerFactory.CreateLogger()
