@@ -303,7 +303,6 @@ let fillStopRegionsFromPrevious
                                     tso |> Option.bind (fun ts -> ts.kilometer)
                                 match lpo, kmOpt with
                                 | Some (_, _, lkm, lp, _), Some km ->
-                                    Log.Debug("D1 {Town} {Reg} {KmOpt} {Dist}", s.town, region, kmOpt, poly.Distance(lp) / 1000.0)
                                     poly.Distance(lp) / 1000.0
                                      < float (abs (km - lkm) + 1m)
                                 | _ -> false))
