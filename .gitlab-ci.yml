@@ -1,0 +1,30 @@
+# Based on sample .NET CI script: https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/dotNET-Core.gitlab-ci.yml
+
+image: mcr.microsoft.com/dotnet/sdk:6.0
+
+variables:
+  NUGET_PACKAGES_DIRECTORY: .nuget
+
+before_script:
+  - apt-get update
+  - apt-get -y install sassc
+  - dotnet restore --packages $NUGET_PACKAGES_DIRECTORY
+
+cache:
+  key: $CI_JOB_STAGE-$CI_COMMIT_REF_SLUG
+  paths:
+    - $NUGET_PACKAGES_DIRECTORY
+
+stages:
+  - build
+  - test
+
+dotnet-build:
+  stage: build
+  script:
+    - dotnet build --no-restore
+
+jrutil-tests:
+  stage: test
+  script:
+    - dotnet test --no-restore jrutil.tests
