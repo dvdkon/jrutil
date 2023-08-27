@@ -220,10 +220,12 @@ let fileWriter name =
     fun (dir: JdfBatchDirectory) records () ->
         match dir with
         | FsPath path ->
-            File.WriteAllText(Path.Join(path, name), serializer records)
+            File.WriteAllText(Path.Join(path, name),
+                              serializer records,
+                              jdfEncoding)
         | ZipArchive arch ->
             use stream = arch.CreateEntry(name).Open()
-            use writer = new StreamWriter(stream)
+            use writer = new StreamWriter(stream, jdfEncoding)
             writer.Write(serializer records)
 
 let jdfBatchDirWriter () =
