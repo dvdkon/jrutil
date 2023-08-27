@@ -20,10 +20,13 @@ let rec colSerializerForBase colSerializerFor (colType: Type) =
     else if typeIsOption colType then
         let innerType = colType.GetGenericArguments().[0]
         let innerTypeSerializer = colSerializerFor innerType
+        let isSomeProperty = colType.GetProperty("IsSome")
+        let valueProperty = colType.GetProperty("Value")
         fun xo ->
-            match FSharpValue.GetUnionFields(xo, colType) with
-            | _, [|x|] -> innerTypeSerializer x
-            | _ -> ""
+            if isSomeProperty.GetValue(null, [|xo|]) :?> bool then
+                valueProperty.GetValue(xo)
+                |> innerTypeSerializer
+            else ""
     else if FSharpType.IsUnion(colType) then getUnionSerializer colType
     else string
 

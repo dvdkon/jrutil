@@ -18,8 +18,6 @@ open Lucene.Net.Analysis.Core
 open Lucene.Net.Analysis.Synonym
 open Lucene.Net.Analysis.TokenAttributes
 
-open JrUtil
-
 [<Struct>]
 type StopToMatch<'d> = {
     name: string
@@ -80,6 +78,7 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
     let luceneVersion = LuceneVersion.LUCENE_48
     let directory = new RAMDirectory()
     let analyzer = makeAnalyzer luceneVersion
+    let mutable cachedReader = None
     do this.index()
 
     member this.index() =
@@ -106,10 +105,17 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
                 else 0)
         float32 matchedCount / float32 matchedTokens.Length
 
+    member this.reader =
+        match cachedReader with
+        | Some r -> r
+        | None ->
+            let r = DirectoryReader.Open(directory)
+            cachedReader <- Some r
+            r
+
+
     member this.matchStop(name, ?top) =
-        // TODO: Reuse reader/searcher?
-        use reader = DirectoryReader.Open(directory)
-        let searcher = IndexSearcher(reader)
+        let searcher = IndexSearcher(this.reader)
         let queryTokens = stopNameToTokens name
         let query = stopNameToQuery queryTokens
         // Ideally we'd override Lucene.Net with a custom scoring method, but
@@ -128,5 +134,6 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
 
     interface IDisposable with
         member this.Dispose() =
+            cachedReader |> Option.iter (fun r -> r.Dispose())
             analyzer.Dispose()
             directory.Dispose()

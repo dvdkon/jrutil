@@ -4,18 +4,16 @@
 module JrUtil.JdfSerializer
 
 open System
-open System.Globalization
 open NodaTime
 
 open JrUtil.CsvSerializer
+open JrUtil.JdfParser
 
 let rec jdfColSerializerFor colType =
     if colType = typeof<LocalDate> then
-        fun (x: obj) -> (x :?> LocalDate).ToString(
-            "yyyyMMdd", CultureInfo.InvariantCulture)
+        fun (x: obj) -> jdfDatePattern.Format(x :?> LocalDate)
     else if colType = typeof<LocalTime> then
-        fun (x: obj) -> (x :?> LocalTime).ToString(
-            "HHmm", CultureInfo.InvariantCulture)
+        fun (x: obj) -> jdfTimePattern.Format(x :?> LocalTime)
     else
         colSerializerForBase jdfColSerializerFor colType
 

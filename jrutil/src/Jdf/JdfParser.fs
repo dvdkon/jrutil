@@ -8,15 +8,18 @@ open System.IO.Compression
 open System.Text.RegularExpressions
 open System.Text
 open NodaTime
+open NodaTime.Text
 
-open JrUtil.Utils
 open JrUtil.CsvParser
+
+let jdfDatePattern = LocalDatePattern.CreateWithInvariantCulture("ddMMyyyy")
+let jdfTimePattern = LocalTimePattern.CreateWithInvariantCulture("HHmm")
 
 let rec jdfColParserFor colType =
     if colType = typeof<LocalDate> then
-        parseDate "ddMMyyyy" >> box
+        fun s -> jdfDatePattern.Parse(s).GetValueOrThrow() |> box
     else if colType = typeof<LocalTime> then
-        parseTime "HHmm" >> box
+        fun s -> jdfTimePattern.Parse(s).GetValueOrThrow() |> box
     else
         colParserForBase jdfColParserFor colType
 
@@ -29,15 +32,14 @@ let getJdfParser<'r> =
     // the end (";)) and that it's unescapable
     // This, however, means that this CSV-esque format can be parsed by regex!
     let rowParser = getRowParser<'r> jdfColParserFor
-    fun text ->
-        let lines = Regex(";\\r\\n").Split(text)
-        let colRegex = Regex("\",\"")
+    fun (text: string) ->
+        let lines = text.Split(";\r\n")
         lines
         |> Array.filter (fun line -> line <> "")
         |> Array.map (fun line ->
                 // Strip off leading and trailing quote
                 let strippedLine = line.Substring(1, line.Length - 2)
-                colRegex.Split(strippedLine) |> rowParser)
+                strippedLine.Split("\",\"") |> rowParser)
 
 
 let jdfEncoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)

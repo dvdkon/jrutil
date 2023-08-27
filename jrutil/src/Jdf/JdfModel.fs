@@ -7,6 +7,7 @@ open System
 open System.Globalization
 open System.Text.RegularExpressions
 open NodaTime
+open NodaTime.Text
 
 open JrUtil.Utils
 open JrUtil.CsvMetadata
@@ -229,6 +230,8 @@ type RouteStop = {
     routeDistinction: int
 }
 
+let private timePattern =
+    LocalTimePattern.CreateWithInvariantCulture("HHmm")
 type TripStopTime =
     // The annotations are here just because they look good
     // (and as documentation)
@@ -244,12 +247,12 @@ type TripStopTime =
         match str with
         | "|" -> Passing
         | "<" -> NotPassing
-        | _ -> parseTime "HHmm" str |> StopTime
+        | _ -> timePattern.Parse(str).GetValueOrThrow() |> StopTime
     member this.CsvSerialize() =
         match this with
         | Passing -> "|"
         | NotPassing -> "<"
-        | StopTime t -> t.ToString("HHmm", CultureInfo.InvariantCulture)
+        | StopTime t -> timePattern.Format(t)
 
 type TripStop = {
     routeId: string

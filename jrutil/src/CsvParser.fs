@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.CsvParser
 
@@ -80,25 +80,25 @@ let getRowParser<'r> (colParserFor: Type -> (string -> obj)) =
                                  f.Name x (e.ToString())))
     let colParsers =
         fields |> Array.map getFieldParser
+    let elTypes = fields |> Array.map (fun f ->
+        f.PropertyType.GetElementType())
 
     let recordConstructor = FSharpValue.PreComputeRecordConstructor(recordType)
     fun (cols: string array) ->
-        let (_, _, props) =
-            // This deals with the CsvSpread attribute. Sorry for the ugly code
-            spreadAttrs
-            |> List.fold (fun (ri, ci, l) sa ->
-                match sa with
-                // @ isn't as efficient as ::, but it's easier to do it this
-                // way IMO (:: doesn't interact well with list comprehensions)
-                | null -> (ri + 1, ci + 1, l @ [colParsers.[ri] cols.[ci]])
-                | sa -> (ri + 1,
-                         ci + sa.Len,
-                         let vals = [|for i in ci..(ci + sa.Len - 1)
-                                      -> colParsers.[ri] cols.[i]|]
-                         let elType = fields.[ri].PropertyType.GetElementType()
-                         let a = Array.CreateInstance(elType, vals.Length)
-                         Array.Copy(vals, a, vals.Length)
-                         l @ [a])
-                )  (0, 0, [])
-
-        recordConstructor(List.toArray props) |> unbox<'r>
+        let props = Array.create colParsers.Length null
+        spreadAttrs
+        |> List.fold (fun (ri, ci) sa ->
+            match sa with
+            | null ->
+                props.[ri] <- colParsers.[ri] cols.[ci]
+                ri + 1, ci + 1
+            | sa ->
+                let vals = [|for i in ci..(ci + sa.Len - 1)
+                             -> colParsers.[ri] cols.[i]|]
+                let a = Array.CreateInstance(elTypes.[ri], vals.Length)
+                Array.Copy(vals, a, vals.Length)
+                props.[ri] <- a
+                ri + 1, ci + sa.Len
+            )  (0, 0)
+        |> ignore
+        recordConstructor(props) |> unbox<'r>
