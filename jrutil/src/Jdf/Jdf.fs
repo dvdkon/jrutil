@@ -85,6 +85,7 @@ let jdf111BatchDirParser () =
     let agencyAlternationsParser = fileParserOrEmpty "Altdop.txt"
     let alternateRouteNamesParser = fileParserOrEmpty "Altlinky.txt"
     let reservationOptionsParser = fileParserOrEmpty "Mistenky.txt"
+    let stopLocationsParser = fileParserOrEmpty "Polzast.txt"
     fun path ->
         {
             version = (versionParser path).[0]
@@ -104,6 +105,7 @@ let jdf111BatchDirParser () =
             agencyAlternations = agencyAlternationsParser path
             alternateRouteNames = alternateRouteNamesParser path
             reservationOptions = reservationOptionsParser path
+            stopLocations = stopLocationsParser path
         }
 
 // This repetition is annoying. Refactoring suggestions welcome.
@@ -231,29 +233,39 @@ let fileWriter name =
 let jdfBatchDirWriter () =
     let versionWriter = fileWriter "VerzeJDF.txt"
     let stopsWriter = fileWriter "Zastavky.txt"
+    let stopPostsWriter = fileWriter "Oznacniky.txt"
     let agenciesWriter = fileWriter "Dopravci.txt"
     let routesWriter = fileWriter "Linky.txt"
+    let routeIntegrationWriter = fileWriter "LinExt.txt"
     let routeStopsWriter = fileWriter "Zaslinky.txt"
     let tripsWriter = fileWriter "Spoje.txt"
+    let tripGroupsWriter = fileWriter "SpojSkup.txt"
     let tripStopsWriter = fileWriter "Zasspoje.txt"
     let routeInfoWriter = fileWriter "Udaje.txt"
     let attributeRefsWriter = fileWriter "Pevnykod.txt"
     let serviceNotesWriter = fileWriter "Caskody.txt"
+    let transfersWriter = fileWriter "Navaznosti.txt"
     let agencyAlternationsWriter = fileWriter "Altdop.txt"
     let alternateRouteNamesWriter = fileWriter "Altlinky.txt"
     let reservationOptionsWriter = fileWriter "Mistenky.txt"
+    let stopLocationsWriter = fileWriter "Polzast.txt"
 
     fun dir (batch: JdfBatch) ->
         versionWriter dir [| batch.version |] ()
         stopsWriter dir batch.stops ()
+        stopPostsWriter dir batch.stopPosts ()
         agenciesWriter dir batch.agencies ()
         routesWriter dir batch.routes ()
+        routeIntegrationWriter dir batch.routeIntegrations ()
         routeStopsWriter dir batch.routeStops ()
         tripsWriter dir batch.trips ()
+        tripGroupsWriter dir batch.trips ()
         tripStopsWriter dir batch.tripStops ()
         routeInfoWriter dir batch.routeInfo ()
         attributeRefsWriter dir batch.attributeRefs ()
         serviceNotesWriter dir batch.serviceNotes ()
+        transfersWriter dir batch.transfers ()
         agencyAlternationsWriter dir batch.agencyAlternations ()
         alternateRouteNamesWriter dir batch.alternateRouteNames ()
         reservationOptionsWriter dir batch.reservationOptions ()
+        stopLocationsWriter dir batch.stopLocations ()

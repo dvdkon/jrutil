@@ -15,6 +15,7 @@ open NetTopologySuite.Geometries
 open JrUtil.GeoData.CzRegions
 open JrUtil.GeoData.Common
 open JrUtil.GeoData.StopMatcher
+open JrUtil.JdfModel
 open JrUtil.JdfFixups
 open JrUtil.Utils
 

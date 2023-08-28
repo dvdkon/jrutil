@@ -347,6 +347,18 @@ type ReservationOptions = {
     routeDistinction: int
 }
 
+type GeodataPrecision =
+    | [<StrValue("S")>] StopPrecise
+    | [<StrValue("T")>] TownPrecise
+
+// JrUtil extension
+type StopLocation = {
+    stopId: int64
+    lat: decimal
+    lon: decimal
+    precision: GeodataPrecision
+}
+
 type JdfBatch = {
     version: JdfVersion
     stops: Stop array
@@ -365,4 +377,5 @@ type JdfBatch = {
     agencyAlternations: AgencyAlternation array
     alternateRouteNames: AlternateRouteName array
     reservationOptions: ReservationOptions array
+    stopLocations: StopLocation array
 }

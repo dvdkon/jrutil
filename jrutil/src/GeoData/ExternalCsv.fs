@@ -8,6 +8,7 @@ open NetTopologySuite.Geometries
 
 open JrUtil.GeoData.Common
 open JrUtil.GeoData.StopMatcher
+open JrUtil.JdfModel
 open JrUtil.JdfFixups
 
 #nowarn "0058"

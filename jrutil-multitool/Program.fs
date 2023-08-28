@@ -143,6 +143,8 @@ let main (args: string array) =
                     JdfFixups.fixPublicCisJrBatch stopMatcher batch
 
                 let stopsWithMatches = Array.zip batchFixed.stops stopMatches
+                let batchWithLocations =
+                    JdfFixups.addStopLocations batchFixed stopsWithMatches
                 Seq.concat [
                     batchFixed.tripStops
                     |> Seq.groupBy (fun ts -> ts.routeId, ts.tripId)
@@ -161,7 +163,7 @@ let main (args: string array) =
 
                 let fixedOutDir = Path.Combine(outDir, batchName)
                 Directory.CreateDirectory(fixedOutDir) |> ignore
-                jdfWri (Jdf.FsPath fixedOutDir) batchFixed)
+                jdfWri (Jdf.FsPath fixedOutDir) batchWithLocations)
         else printfn "%s" docstring
         0
     )

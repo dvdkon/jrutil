@@ -19,10 +19,6 @@ open JrUtil.GeoData.CzRegions
 open JrUtil.GeoData.EurTowns
 open JrUtil.GeoData.StopMatcher
 
-type GeodataPrecision =
-    | StopPrecise
-    | TownPrecise
-
 type JdfStopGeodata = {
     regionId: string option
     country: string option
@@ -166,9 +162,10 @@ let topStopMatch (stop: Stop) (matches: StopMatch<JdfStopGeodata> array) =
             data = {
                 regionId = matches.[0].stop.data.regionId
                 country = matches.[0].stop.data.country
-                point = GeometryCollection(
-                            points |> Array.map (fun p -> p :> _)
-                        ).Centroid
+                point =
+                    etrs89ExFactory.CreateGeometryCollection(
+                        points |> Array.map (fun p -> p :> _))
+                        .Centroid
                 precision =
                     if matches
                        |> Seq.exists (fun m ->
@@ -686,6 +683,25 @@ let fixPublicCisJrBatch (stopMatcher: StopMatcher<JdfStopGeodata>)
 
     { jdfBatch with stops = augmentedStops |> Array.map fst },
     augmentedStops |> Array.map snd
+
+let addStopLocations jdfBatch stopsWithMatches =
+    { jdfBatch with
+        stopLocations =
+            stopsWithMatches
+            |> Array.choose (fun (s: Stop, mo) ->
+                mo |> Option.map (fun m ->
+                    let wgs84Pt =
+                        transformPoint
+                            etrs89ExSrid wgs84Srid
+                            (wgs84ToEtrs89Ex.Inverse())
+                            m.data.point
+                    {
+                        stopId = s.id
+                        lat = decimal wgs84Pt.Y
+                        lon = decimal wgs84Pt.X
+                        precision = m.data.precision
+                    }))
+    }
 
 /// WARN: Expects tripsStops to be for one trip only and sorted by call order
 let checkMatchDistances
