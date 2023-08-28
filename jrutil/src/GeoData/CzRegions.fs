@@ -27,6 +27,15 @@ type TownWithRegion = CsvProvider<
     HasHeaders = false,
     Schema = "id(int), name(string), regionLau1(string), regionId(string)">
 
+// Sometimes names of towns in timetables don't match official town names,
+// sometimes even multiple names are used across different timetables. This
+// (hopefully forever) small list maps variations to official names.
+let townSynonyms = Map [
+    "Dolní Malá Úpa", "Malá Úpa"
+    "Horní Malá Úpa", "Malá Úpa"
+    "Podhořany u Ronova n.D.", "Podhořany u Ronova"
+]
+
 let czechRegionPolygons =
     memoizeVoidFunc <| fun () ->
         use fileStream = File.OpenRead(regionsSimplifiedFile)

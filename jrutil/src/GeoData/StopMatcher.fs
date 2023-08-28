@@ -94,13 +94,16 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
 
     member this.nameSimilarity(queryTokens: string array,
                                matchedTokens: string array) =
-        let qtSet = set queryTokens
+        let qtExpandedSet =
+            queryTokens
+            |> Seq.collect (fun t -> analyzeToTokens analyzer "name" t)
+            |> set
         // Result: How many of the matched stop's words are also in the query
         let matchedCount =
             matchedTokens
             |> Array.sumBy (fun mt ->
                 let synonyms = analyzeToTokens analyzer "name" mt
-                if Set.intersect (set synonyms) qtSet |> Set.isEmpty |> not
+                if Set.intersect (set synonyms) qtExpandedSet |> Set.isEmpty |> not
                 then 1
                 else 0)
         float32 matchedCount / float32 matchedTokens.Length

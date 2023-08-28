@@ -14,7 +14,7 @@ open JrUtil.JdfFixups
 
 type OtherStops = CsvProvider<
     HasHeaders = false,
-    Schema = "name(string), lat(float), lon(float), region(string option)">
+    Schema = "name(string), lat(float), lon(float), region(string option), country(string option)">
 type CzRailStops = CsvProvider<
     HasHeaders = false,
     Schema = "sr70(string), name(string), lat(float), lon(float)">
@@ -25,7 +25,7 @@ let otherStopsForJdfMatch (otherStops: OtherStops) =
         name = s.Name
         data = {
             regionId = s.Region
-            country = if s.Region.IsSome then Some "CZ" else None
+            country = s.Country
             point = pointWgs84ToEtrs89Ex
                  <| wgs84Factory.CreatePoint(Coordinate(s.Lon, s.Lat))
             precision = StopPrecise

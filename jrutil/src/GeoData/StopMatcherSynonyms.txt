@@ -19,13 +19,16 @@ rest., restaurace
 sídl., sídliště
 nem., nemocnice
 háj., hájenka, hájovna
-obú, obecní úřadHorní Heřmanice
+obú, obecní úřad
 měú, městský úřad
 nákup., nákupní
 stř., středisko
+pož., požární
+zbroj, zbrojnice
+ul., ulice
 
-hor., horní
-dol., dolní
+hor., h., horní
+dol., d., dolní, der
 vel., velký, velká, velké
 
 n., nad, nisou
@@ -37,13 +40,19 @@ svit., svitavou
 jiz., jizerských, jizerou
 met., metují
 cidl., cidlinou
-bez., bezdězem
+bez., bezd., bezdězem
 jev., jevišovkou
 mor., moravě, moravou
 des., desnou
 bystř., bystřicí
 sáz., sázavou
+dřev., dřevnicí
 h., horách
 zdrav., zdravotnická
 heřm., heřmanice
 l., lázně
+sv., svatý, svatá, svaté, svatého, svaté
+
+a., an
+i., in, im
+w., wald

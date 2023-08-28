@@ -17,7 +17,6 @@ open Serilog.Sinks.SystemConsole.Themes
 open Serilog.Formatting.Compact
 open NodaTime
 open NodaTime.Text
-open NetTopologySuite.Geometries
 
 #nowarn "0342"
 
@@ -229,6 +228,14 @@ let setupLogging (logFile: string option) () =
         else
             loggerFactory <- loggerFactory.WriteTo.File(lf))
     Log.Logger <- loggerFactory.CreateLogger()
+
+/// Create Serilog event without logging it immediately
+let logEvent level (msg: string) (props: 'a array) =
+    let valid, parsedMsg, boundProps =
+        Log.BindMessageTemplate(msg, props |> Array.map box)
+    if not valid then
+        failwithf "Invalid log event: '%s' %A" msg props
+    LogEvent(DateTimeOffset.Now, level, null, parsedMsg, boundProps)
 
 /// Useful for wrapping long computations for logging, e.g.
 /// `logWrappedOp "Computing Pi" (getDigitsOfPi 1000)`
