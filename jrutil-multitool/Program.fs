@@ -137,9 +137,28 @@ let main (args: string array) =
                 let batchName = Path.GetFileNameWithoutExtension(batchPath)
                 use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
                 Log.Information("Processing JDF batch {BatchPath}", batchPath)
+
                 let batch = jdfPar batchDir
-                let batchFixed, _stopMatches =
+                let batchFixed, stopMatches =
                     JdfFixups.fixPublicCisJrBatch stopMatcher batch
+
+                let stopsWithMatches = Array.zip batchFixed.stops stopMatches
+                Seq.concat [
+                    batchFixed.tripStops
+                    |> Seq.groupBy (fun ts -> ts.routeId, ts.tripId)
+                    |> Seq.map snd
+                    // Take one trip most likely to contain all stops' km
+                    // distances (testing all takes too much time)
+                    |> Seq.sortByDescending Seq.length
+                    |> Seq.head
+                    |> fun ts ->
+                        JdfFixups.checkMatchDistances
+                            (Seq.toArray ts) stopsWithMatches
+
+                    JdfFixups.checkMissingRegionsCountries batchFixed
+                ]
+                |> Seq.iter (fun msg -> Log.Write(msg))
+
                 let fixedOutDir = Path.Combine(outDir, batchName)
                 Directory.CreateDirectory(fixedOutDir) |> ignore
                 jdfWri (Jdf.FsPath fixedOutDir) batchFixed)
