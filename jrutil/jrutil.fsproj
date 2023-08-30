@@ -26,6 +26,7 @@
     <Compile Include="src/Jdf/Jdf109Model.fs" />
     <Compile Include="src/Jdf/Jdf109To110.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
+    <Compile Include="src/Jdf/JdfMerger.fs" />
     <Compile Include="src/GeoData/Common.fs" />
     <Compile Include="src/GeoData/CzRegions.fs" />
     <Compile Include="src/GeoData/EurTowns.fs" />

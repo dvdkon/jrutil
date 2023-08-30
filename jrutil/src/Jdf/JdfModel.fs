@@ -87,11 +87,12 @@ type Attribute =
 
 type JdfVersion = {
     version: string
-    duNum: int option // TODO: What is this exactly?
+    // Číslo dopravního úřadu
+    duNum: int option
     region: string option
     batchId: string option
     creationDate: LocalDate option
-    name: String option
+    generator: String option
 }
 
 type Stop = {
@@ -308,8 +309,8 @@ type Transfer = {
     routeId: string
     tripId: int64
     routeStopId: int64
-    // All points to global register
     transferRouteId: int64 option
+    // All these IDs point to the global stop register, *not* to local stop IDs
     transferStopId: int64 option
     transferStopPostId: int64 option
     transferEndStopId: int64 option

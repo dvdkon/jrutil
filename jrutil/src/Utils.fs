@@ -286,3 +286,14 @@ let innerJoinOn xkey ykey xs ys =
 let optResult error = function
     | Some v -> Ok v
     | None -> Error error
+
+let splitSeq pred xs =
+    let split = xs |> Seq.groupBy pred |> Seq.toList
+    split
+    |> List.tryFind (fun (b, _) -> b)
+    |> Option.defaultValue (true, [])
+    |> snd,
+    split
+    |> List.tryFind (fun (b, _) -> not b)
+    |> Option.defaultValue (false, [])
+    |> snd
