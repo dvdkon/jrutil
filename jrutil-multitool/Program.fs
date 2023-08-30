@@ -17,6 +17,7 @@ Usage:
     jrutil-multitool.exe jdf-to-gtfs [options] <JDF-in-dir> <GTFS-out-dir>
     jrutil-multitool.exe czptt-to-gtfs [options] <CzPtt-in-file> <GTFS-out-dir>
     jrutil-multitool.exe fix-jdf [options] <JDF-in-dir> <JDF-out-dir>
+    jrutil-multitool.exe merge-jdf [options] <JDF-out-dir> <JDF-in-dir>...
     jrutil-multitool.exe --help
 
 Options:
@@ -106,7 +107,7 @@ let main (args: string array) =
                     | e -> printfn "Error while processing %s:\n%A" inpath e
             )
         else if argFlagSet args "fix-jdf" then
-            let inDir = argValue args "<JDF-in-dir>"
+            let inDir = argValues args "<JDF-in-dir>" |> Seq.head
             let outDir = argValue args "<JDF-out-dir>"
             let geodataPath = optArgValue args "--ext-geodata"
             let overpassUrl = optArgValue args "--overpass-url"
@@ -164,6 +165,26 @@ let main (args: string array) =
                 let fixedOutDir = Path.Combine(outDir, batchName)
                 Directory.CreateDirectory(fixedOutDir) |> ignore
                 jdfWri (Jdf.FsPath fixedOutDir) batchWithLocations)
+            Log.Information("Finished!")
+        else if argFlagSet args "merge-jdf" then
+            let outDir = argValue args "<JDF-out-dir>"
+
+            let merger = JdfMerger.JdfMerger()
+            let jdfPar = Jdf.jdfBatchDirParser ()
+            let jdfWri = Jdf.jdfBatchDirWriter ()
+
+            for inDir in argValues args "<JDF-in-dir>" do
+                for batchPath, batchDir in Jdf.findJdfBatches inDir do
+                    let batchName = Path.GetFileNameWithoutExtension(batchPath)
+                    use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
+                    Log.Information("Merging JDF batch {BatchPath}", batchPath)
+                    
+                    let batch = jdfPar batchDir
+                    merger.Add(batch)
+                    
+            Log.Information("Writing merged JDF")
+            jdfWri (Jdf.FsPath outDir) merger.Batch
+            Log.Information("Finished!")
         else printfn "%s" docstring
         0
     )
