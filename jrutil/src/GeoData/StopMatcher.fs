@@ -41,7 +41,6 @@ let preprocessStopName (name: string) =
      .Replace('\u00a0', ' ')
      .ToLower()
 
-
 let stopNameToTokens (name: string) =
     (preprocessStopName name)
      .Split(' ')
@@ -108,6 +107,16 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
                 else 0)
         float32 matchedCount / float32 matchedTokens.Length
 
+    /// Checks exact equality of two arrays of tokens, including order of words
+    /// but considering synonyms
+    member this.checkExactMatch(tok1: string array, tok2: string array) =
+        let expand t = set <| analyzeToTokens analyzer "name" t
+
+        tok1.Length = tok2.Length
+        &&
+        Seq.zip tok1 tok2
+        |> Seq.forall (fun (t1, t2) -> expand t1 = expand t2)
+
     member this.reader =
         match cachedReader with
         | Some r -> r
@@ -116,7 +125,6 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
             cachedReader <- Some r
             r
 
-
     member this.matchStop(name, ?top) =
         let searcher = IndexSearcher(this.reader)
         let queryTokens = stopNameToTokens name
@@ -124,7 +132,7 @@ type StopMatcher<'d>(stops: StopToMatch<'d> array) as this =
         // Ideally we'd override Lucene.Net with a custom scoring method, but
         // that looks complicated, so we take the results the original sorting
         // method gives us and apply our own sorting after that
-        searcher.Search(query, null, defaultArg top 100).ScoreDocs
+        searcher.Search(query, null, defaultArg top 10000).ScoreDocs
         |> Seq.map (fun sd ->
             let doc = searcher.Doc(sd.Doc)
             let stop = stops[doc.GetField("index").GetInt32Value().Value]

@@ -143,6 +143,10 @@ let matchCzTownByNameRaw town =
         |> Option.defaultValue town
     czTownNameMatcher().matchStop(town)
 
+let matchesCzTownByName town =
+    matchCzTownByNameRaw town
+    |> Seq.exists (fun m -> m.score = 1.0f)
+
 let topStopMatch (stop: Stop) (matches: StopMatch<JdfStopGeodata> array) =
     let matches = exactMatches stop matches
 
@@ -494,11 +498,17 @@ let addSecondaryMatches
     ]
 
 let townNoPerfectMatch town =
-    matchCzTownByNameRaw town
-    |> Seq.forall (fun m -> m.score < 1f)
+    not (matchesCzTownByName town)
     &&
     eurTownNameMatcher().matchStop(town)
     |> Seq.forall (fun m -> m.score < 1f)
+
+// The CIS JŘ exports sometimes don't even have one consistent town for one
+// timetable. Thankfully it seems rare, so we fix it manually.
+let mhdTownsJoined = [
+    ["Ústí nad Labem"; "Ústí n.L."; "Trmice"; "Telnice"
+     "Petrovice,Krásný Les"]
+]
 
 /// Some JDF batches in the public CIS JŘ data don't use the full triple for
 /// naming stops, but put everything in the town column. This is often used for
@@ -516,8 +526,14 @@ let mhdNamingTownCandidates
         s.district.IsNone
         && s.nearbyPlace.IsNone)
     |> Seq.collect (fun (s, ms) ->
-        // Don't suggest any city if we already have a match
-        if ms |> exactMatches s |> Seq.isEmpty |> not then Seq.empty
+        // Don't suggest any city if we already have a match with a town
+        if (ms |> exactMatches s |> Seq.isEmpty |> not)
+           &&
+           (matchesCzTownByName (s.town.Split(",").[0].Trim()))
+        then
+            Log.Debug("Not considering stop {StopId} for MHD town \
+                       due to existing match", s.id)
+            Seq.empty
         else
             // Look at all the possible matches, group them by the town they
             // suggest, and take the best score for each town
@@ -528,21 +544,31 @@ let mhdNamingTownCandidates
             // Only consider stops that match town + old name perfectly
             // but don't match the bare old name
             |> Seq.filter (fun (t, m) ->
-                stopMatcher.nameSimilarity(
+                stopMatcher.checkExactMatch(
                     stopNameToTokens $"{t},{s.town}",
-                    stopNameToTokens m.stop.name) = 1.0f
+                    stopNameToTokens m.stop.name)
                 &&
-                stopMatcher.nameSimilarity(
+                not (stopMatcher.checkExactMatch(
                     stopNameToTokens s.town,
-                    stopNameToTokens m.stop.name) < 1.0f)
+                    stopNameToTokens m.stop.name)))
+            |> Seq.map (fun (t, m) ->
+                t, m)
             |> Seq.groupBy (fun (t, m) -> t)
-            |> Seq.map fst)
+            |> Seq.map fst
+            // Normalise town names
+            |> Seq.map (fun town ->
+                mhdTownsJoined
+                |> List.tryFind (fun ts -> List.contains town ts)
+                |> Option.map (fun ts -> List.head ts)
+                |> Option.defaultValue town))
     // Get composite score for each town suggestion
     |> Seq.countBy id
+    // Don't let just one stop change the whoel set
+    |> Seq.filter (fun (t, c) -> c > 1)
     |> Seq.sortByDescending (fun (t, c) -> c)
     |> Seq.toArray
 
-let fixMhdNaming (stopMatcher: StopMatcher<JdfStopGeodata>) town (stop: Stop) =
+let fixMhdNaming (stopMatcher: StopMatcher<JdfStopGeodata>) towns (stop: Stop) =
     if stop.district.IsSome || stop.nearbyPlace.IsSome then stop
     else
         let nameSplit = stop.town.Split(",")
@@ -550,22 +576,27 @@ let fixMhdNaming (stopMatcher: StopMatcher<JdfStopGeodata>) town (stop: Stop) =
             Log.Warning("MHD-named stop with more than two commas: {StopName}",
                         stop.town)
         let nameSplit12 = String.Join(" ", nameSplit.[1..]).Trim()
-        let mhdAdjustedStop =
-            { stop with
-                town = town
-                district = Some nameSplit.[0]
-                nearbyPlace =
-                    if nameSplit12 <> ""
-                    then Some nameSplit12
-                    else None }
+        let mhdAdjustedStops =
+            towns
+            |> List.map (fun town ->
+                { stop with
+                    town = town
+                    district = Some nameSplit.[0]
+                    nearbyPlace =
+                        if nameSplit12 <> ""
+                        then Some nameSplit12
+                        else None })
         // We need to check if this is actually an MHD name or if the first
         // element is a town
-        let mhdMatch =
-            matchStopByName stopMatcher mhdAdjustedStop
-            |> topStopMatch mhdAdjustedStop
-        let townMatches = matchCzTownByNameRaw nameSplit.[0]
-        if mhdMatch.IsSome then mhdAdjustedStop
-        else if townMatches |> Array.exists (fun m -> m.score = 1f)
+        let matchedMhdStop =
+            mhdAdjustedStops
+            |> List.filter (fun mas ->
+                matchStopByName stopMatcher mas
+                |> topStopMatch mas
+                |> Option.isSome)
+            |> List.tryHead
+        if matchedMhdStop.IsSome then matchedMhdStop.Value
+        else if matchesCzTownByName nameSplit.[0]
         then { stop with
                 town = nameSplit.[0]
                 district = if nameSplit.Length > 1
@@ -574,7 +605,7 @@ let fixMhdNaming (stopMatcher: StopMatcher<JdfStopGeodata>) town (stop: Stop) =
                 nearbyPlace = if nameSplit.Length = 3
                               then Some nameSplit.[2]
                               else None }
-        else mhdAdjustedStop
+        else mhdAdjustedStops |> List.head
 
 let matchStops stopMatcher tripsMatrix1 tripsMatrix2 stops =
     stops
@@ -587,9 +618,7 @@ let matchStops stopMatcher tripsMatrix1 tripsMatrix2 stops =
         if townOnly && tm |> Option.map matchConflictsWithEurCity = Some true
         then s, None, ms
         else if townOnly
-           && (s.town
-               |> matchCzTownByNameRaw
-               |> Seq.exists (fun m -> m.score = 1.0f)) then
+           && (matchesCzTownByName s.town) then
             Log.Debug("Not considering stop matches for stop {StopId} since \
                       its only name component matches a Czech town",
                       s.id)
@@ -605,6 +634,17 @@ let matchStops stopMatcher tripsMatrix1 tripsMatrix2 stops =
             let s2, mo2 = matchByTopTown s mo
             s2, mo2, ams
         | Some _ -> s, mo, ams)
+
+let routeDescTownNameRegex = Regex(@"MHD ([^:]*) linka|MHD ([^ :]*)|([^,:-]*) *[,:-]")
+let townNameFromRouteDesc (route: Route) =
+    let townOpt =
+        (routeDescTownNameRegex.Match(route.name).Groups
+         |> Seq.tail
+         |> Seq.tryFind (fun g -> g.Success)
+         |> Option.map (fun g -> g.Value))
+    townOpt
+    |> Option.bind(fun town ->
+        if matchesCzTownByName town then Some town else None)
 
 /// Public JDF batches from CIS JŘ have a lot of problems, which this module
 /// tries to fix. This function will run them all and return a (hopefully)
@@ -623,24 +663,43 @@ let fixPublicCisJrBatch (stopMatcher: StopMatcher<JdfStopGeodata>)
         stops
         |> Array.map (normaliseStopName >> normaliseNonMhdStopName)
         |> matchStops stopMatcher tripsMatrix1 tripsMatrix2
+    let routeTownName = townNameFromRouteDesc jdfBatch.routes.[0]
     let mhdTownCandidates =
         stops
         |> Seq.map normaliseStopName
         |> Seq.map (fun s -> s, matchStopByName stopMatcher s)
         |> Seq.toArray
         |> mhdNamingTownCandidates stopMatcher
+        |> Array.map (fun (t, s) ->
+            // Boost town that matches name in routes file
+            match routeTownName with
+            | Some rtn ->
+                if stopMatcher.checkExactMatch(
+                    stopNameToTokens t,
+                    stopNameToTokens rtn)
+                then t, s + 2
+                else t, s
+            | None -> t, s)
+        |> Array.sortByDescending (fun (t, s) -> s)
+    Log.Debug("MHD town candidates: {Candidates}", mhdTownCandidates)
     let stopsWithAllMatches =
         match Array.tryHead mhdTownCandidates with
         | None ->
             Log.Debug("No town candidate for MHD stops, \
                        Proceeding with unmodified stops")
             swamNonMhd
-        // The function returns them sorted already, so first is best
+        // They're sorted, so first is best
         | Some (town, _) ->
             Log.Debug("Trying candidate town for MHD naming: {Town}", town)
+            let mhdTowns =
+                mhdTownsJoined
+                |> List.tryFind (fun ts -> List.contains town ts)
+                |> Option.defaultValue [town]
+            if mhdTowns <> [town] then
+                Log.Debug("Expanded MHD town to list: {Towns}", mhdTowns)
             let swamMhd =
                 jdfBatch.stops
-                |> Array.map (fixMhdNaming stopMatcher town)
+                |> Array.map (fixMhdNaming stopMatcher mhdTowns)
                 |> matchStops stopMatcher tripsMatrix1 tripsMatrix2
             let matchCount =
                 Array.map (fun (_, mo, _) -> if Option.isSome mo then 1 else 0)
