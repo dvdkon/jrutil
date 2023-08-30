@@ -19,6 +19,7 @@ open NodaTime
 open NodaTime.Text
 
 #nowarn "0342"
+open System
 
 let memoize f =
     let cache = new ConcurrentDictionary<_, _>()
@@ -210,12 +211,15 @@ let setupLogging (logFile: string option) () =
         LoggerConfiguration()
          .MinimumLevel.Debug()
          .Enrich.FromLogContext()
-         .WriteTo.Console(
-             standardErrorFromLevel = LogEventLevel.Verbose,
-             applyThemeToRedirectedOutput = true,
-             theme = if RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                     then SystemConsoleTheme.Literate :> ConsoleTheme
-                     else AnsiConsoleTheme.Literate :> ConsoleTheme)
+    if Environment.GetEnvironmentVariable("JRUTIL_LOG_TO_CONSOLE") <> "0" then
+        loggerFactory <- 
+            loggerFactory.WriteTo.Console(
+                standardErrorFromLevel = LogEventLevel.Verbose,
+                applyThemeToRedirectedOutput = true,
+                theme =
+                    if RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                        then SystemConsoleTheme.Literate :> ConsoleTheme
+                        else AnsiConsoleTheme.Literate :> ConsoleTheme)
     logFile |> Option.iter (fun lf ->
         if lf.StartsWith("display:") then
             loggerFactory <- loggerFactory.WriteTo.File(lf.[8..])
