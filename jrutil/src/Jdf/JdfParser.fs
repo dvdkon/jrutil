@@ -3,6 +3,7 @@
 
 module JrUtil.JdfParser
 
+open System
 open System.IO
 open System.IO.Compression
 open System.Text.RegularExpressions
@@ -33,9 +34,12 @@ let getJdfParser<'r> =
     // This, however, means that this CSV-esque format can be parsed by regex!
     let rowParser = getRowParser<'r> jdfColParserFor
     fun (text: string) ->
-        let lines = text.Split(";\r\n")
-        lines
-        |> Array.filter (fun line -> line <> "")
+        let text =
+            if text.EndsWith("\";")
+            then text.[..text.Length - 2]
+            else text
+        text.Split(";\r\n")
+        |> Array.filter (fun line -> not <| String.IsNullOrWhiteSpace(line))
         |> Array.map (fun line ->
                 // Strip off leading and trailing quote
                 let strippedLine = line.Substring(1, line.Length - 2)

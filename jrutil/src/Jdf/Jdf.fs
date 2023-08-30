@@ -218,17 +218,15 @@ let jdfStopNameString (stop: Stop) =
             (stop.nearbyPlace |> Option.defaultValue "")
 
 let fileWriter name =
-    let serializer = getJdfSerializer
+    let serializer: Stream -> 'r seq -> unit = getJdfSerializerWriter
     fun (dir: JdfBatchDirectory) records () ->
         match dir with
         | FsPath path ->
-            File.WriteAllText(Path.Join(path, name),
-                              serializer records,
-                              jdfEncoding)
+            use stream = File.Open(Path.Combine(path, name), FileMode.Create)
+            serializer stream records
         | ZipArchive arch ->
             use stream = arch.CreateEntry(name).Open()
-            use writer = new StreamWriter(stream, jdfEncoding)
-            writer.Write(serializer records)
+            serializer stream records
 
 let jdfBatchDirWriter () =
     let versionWriter = fileWriter "VerzeJDF.txt"
@@ -251,7 +249,9 @@ let jdfBatchDirWriter () =
     let stopLocationsWriter = fileWriter "Polzast.txt"
 
     fun dir (batch: JdfBatch) ->
-        versionWriter dir [| batch.version |] ()
+        versionWriter dir [|
+            { batch.version with version = "1.11" }
+        |] ()
         stopsWriter dir batch.stops ()
         stopPostsWriter dir batch.stopPosts ()
         agenciesWriter dir batch.agencies ()
