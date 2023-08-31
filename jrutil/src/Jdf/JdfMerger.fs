@@ -3,8 +3,10 @@
 
 module JrUtil.JdfMerger
 
+open System
 open System.Collections.Generic
 open NodaTime
+open Serilog
 
 open JrUtil.JdfModel
 open JrUtil.Utils
@@ -13,19 +15,19 @@ type JdfMerger() =
     let stops = ResizeArray()
     let stopPosts = ResizeArray()
     let agenciesByName = Dictionary()
-    let routesByLicNum = Dictionary<string, Route ResizeArray>()
-    let routeIntegrations = ResizeArray()
-    let routeStops = ResizeArray()
-    let trips = ResizeArray()
+    let routesByLicNum = MultiDict()
+    let routeIntegrationsByRoute = MultiDict()
+    let routeStopsByRoute = MultiDict()
+    let tripsByRoute = MultiDict()
     let tripGroups = ResizeArray()
-    let tripStops = ResizeArray()
-    let routeInfo = ResizeArray()
+    let tripStopsByRoute = MultiDict()
+    let routeInfoByRoute = MultiDict()
     let attributeRefs = ResizeArray()
-    let serviceNotes = ResizeArray()
-    let transfers = ResizeArray()
-    let agencyAlternations = ResizeArray()
-    let alternateRouteNames = ResizeArray()
-    let reservationOptions = ResizeArray()
+    let serviceNotesByRoute = MultiDict()
+    let transfersByRoute = MultiDict()
+    let agencyAlternationsByRoute = MultiDict()
+    let alternateRouteNamesByRoute = MultiDict()
+    let reservationOptionsByRoute = MultiDict()
     let stopLocations = ResizeArray()
 
     let mutable lastStopId = 0
@@ -36,11 +38,12 @@ type JdfMerger() =
     let stopsByNames = Dictionary()
     let stopPostsSet = HashSet()
     let agenciesByIco = Dictionary()
+    let batchDateByRoute = Dictionary()
     
     let stopNameTuple (s: Stop) =
         s.town, s.district, s.nearbyPlace, s.regionId, s.country
-
-    member this.Batch = {
+        
+    member this.batch = {
         version = {
             version = "1.11"
             duNum = None
@@ -53,72 +56,211 @@ type JdfMerger() =
         stopPosts = stopPosts |> Seq.toArray
         agencies = agenciesByName.Values |> Seq.toArray
         routes = routesByLicNum.Values |> Seq.collect id |> Seq.toArray
-        routeIntegrations = routeIntegrations |> Seq.toArray
-        routeStops = routeStops |> Seq.toArray
-        trips = trips |> Seq.toArray
+        routeIntegrations =
+            routeIntegrationsByRoute.Values |> Seq.collect id |> Seq.toArray
+        routeStops =
+            routeStopsByRoute.Values |> Seq.collect id |> Seq.toArray
+        trips = tripsByRoute.Values |> Seq.collect id |> Seq.toArray
         tripGroups = tripGroups |> Seq.toArray
-        tripStops = tripStops |> Seq.toArray
-        routeInfo = routeInfo |> Seq.toArray
+        tripStops = tripStopsByRoute.Values |> Seq.collect id |> Seq.toArray
+        routeInfo = routeInfoByRoute.Values |> Seq.collect id |> Seq.toArray
         attributeRefs = attributeRefs |> Seq.toArray
-        serviceNotes = serviceNotes |> Seq.toArray
-        transfers = transfers |> Seq.toArray
-        agencyAlternations = agencyAlternations |> Seq.toArray
-        alternateRouteNames = alternateRouteNames |> Seq.toArray
-        reservationOptions = reservationOptions |> Seq.toArray
+        serviceNotes =
+            serviceNotesByRoute.Values |> Seq.collect id |> Seq.toArray
+        transfers = transfersByRoute.Values |> Seq.collect id |> Seq.toArray
+        agencyAlternations =
+            agencyAlternationsByRoute.Values |> Seq.collect id |> Seq.toArray
+        alternateRouteNames =
+            alternateRouteNamesByRoute.Values |> Seq.collect id |> Seq.toArray
+        reservationOptions =
+            reservationOptionsByRoute.Values |> Seq.collect id |> Seq.toArray
         stopLocations = stopLocations |> Seq.toArray
     }
 
-
-    member private this.resolveRouteOverlaps other r =
-        let mutable r = r
-        let mutable nextSubId = other |> List.length
-        let resolvedOther = 
-            other
-            |> List.collect (fun otr ->
-                // Validity ranges overlap exactly, keep only the new route
-                if otr.timetableValidFrom = r.timetableValidFrom
-                   && otr.timetableValidTo = r.timetableValidTo then
-                    []
-                // Validity ranges don't overlap, keep both
-                else if otr.timetableValidTo < r.timetableValidFrom
-                     || otr.timetableValidFrom > r.timetableValidTo then
-                    [otr]
-                // Validity ranges overlap and the new route is a later variant,
-                // cut part of old route
-                else if otr.timetableValidFrom < r.timetableValidFrom
-                     && otr.timetableValidTo <= r.timetableValidTo then
-                    [{otr with
-                        timetableValidTo =
-                            r.timetableValidFrom - Period.FromDays(1)}]
-                // Validity ranges overlap and the current route is inside the old
-                // route, cut old route in two
-                // TODO: What if the new route contains the old one?
-                else if otr.timetableValidFrom < r.timetableValidFrom
-                     && otr.timetableValidTo > r.timetableValidTo then
-                    let secondRoute = 
-                        {otr with
-                            timetableValidFrom =
-                                r.timetableValidTo + Period.FromDays(1) }
-                    // We have to copy in all the second route's data 
-                    [
-                        {otr with
-                            timetableValidTo =
-                                r.timetableValidFrom - Period.FromDays(1) }
-                        secondRoute
-                    ]
-                // Validity ranges overlap and the new route is a
-                // previous variant, cut part of new route
-                else
-                    r <- { r with
-                             timetableValidFrom =
-                                 otr.timetableValidTo
-                                 + Period.FromDays(1) }
-                    [otr])
-        List.append resolvedOther [
-            {r with idDistinction = nextSubId + 1}
-        ]
+    member private this.deleteRoute(r: Route) =
+        let routeId = r.id
+        let routeDistinction = r.idDistinction
+        routesByLicNum.[routeId].RemoveAll(fun r ->
+            r.idDistinction = routeDistinction) |> ignore
+        routeIntegrationsByRoute.Remove((routeId, routeDistinction)) |> ignore
+        routeStopsByRoute.Remove((routeId, routeDistinction)) |> ignore
+        tripsByRoute.Remove((routeId, routeDistinction)) |> ignore
+        tripStopsByRoute.Remove((routeId, routeDistinction)) |> ignore
+        routeInfoByRoute.Remove((routeId, routeDistinction)) |> ignore
+        serviceNotesByRoute.Remove((routeId, routeDistinction)) |> ignore
+        transfersByRoute.Remove((routeId, routeDistinction)) |> ignore
+        agencyAlternationsByRoute.Remove((routeId, routeDistinction)) |> ignore
+        alternateRouteNamesByRoute.Remove((routeId, routeDistinction)) |> ignore
+        reservationOptionsByRoute.Remove((routeId, routeDistinction)) |> ignore
+        batchDateByRoute.Remove((routeId, routeDistinction)) |> ignore
     
-    member this.Add(batch: JdfBatch) =
+    member private this.copyRoute(copy: Route) =
+        let oldDist = copy.idDistinction
+        let newDist =
+            (routesByLicNum.[copy.id]
+             |> Seq.map (fun r -> r.idDistinction)
+             |> Seq.max) + 1
+        routesByLicNum.[copy.id].Add(
+            {copy with idDistinction = newDist })        
+        routeIntegrationsByRoute.[(copy.id, newDist)] <-
+            routeIntegrationsByRoute.[(copy.id, oldDist)]
+        routeStopsByRoute.[(copy.id, newDist)] <-
+            routeStopsByRoute.[(copy.id, oldDist)]
+        tripsByRoute.[(copy.id, newDist)] <-
+            tripsByRoute.[(copy.id, oldDist)]
+        tripStopsByRoute.[(copy.id, newDist)] <-
+            tripStopsByRoute.[(copy.id, oldDist)]
+        routeInfoByRoute.[(copy.id, newDist)] <-
+            routeInfoByRoute.[(copy.id, oldDist)]
+        serviceNotesByRoute.[(copy.id, newDist)] <-
+            serviceNotesByRoute.[(copy.id, oldDist)]
+        transfersByRoute.[(copy.id, newDist)] <-
+            transfersByRoute.[(copy.id, oldDist)]
+        agencyAlternationsByRoute.[(copy.id, newDist)] <-
+            agencyAlternationsByRoute.[(copy.id, oldDist)]
+        alternateRouteNamesByRoute.[(copy.id, newDist)] <-
+            alternateRouteNamesByRoute.[(copy.id, oldDist)]
+        reservationOptionsByRoute.[(copy.id, newDist)] <-
+            reservationOptionsByRoute.[(copy.id, oldDist)]
+        batchDateByRoute.[(copy.id, newDist)] <-
+            batchDateByRoute.[(copy.id, oldDist)]
+
+    member private this.resolveOneRouteOverlap(r1, r2) =
+        assert (r1.idDistinction <> r2.idDistinction)
+        let r1Date = batchDateByRoute.[(r1.id, r1.idDistinction)]
+        let r2Date = batchDateByRoute.[(r2.id, r2.idDistinction)]
+        let r2Priority =
+            (r2.detour && (not r1.detour || r1Date < r2Date))
+            || (not r1.detour && r1Date < r2Date)
+        let r1Priority = r1.detour && (not r2.detour || r2Date < r1Date)
+
+        // Validity ranges don't overlap, keep both
+        if r1.timetableValidTo < r2.timetableValidFrom
+           || r1.timetableValidFrom > r2.timetableValidTo then ()
+        // Ranges overlap exactly, keep only priority route
+        else if r1.timetableValidFrom = r2.timetableValidFrom
+             && r1.timetableValidTo = r2.timetableValidTo then
+            let toDelete = if r2Priority then r1 else r2
+            Log.Debug(
+                "Route {LicNum} variants overlap exactly, removing {Dist}, \
+                 keeping {Dist2}",
+                r1.id, toDelete.idDistinction,
+                (if r2Priority then r2 else r1).idDistinction)
+            this.deleteRoute(toDelete)
+        // Ranges start at the same day, cut one
+        else if r1.timetableValidFrom = r2.timetableValidFrom
+             && r1.timetableValidTo < r2.timetableValidTo then
+            if r2Priority then
+                Log.Debug("Route {LicNum} variants overlap with same start, \
+                           removing {Dist}",
+                          r1.id, r1.idDistinction)
+                this.deleteRoute(r1)
+            else
+                Log.Debug("Route {LicNum} variants overlap with same start, \
+                           cutting {Dist}",
+                          r1.id, r2.idDistinction)
+                routesByLicNum.[r2.id].Remove(r2) |> ignore
+                routesByLicNum.[r2.id].Add(
+                    {r2 with
+                        timetableValidFrom =
+                            r1.timetableValidTo + Period.FromDays(1)})
+        // Ranges end at the same day, cut one
+        else if r1.timetableValidTo = r2.timetableValidTo
+             && r1.timetableValidFrom > r2.timetableValidFrom then
+            if r2Priority then
+                Log.Debug("Route {LicNum} variants overlap with same end, \
+                           removing {Dist}",
+                          r1.id, r1.idDistinction)
+                this.deleteRoute(r1)
+            else
+                Log.Debug("Route {LicNum} variants overlap with same end, \
+                           cutting {Dist}",
+                          r1.id, r2.idDistinction)
+                routesByLicNum.[r2.id].Remove(r2) |> ignore
+                routesByLicNum.[r2.id].Add(
+                    {r2 with
+                        timetableValidTo =
+                            r1.timetableValidFrom - Period.FromDays(1)})
+        // r2 is a later variant, cut part of old route if not priority
+        else if r1.timetableValidFrom < r2.timetableValidFrom
+             && r1.timetableValidTo < r2.timetableValidTo then
+            if not r1Priority then
+                Log.Debug(
+                    "Route {LicNum} variants overlap, cutting {Dist}",
+                    r1.id, r1.idDistinction)
+                routesByLicNum.[r1.id].Remove(r1) |> ignore
+                routesByLicNum.[r1.id].Add(
+                    {r1 with
+                        timetableValidTo =
+                            r2.timetableValidFrom - Period.FromDays(1)})
+            else
+                Log.Debug(
+                    "Route {LicNum} variants overlap, cutting {Dist}, \
+                     since {Dist2} has priority",
+                    r1.id, r2.idDistinction, r1.idDistinction)
+                routesByLicNum.[r2.id].Remove(r2) |> ignore
+                routesByLicNum.[r2.id].Add(
+                    {r2 with
+                        timetableValidFrom =
+                            r1.timetableValidTo + Period.FromDays(1)})
+        // Validity ranges overlap and r2 is inside r1, duplicate r1
+        // (if not priority)
+        else if r1.timetableValidFrom < r2.timetableValidFrom
+             && r1.timetableValidTo > r2.timetableValidTo then
+            if r1Priority then
+                Log.Debug(
+                    "Route {LicNum} variants overlap and {Dist} is contained \
+                     in {Dist2}, removing the former, since the latter has \
+                     priority",
+                    r1.id, r2.idDistinction, r1.idDistinction)
+                this.deleteRoute(r2)
+            else
+                Log.Debug(
+                    "Route {LicNum} variants overlap and {Dist} is contained \
+                     in {Dist2}, splitting the latter",
+                    r1.id, r2.idDistinction, r1.idDistinction)
+                // Adjust r1's validity for first chunk of split
+                routesByLicNum.[r1.id].Remove(r1) |> ignore
+                routesByLicNum.[r1.id].Add(
+                    {r1 with
+                        timetableValidTo =
+                            r2.timetableValidFrom - Period.FromDays(1)})
+                // Duplicate of r1 for second chunk of split
+                this.copyRoute(
+                    {r1 with
+                        timetableValidFrom =
+                            r2.timetableValidTo + Period.FromDays(1)})
+        // Resolve other overlaps by symmetry (simple overlap but r2 is first,
+        // r1 is inside r2, same start/end date but r2 is shorter)
+        else this.resolveOneRouteOverlap(r2, r1)
+    
+    member this.resolveRouteOverlaps() =
+        for id in routesByLicNum.Keys do
+            let handled = HashSet()
+            // Pointer to mutable state
+            let rsNow = routesByLicNum.[id]
+            let unhandled () =
+                rsNow
+                |> Seq.tryFind (fun r ->
+                    not <| handled.Contains(r.idDistinction))
+            while unhandled () |> Option.isSome do
+                let r2 = unhandled () |> Option.get
+                handled.Add(r2.idDistinction) |> ignore
+                let r1s =
+                    rsNow
+                    |> Seq.filter (fun r ->
+                        r.idDistinction < r2.idDistinction)
+                    |> Seq.sortBy (fun r -> r.idDistinction)
+                    |> Seq.toArray
+                for r1 in r1s do
+                    // Take the newest version of r2
+                    rsNow
+                    |> Seq.tryFind (fun r ->
+                        r.idDistinction = r2.idDistinction)
+                    |> Option.iter (fun r2now ->
+                        this.resolveOneRouteOverlap(r1, r2now))
+
+    member this.add(batch: JdfBatch) =
         let existingAttributeRefs, attributeRefsToAdd =
             batch.attributeRefs
             |> splitSeq (fun ar ->
@@ -225,46 +367,48 @@ type JdfMerger() =
             ]
             |> Map
             
-        // For now we don't resolve validity overlaps and leave that for a
+        // We don't resolve validity overlaps here and leave that for a
         // post-processing phase
         let newRoutes =
             batch.routes
             |> Seq.map (fun r ->
-                let notFirst, other = routesByLicNum.TryGetValue(r.id)
-                let other = if notFirst then other else ResizeArray()
+                let other = routesByLicNum.[r.id]
                 let aid, aidd = agencyIdMap.[(r.agencyId, r.agencyDistinction)]
                 {r with
                     idDistinction = (Seq.length other) + 1
                     agencyId = aid
                     agencyDistinction = aidd})
         for r in newRoutes do
-            if not <| routesByLicNum.ContainsKey(r.id) then
-                routesByLicNum.[r.id] <- ResizeArray()
             routesByLicNum.[r.id].Add(r)
+            
+            batchDateByRoute.[(r.id, r.idDistinction)] <-
+                batch.version.creationDate
         let routeIdMap =
             Seq.zip batch.routes newRoutes
             |> Seq.map (fun (r, rni) ->
                 (r.id, r.idDistinction), (rni.id, rni.idDistinction))
             |> Map
             
-        routeIntegrations.AddRange(
-            batch.routeIntegrations
-            |> Seq.map (fun ri ->
-                let rid, ridd = routeIdMap.[(ri.routeId, ri.routeDistinction)]
-                { ri with
-                    routeId = rid
-                    routeDistinction = ridd
-                }))
+        batch.routeIntegrations
+        |> Seq.map (fun ri ->
+            let rid, ridd = routeIdMap.[(ri.routeId, ri.routeDistinction)]
+            { ri with
+                routeId = rid
+                routeDistinction = ridd
+            })
+        |> Seq.groupBy (fun ri -> ri.routeId, ri.routeDistinction)
+        |> Seq.iter (fun (k, v) -> routeIntegrationsByRoute.[k] <- v)
 
-        routeStops.AddRange(
-            batch.routeStops
-            |> Seq.map (fun rs ->
-                let rid, ridd = routeIdMap.[(rs.routeId, rs.routeDistinction)]
-                { rs with
-                    routeId = rid
-                    routeDistinction = ridd
-                    stopId = stopIdMap.[rs.stopId]
-                }))
+        batch.routeStops
+        |> Seq.map (fun rs ->
+            let rid, ridd = routeIdMap.[(rs.routeId, rs.routeDistinction)]
+            { rs with
+                routeId = rid
+                routeDistinction = ridd
+                stopId = stopIdMap.[rs.stopId]
+            })
+        |> Seq.groupBy (fun rs -> rs.routeId, rs.routeDistinction)
+        |> Seq.iter (fun (k, v) -> routeStopsByRoute.[k] <- v)
 
         let newTripGroups =
             batch.tripGroups
@@ -279,82 +423,90 @@ type JdfMerger() =
             |> Seq.map (fun (tg, tgni) -> tg.id, tgni.id)
             |> Map
 
-        trips.AddRange(
-            batch.trips
-            |> Seq.map (fun t ->
-                let rid, ridd = routeIdMap.[(t.routeId, t.routeDistinction)]
-                { t with
-                    routeId = rid
-                    routeDistinction = ridd
-                    tripGroupId =
-                        t.tripGroupId
-                        |> Option.map (fun id -> tripGroupIdMap.[id])
-                }))
+        batch.trips
+        |> Seq.map (fun t ->
+            let rid, ridd = routeIdMap.[(t.routeId, t.routeDistinction)]
+            { t with
+                routeId = rid
+                routeDistinction = ridd
+                tripGroupId =
+                    t.tripGroupId
+                    |> Option.map (fun id -> tripGroupIdMap.[id])
+            })
+        |> Seq.groupBy (fun t -> t.routeId, t.routeDistinction)
+        |> Seq.iter (fun (k, v) -> tripsByRoute.[k] <- v)
+
+        batch.tripStops
+        |> Seq.map (fun ts ->
+            let rid, ridd = routeIdMap.[(ts.routeId, ts.routeDistinction)]
+            { ts with
+                routeId = rid
+                routeDistinction = ridd
+            })
+        |> Seq.groupBy (fun ts -> ts.routeId, ts.routeDistinction)
+        |> Seq.iter (fun (k, v) -> tripStopsByRoute.[k] <- v)
+
+        batch.routeInfo
+        |> Seq.map (fun ri ->
+            let rid, ridd = routeIdMap.[(ri.routeId, ri.routeDistinction)]
+            { ri with
+                routeId = rid
+                routeDistinction = ridd
+            })
+        |> Seq.groupBy (fun ri -> ri.routeId, ri.routeDistinction)
+        |> Seq.iter (fun (k, v) -> routeInfoByRoute.[k] <- v)
+
+        batch.serviceNotes
+        |> Seq.map (fun sn ->
+            let rid, ridd = routeIdMap.[(sn.routeId, sn.routeDistinction)]
+            { sn with
+                routeId = rid
+                routeDistinction = ridd
+            })
+        |> Seq.groupBy (fun sn -> sn.routeId, sn.routeDistinction)
+        |> Seq.iter (fun (k, v) -> serviceNotesByRoute.[k] <- v)
+
+        batch.transfers
+        |> Seq.map (fun t ->
+            let rid, ridd = routeIdMap.[(t.routeId, t.routeDistinction)]
+            { t with
+                routeId = rid
+                routeDistinction = ridd
+            })
+        |> Seq.groupBy (fun t -> t.routeId, t.routeDistinction)
+        |> Seq.iter (fun (k, v) -> transfersByRoute.[k] <- v)
+
+        batch.agencyAlternations
+        |> Seq.map (fun aa ->
+            let rid, ridd = routeIdMap.[(aa.routeId, aa.routeDistinction)]
+            let aid, aidd = agencyIdMap.[(aa.agencyId, aa.agencyDistinction)]
+            { aa with
+                routeId = rid
+                routeDistinction = ridd
+                agencyId = aid
+                agencyDistinction = aidd
+            })
+        |> Seq.groupBy (fun aa -> aa.routeId, aa.routeDistinction)
+        |> Seq.iter (fun (k, v) -> agencyAlternationsByRoute.[k] <- v)
+
+        batch.alternateRouteNames
+        |> Seq.map (fun arn ->
+            let rid, ridd = routeIdMap.[(arn.routeId, arn.routeDistinction)]
+            { arn with
+                routeId = rid
+                routeDistinction = ridd
+            })
+        |> Seq.groupBy (fun arn -> arn.routeId, arn.routeDistinction)
+        |> Seq.iter (fun (k, v) -> alternateRouteNamesByRoute.[k] <- v)
         
-        tripStops.AddRange(
-            batch.tripStops
-            |> Seq.map (fun ts ->
-                let rid, ridd = routeIdMap.[(ts.routeId, ts.routeDistinction)]
-                { ts with
-                    routeId = rid
-                    routeDistinction = ridd
-                }))
-
-        routeInfo.AddRange(
-            batch.routeInfo
-            |> Seq.map (fun ri ->
-                let rid, ridd = routeIdMap.[(ri.routeId, ri.routeDistinction)]
-                { ri with
-                    routeId = rid
-                    routeDistinction = ridd
-                }))
-
-        serviceNotes.AddRange(
-            batch.serviceNotes
-            |> Seq.map (fun sn ->
-                let rid, ridd = routeIdMap.[(sn.routeId, sn.routeDistinction)]
-                { sn with
-                    routeId = rid
-                    routeDistinction = ridd
-                }))
-
-        transfers.AddRange(
-            batch.transfers
-            |> Seq.map (fun t ->
-                let rid, ridd = routeIdMap.[(t.routeId, t.routeDistinction)]
-                { t with
-                    routeId = rid
-                    routeDistinction = ridd
-                }))
-
-        agencyAlternations.AddRange(
-            batch.agencyAlternations
-            |> Seq.map (fun aa ->
-                let rid, ridd = routeIdMap.[(aa.routeId, aa.routeDistinction)]
-                let aid, aidd = agencyIdMap.[(aa.agencyId, aa.agencyDistinction)]
-                { aa with
-                    routeId = rid
-                    routeDistinction = ridd
-                    agencyId = aid
-                    agencyDistinction = aidd
-                }))
-
-        alternateRouteNames.AddRange(
-            batch.alternateRouteNames
-            |> Seq.map (fun arn ->
-                let rid, ridd = routeIdMap.[(arn.routeId, arn.routeDistinction)]
-                { arn with
-                    routeId = rid
-                    routeDistinction = ridd
-                }))
-        
-        reservationOptions.AddRange(
-            batch.reservationOptions
-            |> Seq.map (fun ro ->
-                let rid, ridd = routeIdMap.[(ro.routeId, ro.routeDistinction)]
-                { ro with
-                    routeId = rid
-                    routeDistinction = ridd
-                }))
+        batch.reservationOptions
+        |> Seq.map (fun ro ->
+            let rid, ridd = routeIdMap.[(ro.routeId, ro.routeDistinction)]
+            { ro with
+                routeId = rid
+                routeDistinction = ridd
+            })
+        |> Seq.groupBy (fun ro -> ro.routeId, ro.routeDistinction)
+        |> Seq.iter (fun (k, v) -> reservationOptionsByRoute.[k] <- v)
 
         ()

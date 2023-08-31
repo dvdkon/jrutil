@@ -180,10 +180,13 @@ let main (args: string array) =
                     Log.Information("Merging JDF batch {BatchPath}", batchPath)
                     
                     let batch = jdfPar batchDir
-                    merger.Add(batch)
+                    merger.add(batch)
+                    
+            Log.Information("Resolving route overlaps")
+            merger.resolveRouteOverlaps()
                     
             Log.Information("Writing merged JDF")
-            jdfWri (Jdf.FsPath outDir) merger.Batch
+            jdfWri (Jdf.FsPath outDir) merger.batch
             Log.Information("Finished!")
         else printfn "%s" docstring
         0
