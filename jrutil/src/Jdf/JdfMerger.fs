@@ -371,7 +371,7 @@ type JdfMerger() =
         // post-processing phase
         let newRoutes =
             batch.routes
-            |> Seq.map (fun r ->
+            |> Array.map (fun r ->
                 let other = routesByLicNum.[r.id]
                 let aid, aidd = agencyIdMap.[(r.agencyId, r.agencyDistinction)]
                 {r with
