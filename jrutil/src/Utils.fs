@@ -21,6 +21,24 @@ open NodaTime.Text
 #nowarn "0342"
 open System
 
+type MultiDict<'k, 'v when 'k: equality>() =
+    let dict = Dictionary<'k, ResizeArray<'v>>()
+    
+    member this.Item
+        with get k =
+            let success, v = dict.TryGetValue(k)
+            if success then v
+            else
+                let arr = ResizeArray()
+                dict.[k] <- arr
+                arr
+        and set k (vs: 'v seq) =
+            dict.[k] <- ResizeArray(vs)
+                
+    member this.Keys with get() = dict.Keys
+    member this.Values with get() = dict.Values
+    member this.Remove(k) = dict.Remove(k)
+
 let memoize f =
     let cache = new ConcurrentDictionary<_, _>()
     fun x ->
@@ -290,6 +308,9 @@ let innerJoinOn xkey ykey xs ys =
 let optResult error = function
     | Some v -> Ok v
     | None -> Error error
+    
+let nullOpt v =
+    if v = null then None else Some v
 
 let splitSeq pred xs =
     let split = xs |> Seq.groupBy pred |> Seq.toList
