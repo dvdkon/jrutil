@@ -44,9 +44,12 @@ let tryReadJdfText (dir: JdfBatchDirectory) name =
     match dir with
     | FsPath path ->
         findPathCaseInsensitive path name
-        |> Option.map readJdfTextFromFile
+        |> Option.map (fun p -> File.ReadAllText(p, jdfEncoding))
     | ZipArchive arch ->
-        tryReadJdfTextFromZip arch name
+        tryParseJdfTextFromZip (fun s ->
+            use reader = new StreamReader(s, jdfEncoding)
+            reader.ReadToEnd()
+        ) arch name
 
 let jdfBatchDirVersion path =
     let versionFile =
@@ -56,10 +59,17 @@ let jdfBatchDirVersion path =
 
 let fileParserTry name =
     // TODO: Is putting the parser in a variable better for performance?
-    let parser = getJdfParser
+    let parser: Stream -> 'a seq = getJdfParser
     fun path ->
-        tryReadJdfText path name
-        |> Option.map parser
+        match path with
+        | FsPath dir ->
+            findPathCaseInsensitive dir name
+            |> Option.map (fun fullPath ->
+                use stream = File.OpenRead(fullPath)
+                parser stream |> Seq.toArray)
+        | ZipArchive arch ->
+            tryParseJdfTextFromZip parser arch name
+            |> Option.map Seq.toArray
 let fileParser name =
     let inner = fileParserTry name
     fun path -> inner path |> Option.get

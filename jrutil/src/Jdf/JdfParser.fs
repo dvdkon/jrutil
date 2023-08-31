@@ -6,11 +6,11 @@ module JrUtil.JdfParser
 open System
 open System.IO
 open System.IO.Compression
-open System.Text.RegularExpressions
 open System.Text
 open NodaTime
 open NodaTime.Text
 
+open JrUtil.Utils
 open JrUtil.CsvParser
 
 let jdfDatePattern = LocalDatePattern.CreateWithInvariantCulture("ddMMyyyy")
@@ -24,6 +24,7 @@ let rec jdfColParserFor colType =
     else
         colParserForBase jdfColParserFor colType
 
+let jdfEncoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)
 
 let getJdfParser<'r> =
     // The spec says "quotes inside text don't need to be doubled",
@@ -33,31 +34,29 @@ let getJdfParser<'r> =
     // the end (";)) and that it's unescapable
     // This, however, means that this CSV-esque format can be parsed by regex!
     let rowParser = getRowParser<'r> jdfColParserFor
-    fun (text: string) ->
-        let text =
-            if text.EndsWith("\";")
-            then text.[..text.Length - 2]
-            else text
-        text.Split(";\r\n")
-        |> Array.filter (fun line -> not <| String.IsNullOrWhiteSpace(line))
-        |> Array.map (fun line ->
-                // Strip off leading and trailing quote
-                let strippedLine = line.Substring(1, line.Length - 2)
-                strippedLine.Split("\",\"") |> rowParser)
+    fun (stream: Stream) -> seq {
+        use reader = new StreamReader(stream, jdfEncoding)
+        let buffer = Array.init (1024*1024) (constant ' ')
+        let mutable text = ""
+        while not reader.EndOfStream do
+            let len = reader.ReadBlock(buffer)
+            text <- text + String buffer.[0..len-1]
+            let mutable start = 0
+            for i in 0..text.Length-1 do
+                if text.[i..i+3] = "\";\r\n" then
+                    let line = text.[start..i-1]
+                    if line.[0] <> '"' then
+                        failwithf "JDF line did not start with quote"
+                    let line = line.[1..]
+                    start <- i+4
+                    
+                    if not <| String.IsNullOrWhiteSpace(line) then
+                        yield line.Split("\",\"") |> rowParser
+            text <- text.[start..]
+    }
 
-
-let jdfEncoding = CodePagesEncodingProvider.Instance.GetEncoding(1250)
-
-let readJdfTextFromFile inpath =
-    // This is probably not ideal. However, the file should never be more
-    // than a few megabytes in size, in which case this will be faster than
-    // FSharp.Data's approach, which reads char by char
-    File.ReadAllText(inpath, jdfEncoding)
-
-let tryReadJdfTextFromZip (zip: ZipArchive) (filename: string) =
+let tryParseJdfTextFromZip parser (zip: ZipArchive) (filename: string) =
     zip.Entries
     |> Seq.tryFind (fun entry -> entry.Name.ToLower() = filename.ToLower())
     |> Option.map (fun entry ->
-        use reader = new StreamReader(entry.Open(), jdfEncoding)
-        reader.ReadToEnd()
-    )
+        parser <| entry.Open())
