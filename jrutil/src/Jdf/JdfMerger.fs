@@ -104,24 +104,74 @@ type JdfMerger() =
             {copy with idDistinction = newDist })        
         routeIntegrationsByRoute.[(copy.id, newDist)] <-
             routeIntegrationsByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         routeStopsByRoute.[(copy.id, newDist)] <-
             routeStopsByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         tripsByRoute.[(copy.id, newDist)] <-
             tripsByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         tripStopsByRoute.[(copy.id, newDist)] <-
             tripStopsByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         routeInfoByRoute.[(copy.id, newDist)] <-
             routeInfoByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         serviceNotesByRoute.[(copy.id, newDist)] <-
             serviceNotesByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         transfersByRoute.[(copy.id, newDist)] <-
             transfersByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         agencyAlternationsByRoute.[(copy.id, newDist)] <-
             agencyAlternationsByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         alternateRouteNamesByRoute.[(copy.id, newDist)] <-
             alternateRouteNamesByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         reservationOptionsByRoute.[(copy.id, newDist)] <-
             reservationOptionsByRoute.[(copy.id, oldDist)]
+            |> Seq.map (fun x -> {
+                x with
+                    routeId = copy.id
+                    routeDistinction = newDist
+            })
         batchDateByRoute.[(copy.id, newDist)] <-
             batchDateByRoute.[(copy.id, oldDist)]
 
