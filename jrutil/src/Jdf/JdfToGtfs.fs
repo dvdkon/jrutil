@@ -159,19 +159,11 @@ let getGtfsRoutes: JdfModel.JdfBatch -> GtfsModel.Route array = fun jdfBatch ->
         sortOrder = None
     })
 
-let tripDateRanges (jdfBatch: JdfModel.JdfBatch)
-                   routeId routeDistinction tripId =
-    let route =
-        jdfBatch.routes
-        |> Array.find (fun r -> r.id = routeId
-                             && r.idDistinction = routeDistinction)
+let tripDateRanges (route: JdfModel.Route)
+                   (tripServiceNotes: JdfModel.ServiceNote seq) =
     let tripServiceInfos = // TODO: Use hash table for lookup?
-        jdfBatch.serviceNotes
-        |> Seq.filter (fun rt ->
-            rt.routeId = routeId
-            && rt.routeDistinction = routeDistinction
-            && rt.tripId = tripId
-            && rt.noteType = Some JdfModel.Service)
+        tripServiceNotes
+        |> Seq.filter (fun rt -> rt.noteType = Some JdfModel.Service)
         |> Seq.toList
     match tripServiceInfos with
     // No "Service" entry, just use full timetable validity
@@ -193,18 +185,32 @@ let dateRangesHoles (ranges: DateInterval list) =
                                             b.Start - Period.FromDays(1)))
 
 let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
+    let tripsByRoute =
+        jdfBatch.trips
+        |> Array.groupBy (fun t -> t.routeId, t.routeDistinction)
+        |> Map
+        
+    let notesByTrip =
+        jdfBatch.serviceNotes
+        |> Array.groupBy (fun sn -> sn.routeId, sn.routeDistinction, sn.tripId)
+        |> Map
+
     jdfBatch.routes
     |> Array.collect (fun jdfRoute ->
-        let routeFromDate = jdfRoute.timetableValidFrom
-        let routeToDate = jdfRoute.timetableValidTo
-        jdfBatch.trips
-        |> Array.filter
-            (fun t -> t.routeId = jdfRoute.id
-                      && t.routeDistinction = jdfRoute.idDistinction)
+        tripsByRoute
+        |> Map.tryFind (jdfRoute.id, jdfRoute.idDistinction)
+        |> Option.defaultWith (fun () ->
+            Log.Warning("No trips for JDF route {Id},{Dist}",
+                        jdfRoute.id, jdfRoute.idDistinction)
+            [||])
         |> Array.map (fun jdfTrip ->
-            let dateRanges =
-                tripDateRanges jdfBatch jdfRoute.id jdfRoute.idDistinction
-                               jdfTrip.id
+            let jdfNotes =
+                notesByTrip
+                |> Map.tryFind
+                    (jdfRoute.id, jdfRoute.idDistinction, jdfTrip.id)
+                |> Option.defaultValue [||]
+
+            let dateRanges = tripDateRanges jdfRoute jdfNotes
             let fromDate = dateRanges |> Seq.map (fun r -> r.Start) |> Seq.min
             let toDate = dateRanges |> Seq.map (fun r -> r.End) |> Seq.max
 
@@ -220,13 +226,6 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
                     | JdfModel.DayOfWeekService(d) -> [d]
                     | _ -> []
                 )
-
-            let jdfNotes =
-                jdfBatch.serviceNotes
-                |> Array.filter (fun rt ->
-                    rt.routeId = jdfRoute.id
-                    && rt.routeDistinction = jdfRoute.idDistinction
-                    && rt.tripId = jdfTrip.id)
 
             let serviceOnlyEntryExists =
                 jdfNotes
@@ -261,13 +260,27 @@ let getGtfsCalendarExceptions:
             | None -> startDate.Value
         Utils.dateRange startDate.Value endDate
     let designationNumRegex = Regex(@"\d\d")
-
     fun jdfBatch ->
+        let routeById =
+            jdfBatch.routes
+            |> Array.map (fun r -> (r.id, r.idDistinction), r)
+            |> Map
+
+        let notesByTrip =
+            jdfBatch.serviceNotes
+            |> Array.groupBy (fun sn -> sn.routeId, sn.routeDistinction, sn.tripId)
+            |> Map
+
         jdfBatch.trips
         |> Array.collect (fun jdfTrip ->
+            let route = routeById.[jdfTrip.routeId, jdfTrip.routeDistinction]
+            let jdfNotesAll =
+                notesByTrip
+                |> Map.tryFind
+                    (jdfTrip.routeId, jdfTrip.routeDistinction, jdfTrip.id)
+                |> Option.defaultValue [||]
             let dateRanges =
-                tripDateRanges jdfBatch jdfTrip.routeId
-                               jdfTrip.routeDistinction jdfTrip.id
+                tripDateRanges route jdfNotesAll
             let fromDate = dateRanges |> Seq.map (fun r -> r.Start) |> Seq.min
             let toDate = dateRanges |> Seq.map (fun r -> r.End) |> Seq.max
             let holeDates =
@@ -275,12 +288,9 @@ let getGtfsCalendarExceptions:
                 |> List.collect (fun h -> Utils.dateRange h.Start h.End)
 
             let jdfNotes =
-                jdfBatch.serviceNotes
+                jdfNotesAll
                 |> Seq.filter (fun n ->
-                    n.routeId = jdfTrip.routeId
-                    && n.routeDistinction = jdfTrip.routeDistinction
-                    && n.tripId = jdfTrip.id
-                    && designationNumRegex.IsMatch(n.designation))
+                    designationNumRegex.IsMatch(n.designation))
                 // Pre-process for ease of use
                 |> Seq.map (fun n -> {
                     n with
@@ -342,9 +352,11 @@ let getGtfsCalendarExceptions:
                     Some JdfModel.ServiceAlso
                     Some JdfModel.ServiceOnly
                     Some JdfModel.NoService
+                    None
                 ])
             for t in unsupportedNoteTypes do
-                Log.Warning("Unhandled JDF service note: {Type}", t)
+                Log.Warning("Unhandled JDF service note type on route \
+                             {Route}: {Type}", jdfTrip.routeId, t)
 
             let unsupportedDesignations =
                 jdfNotes
@@ -352,7 +364,8 @@ let getGtfsCalendarExceptions:
                 |> set
                 |> Seq.filter (fun d -> not <| designationNumRegex.IsMatch(d))
             for d in unsupportedDesignations do
-                Log.Warning("Unhandled JDF service note: {Designation}", d)
+                Log.Warning("Unhandled JDF service note designation on route \
+                             {Route}: {Designation}", jdfTrip.routeId, d)
 
             let gtfsId = jdfTripId jdfTrip.routeId jdfTrip.routeDistinction
                                    jdfTrip.id
@@ -422,6 +435,11 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
     let timeToPeriod (time: LocalTime) =
         let secs = time.Hour * 3600 + time.Minute * 60 + time.Second
         Period.FromSeconds(int64 secs)
+        
+    let routeStopsByRoute =
+        jdfBatch.routeStops
+        |> Array.groupBy (fun rs -> rs.routeId, rs.routeDistinction)
+        |> Map
 
     jdfBatch.tripStops
     // We have to deal with stop times for each trip separately,
@@ -433,38 +451,21 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
     |> Array.groupBy
         (fun ts -> (ts.routeId, ts.routeDistinction, ts.tripId))
     |> Array.collect (fun (_, jdfTripStops) ->
-        // Multiple stops can have the same kilometer number, so simply
-        // sorting them by kilometer to get them in "time order"
-        // isn't enough
-        // They are (hopefully) sorted in "RouteStop order" in the JDF
-        // data, though, so what we actually have to do is determine
-        // if this trip is "backwards" and reverse the whole TripStop list
-        // if that's the case
-        // This might break when a trip goes through the stops differently
-        // than in RouteStop order and also crosses midnight,
-        // but that's very unlikely and it wouldn't be a fault of this
-        // code, but rather the JDF format, which can't represent
-        // such trips.
         assert (jdfTripStops.Length >= 2)
-        let stopKilometers = jdfTripStops |> Seq.choose (fun s -> s.kilometer)
-        let firstKm = (stopKilometers |> Seq.head)
-        let lastKm = (stopKilometers |> Seq.last)
-        let jdfTripStops =
-            (if firstKm > lastKm
-             then Array.rev
-             else id) jdfTripStops
+        let isReverseTrip = jdfTripStops.[0].tripId % 2L = 0L
 
         let mutable lastTimeDT = None
         let mutable dayPeriod = Period.FromSeconds(0L)
 
         jdfTripStops
-        |> Array.mapi (fun i jdfTripStop ->
+        |> Seq.sortBy (fun ts ->
+            ts.routeStopId * (if isReverseTrip then -1L else 1L))
+        |> Seq.mapi (fun i jdfTripStop ->
             let jdfRouteStop =
-                jdfBatch.routeStops
+                routeStopsByRoute.[
+                    (jdfTripStop.routeId, jdfTripStop.routeDistinction)]
                 |> Array.find (fun rs ->
-                    rs.routeId = jdfTripStop.routeId
-                 && rs.routeDistinction = jdfTripStop.routeDistinction
-                 && rs.routeStopId = jdfTripStop.routeStopId)
+                    rs.routeStopId = jdfTripStop.routeStopId)
 
             match jdfTripStop.departureTime with
             | Some JdfModel.Passing | Some JdfModel.NotPassing -> None
@@ -554,7 +555,8 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
                 }
                 Some stopTime
         )
-        |> Array.choose id
+        |> Seq.choose id
+        |> Seq.toArray
     )
 
 // Some JDF feeds have only local IDs for stops, some have global IDs for the
