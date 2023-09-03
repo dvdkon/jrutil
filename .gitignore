@@ -3,8 +3,13 @@
 /db
 .fake
 .ionide
-!/rtview/wwwroot/rtview.js
+*.nettrace
+*.speedscope.json
+.netcoredbg_hist
+
 /georeport/thirdparty
 /rtview/wwwroot/chart.umd.js
 /rtview/wwwroot/rtview.css
+!/scripts/find_jdf_with_mhd_naming.fsx
 /scripts/*/
+/scripts/*
