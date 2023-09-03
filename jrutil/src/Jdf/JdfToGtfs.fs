@@ -91,37 +91,44 @@ let convertToGtfsAgency: JdfModel.Agency -> GtfsModel.Agency = fun jdfAgency ->
     }
 
 let getGtfsStops stopIdsCis (jdfBatch: JdfModel.JdfBatch) =
+    let stopLocationsById =
+        jdfBatch.stopLocations
+        |> Seq.filter (fun sl -> sl.precision = JdfModel.StopPrecise)
+        |> Seq.map (fun sl ->
+            sl.stopId, (sl.lat, sl.lon))
+        |> Map
+
     let gtfsStops =
         jdfBatch.stops |> Array.map (fun jdfStop ->
-        {
-            id = jdfStopId stopIdsCis jdfStop.id
-            code = None
-            name = getStopName jdfStop
-            description = None
-            lat = None
-            lon = None
-            // This is just a list of all zones this stop is in
-            zoneId = Jdf.stopZone jdfBatch jdfStop
-            url = None
-            locationType = Some GtfsModel.Stop
-            parentStation = None
-            // TODO: Try to guess from jdfStop.country
-            timezone = Some "Europe/Prague"
+            let latLon =
+                stopLocationsById
+                |> Map.tryFind jdfStop.id
+            {
+                id = jdfStopId stopIdsCis jdfStop.id
+                code = None
+                name = getStopName jdfStop
+                description = None
+                lat = latLon |> Option.map fst
+                lon = latLon |> Option.map snd
+                // This is just a list of all zones this stop is in
+                zoneId = Jdf.stopZone jdfBatch jdfStop
+                url = None
+                locationType = Some GtfsModel.Stop
+                parentStation = None
+                // TODO: Try to guess from jdfStop.country
+                timezone = Some "Europe/Prague"
 
-            wheelchairBoarding =
-                // This doesn't use "2" ("not possible"), because there's no
-                // corresponding JDF attribute
-                if jdfStop.attributes
-                   |> Jdf.parseAttributes jdfBatch
-                   |> Set.contains JdfModel.WheelchairAccessible
-                then Some 1
-                else Some 0
+                wheelchairBoarding =
+                    // This doesn't use "2" ("not possible"), because there's no
+                    // corresponding JDF attribute
+                    if jdfStop.attributes
+                       |> Jdf.parseAttributes jdfBatch
+                       |> Set.contains JdfModel.WheelchairAccessible
+                    then Some 1
+                    else Some 0
 
-            platformCode = None
-
-            // TODO: Think of the best way to convey other JDF attributes
-            // A column of 0/1 for each or a "set of strings" column?
-        }: GtfsModel.Stop)
+                platformCode = None
+            }: GtfsModel.Stop)
     let gtfsStopsById = Map <| seq { for s in gtfsStops -> s.id, s }
     let gtfsStopPosts =
         jdfBatch.stopPosts |> Array.map (fun jdfStopPost ->
