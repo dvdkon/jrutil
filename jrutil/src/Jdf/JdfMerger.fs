@@ -496,6 +496,7 @@ type JdfMerger() =
             { ts with
                 routeId = rid
                 routeDistinction = ridd
+                stopId = stopIdMap.[ts.stopId]
             })
         |> Seq.groupBy (fun ts -> ts.routeId, ts.routeDistinction)
         |> Seq.iter (fun (k, v) -> tripStopsByRoute.[k] <- v)
