@@ -82,7 +82,6 @@ let convertToGtfsAgency: JdfModel.Agency -> GtfsModel.Agency = fun jdfAgency ->
                 then "http://" + url
                 else url
             )
-            |> Option.defaultValue ""
         // This will have to be adjusted for slovak datasets
         timezone = "Europe/Prague"
         lang = Some "cs"

@@ -16,7 +16,7 @@ open JrUtil.GtfsModelMeta
 type Agency = {
     [<CsvFieldName("agency_id")>] id: string option
     [<CsvFieldName("agency_name")>] name: string
-    [<CsvFieldName("agency_url")>] url: string
+    [<CsvFieldName("agency_url")>] url: string option
     [<CsvFieldName("agency_timezone")>] timezone: string
     [<CsvFieldName("agency_lang")>] lang: string option
     [<CsvFieldName("agency_phone")>] phone: string option

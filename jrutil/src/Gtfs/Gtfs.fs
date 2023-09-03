@@ -1,19 +1,13 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.Gtfs
 
 open System.IO
-open System.Data.Common
-open System.Runtime.InteropServices
-open Npgsql
 
-open JrUtil.Utils
 open JrUtil.GtfsCsvSerializer
 open JrUtil.GtfsModel
-open JrUtil.GtfsModelMeta
 open JrUtil.GtfsParser
-open JrUtil.SqlRecordStore
 
 let gtfsFeedToFolder () =
     // This is an attempt at speeding serialization up. In the end it didn't do
@@ -82,3 +76,26 @@ let gtfsParseFolder () =
                 |> Option.map (fun fi -> fi.[0])
         }
         feed
+
+/// The GTFS standard requires that some fields we have no way of filling from
+/// source data be populated, and some GTFS-consuming software actually needs
+/// them filled, even if the user doesn't. To make our exports GTFS-compliant,
+/// fill them with nonsense.
+let fillStandardRequiredFields (feed: GtfsFeed) =
+    { feed with
+        agencies =
+            feed.agencies
+            |> Array.map (fun a ->
+                { a with
+                    url = a.url
+                        |> Option.defaultValue "jrutil://invalid"
+                        |> Some
+                })
+        stops =
+            feed.stops
+            |> Array.map (fun s ->
+                { s with
+                    lat = s.lat |> Option.defaultValue 0m |> Some
+                    lon = s.lon |> Option.defaultValue 0m |> Some
+                })
+    }

@@ -74,20 +74,26 @@ let main (args: string array) =
         if argFlagSet args "jdf-to-gtfs" then
             let jdfPar = Jdf.jdfBatchDirParser ()
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (argValue args "<JDF-in-dir>")
+            inOutFiles (argValues args "<JDF-in-dir>" |> Seq.head)
                        (argValue args "<GTFS-out-dir>")
             |> Seq.iter (fun (inpath, out) ->
-                printfn "Processing %s" inpath
+                Log.Information("Processing {Batch}", inpath)
                 try
+                    Log.Information("Reading JDF")
                     let jdf = jdfPar (Jdf.FsPath inpath)
                     // TODO: Allow choice for stopIdsCis
+                    Log.Information("Converting to GTFS")
                     let gtfs =
                         JdfToGtfs.getGtfsFeed false jdf
                         |> gtfsWithCoords stopCoordsByIdPath
 
-                    gtfsSer out gtfs
+                    Log.Information("Writing GTFS")
+                    gtfs
+                    |> Gtfs.fillStandardRequiredFields
+                    |> gtfsSer out
+                    Log.Information("Finished!")
                 with
-                    | e -> printfn "Error while processing %s:\n%A" inpath e
+                    | e -> Log.Error(e, "Error while processing {Batch}", inpath)
             )
         else if argFlagSet args "czptt-to-gtfs" then
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
