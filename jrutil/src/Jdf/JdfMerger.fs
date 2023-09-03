@@ -14,7 +14,7 @@ open JrUtil.Utils
 type JdfMerger() =
     let stops = ResizeArray()
     let stopPosts = ResizeArray()
-    let agenciesByName = Dictionary()
+    let agenciesByIco = MultiDict()
     let routesByLicNum = MultiDict()
     let routeIntegrationsByRoute = MultiDict()
     let routeStopsByRoute = MultiDict()
@@ -37,7 +37,6 @@ type JdfMerger() =
     let attributeRefsByValue = Dictionary()
     let stopsByNames = Dictionary()
     let stopPostsSet = HashSet()
-    let agenciesByIco = Dictionary()
     let batchDateByRoute = Dictionary()
     
     let stopNameTuple (s: Stop) =
@@ -54,7 +53,7 @@ type JdfMerger() =
         }
         stops = stops |> Seq.toArray
         stopPosts = stopPosts |> Seq.toArray
-        agencies = agenciesByName.Values |> Seq.toArray
+        agencies = agenciesByIco.Values |> Seq.collect id |> Seq.toArray
         routes = routesByLicNum.Values |> Seq.collect id |> Seq.toArray
         routeIntegrations =
             routeIntegrationsByRoute.Values |> Seq.collect id |> Seq.toArray
@@ -381,39 +380,44 @@ type JdfMerger() =
         for sp in stopPostsToAdd do
             stopPostsSet.Add((sp.stopId, sp.stopPostId)) |> ignore
             
-        let existingAgencies, agenciesToAdd =
+        let existingAgenciesMap =
             batch.agencies
-            |> splitSeq (fun a -> agenciesByName.ContainsKey(a.name))
+            |> Seq.map (fun a ->
+                a,
+                agenciesByIco.[a.id]
+                |> Seq.tryFind (fun a2 ->
+                    a = {a2 with idDistinction = a.idDistinction}))
+            |> Seq.cache
+        let agenciesToAdd =
+            existingAgenciesMap
+            |> Seq.filter (fun (_, e) -> Option.isNone e)
+            |> Seq.map fst
+            |> Seq.cache
         let agenciesToAddNewId =
             agenciesToAdd
             |> Seq.map (fun a ->
-                let notFirst, (other: Agency ResizeArray) =
-                    agenciesByIco.TryGetValue(a.id)
+                let other: Agency ResizeArray = agenciesByIco.[a.id]
                 let subId =
-                    if notFirst
-                    then (other
+                    if other |> Seq.isEmpty then 1
+                    else (other
                           |> Seq.map (fun a -> a.idDistinction)
                           |> Seq.max) + 1
-                    else 1
-                { a with idDistinction = subId })
-            |> Seq.cache
-        for a in agenciesToAddNewId do
-            agenciesByName.[a.name] <- a
-
-            if not <| agenciesByIco.ContainsKey(a.id) then
-                agenciesByIco.[a.id] <- ResizeArray()
-            agenciesByIco.[a.id].Add(a)
+                let ani = { a with idDistinction = subId }
+                // We need to add it right away, in case the input has multiple
+                // agencies of the same ID
+                agenciesByIco.[a.id].Add(ani)
+                ani)
+            |> Seq.toArray
         let agencyIdMap =
             Seq.concat [
                 Seq.zip agenciesToAdd agenciesToAddNewId
                 |> Seq.map (fun (a, ani) ->
                     (a.id, a.idDistinction), (ani.id, ani.idDistinction))
 
-                existingAgencies
-                |> Seq.map (fun a ->
-                    let existing = agenciesByName.[a.name]
-                    (a.id, a.idDistinction),
-                    (existing.id, existing.idDistinction))
+                existingAgenciesMap
+                |> Seq.choose (fun (a, eo) ->
+                    eo |> Option.map (fun e ->
+                        (a.id, a.idDistinction), (e.id, e.idDistinction)))
             ]
             |> Map
             
