@@ -36,7 +36,7 @@ let getJdfParser<'r> =
     let rowParser = getRowParser<'r> jdfColParserFor
     fun (stream: Stream) -> seq {
         use reader = new StreamReader(stream, jdfEncoding)
-        let buffer = Array.init (1024*1024) (constant ' ')
+        let buffer = Array.create (1024*1024) ' '
         let mutable text = ""
         while not reader.EndOfStream do
             let len = reader.ReadBlock(buffer)

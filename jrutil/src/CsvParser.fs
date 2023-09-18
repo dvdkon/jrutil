@@ -86,19 +86,19 @@ let getRowParser<'r> (colParserFor: Type -> (string -> obj)) =
     let recordConstructor = FSharpValue.PreComputeRecordConstructor(recordType)
     fun (cols: string array) ->
         let props = Array.create colParsers.Length null
-        spreadAttrs
-        |> List.fold (fun (ri, ci) sa ->
+        let mutable ri = 0 // Record field index
+        let mutable ci = 0 // Cell index
+        for sa in spreadAttrs do
             match sa with
             | null ->
                 props.[ri] <- colParsers.[ri] cols.[ci]
-                ri + 1, ci + 1
+                ri <- ri + 1
+                ci <- ci + 1
             | sa ->
-                let vals = [|for i in ci..(ci + sa.Len - 1)
-                             -> colParsers.[ri] cols.[i]|]
-                let a = Array.CreateInstance(elTypes.[ri], vals.Length)
-                Array.Copy(vals, a, vals.Length)
+                let a = Array.CreateInstance(elTypes.[ri], sa.Len)
+                for i in 0..(sa.Len - 1) do
+                    a.SetValue(colParsers.[ri] cols.[i + ci], i)
                 props.[ri] <- a
-                ri + 1, ci + sa.Len
-            )  (0, 0)
-        |> ignore
+                ri <- ri + 1
+                ci <- ci + sa.Len
         recordConstructor(props) |> unbox<'r>
