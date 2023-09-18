@@ -12,20 +12,21 @@ open JrUtil.GtfsParser
 let gtfsFeedToFolder () =
     // This is an attempt at speeding serialization up. In the end it didn't do
     // much, but this should be faster so I'm leaving it like this
-    let agencySerializer = getRowsSerializer<Agency>
-    let stopSerializer = getRowsSerializer<Stop>
-    let routeSerializer = getRowsSerializer<Route>
-    let tripSerializer = getRowsSerializer<Trip>
-    let stopTimeSerializer = getRowsSerializer<StopTime>
-    let calendarEntrySerializer = getRowsSerializer<CalendarEntry>
-    let calendarExceptionSerializer = getRowsSerializer<CalendarException>
-    let feedInfoSerializer = getRowsSerializer<FeedInfo>
+    let agencySerializer = getRowsSerializerWriter<Agency>
+    let stopSerializer = getRowsSerializerWriter<Stop>
+    let routeSerializer = getRowsSerializerWriter<Route>
+    let tripSerializer = getRowsSerializerWriter<Trip>
+    let stopTimeSerializer = getRowsSerializerWriter<StopTime>
+    let calendarEntrySerializer = getRowsSerializerWriter<CalendarEntry>
+    let calendarExceptionSerializer = getRowsSerializerWriter<CalendarException>
+    let feedInfoSerializer = getRowsSerializerWriter<FeedInfo>
 
     fun path feed ->
         Directory.CreateDirectory(path) |> ignore
         let serializeTo name ser obj =
             let filePath = Path.Combine(path, name)
-            File.WriteAllText(filePath, ser obj)
+            use file = File.Open(filePath, FileMode.Create)
+            ser file obj
         let serializeToOpt name ser obj =
             obj |> Option.iter (fun o -> serializeTo name ser o)
         serializeTo "agency.txt" agencySerializer feed.agencies
