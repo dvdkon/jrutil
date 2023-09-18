@@ -33,15 +33,15 @@ type JdfMerger() =
     let mutable lastStopId = 0
     let mutable lastAttributeRefId = 0
     let mutable lastTripGroupId = 0
-    
+
     let attributeRefsByValue = Dictionary()
     let stopsByNames = Dictionary()
     let stopPostsSet = HashSet()
     let batchDateByRoute = Dictionary()
-    
+
     let stopNameTuple (s: Stop) =
         s.town, s.district, s.nearbyPlace, s.regionId, s.country
-        
+
     member this.batch = {
         version = {
             version = "1.11"
@@ -92,7 +92,7 @@ type JdfMerger() =
         alternateRouteNamesByRoute.Remove((routeId, routeDistinction)) |> ignore
         reservationOptionsByRoute.Remove((routeId, routeDistinction)) |> ignore
         batchDateByRoute.Remove((routeId, routeDistinction)) |> ignore
-    
+
     member private this.copyRoute(copy: Route) =
         let oldDist = copy.idDistinction
         let newDist =
@@ -100,7 +100,7 @@ type JdfMerger() =
              |> Seq.map (fun r -> r.idDistinction)
              |> Seq.max) + 1
         routesByLicNum.[copy.id].Add(
-            {copy with idDistinction = newDist })        
+            {copy with idDistinction = newDist })
         routeIntegrationsByRoute.[(copy.id, newDist)] <-
             routeIntegrationsByRoute.[(copy.id, oldDist)]
             |> Seq.map (fun x -> {
@@ -282,7 +282,7 @@ type JdfMerger() =
         // Resolve other overlaps by symmetry (simple overlap but r2 is first,
         // r1 is inside r2, same start/end date but r2 is shorter)
         else this.resolveOneRouteOverlap(r2, r1)
-    
+
     member this.resolveRouteOverlaps() =
         for id in routesByLicNum.Keys do
             let handled = HashSet()
@@ -334,22 +334,21 @@ type JdfMerger() =
                     ar.attributeId, attributeRefsByValue.[(ar.value, ar.reserved1)])
             ]
             |> Map
+        let mapAttributes =
+            Array.map (Option.map (fun id -> attributeRefIdMap.[id]))
 
         let existingStops, stopsToAdd =
             batch.stops
             |> splitSeq (fun s ->
                 stopsByNames.ContainsKey(stopNameTuple s))
         let stopsToAddIds = stopsToAdd |> Seq.map (fun s -> s.id) |> Set
-        let stopsToAddNewIds = 
+        let stopsToAddNewIds =
             stopsToAdd
             |> Seq.map (fun s ->
                 lastStopId <- lastStopId + 1
                 { s with
                     id = lastStopId
-                    attributes =
-                        s.attributes |> Array.map (Option.map (fun id ->
-                            attributeRefIdMap.[id]))
-                    }
+                    attributes = mapAttributes s.attributes }
             )
             |> Seq.cache
         stops.AddRange(stopsToAddNewIds)
@@ -379,7 +378,7 @@ type JdfMerger() =
         stopPosts.AddRange(stopPostsToAdd)
         for sp in stopPostsToAdd do
             stopPostsSet.Add((sp.stopId, sp.stopPostId)) |> ignore
-            
+
         let existingAgenciesMap =
             batch.agencies
             |> Seq.map (fun a ->
@@ -420,7 +419,7 @@ type JdfMerger() =
                         (a.id, a.idDistinction), (e.id, e.idDistinction)))
             ]
             |> Map
-            
+
         // We don't resolve validity overlaps here and leave that for a
         // post-processing phase
         let newRoutes =
@@ -434,7 +433,7 @@ type JdfMerger() =
                     agencyDistinction = aidd})
         for r in newRoutes do
             routesByLicNum.[r.id].Add(r)
-            
+
             batchDateByRoute.[(r.id, r.idDistinction)] <-
                 batch.version.creationDate
         let routeIdMap =
@@ -442,7 +441,7 @@ type JdfMerger() =
             |> Seq.map (fun (r, rni) ->
                 (r.id, r.idDistinction), (rni.id, rni.idDistinction))
             |> Map
-            
+
         batch.routeIntegrations
         |> Seq.map (fun ri ->
             let rid, ridd = routeIdMap.[(ri.routeId, ri.routeDistinction)]
@@ -460,6 +459,7 @@ type JdfMerger() =
                 routeId = rid
                 routeDistinction = ridd
                 stopId = stopIdMap.[rs.stopId]
+                attributes = mapAttributes rs.attributes
             })
         |> Seq.groupBy (fun rs -> rs.routeId, rs.routeDistinction)
         |> Seq.iter (fun (k, v) -> routeStopsByRoute.[k] <- v)
@@ -486,6 +486,7 @@ type JdfMerger() =
                 tripGroupId =
                     t.tripGroupId
                     |> Option.map (fun id -> tripGroupIdMap.[id])
+                attributes = mapAttributes t.attributes
             })
         |> Seq.groupBy (fun t -> t.routeId, t.routeDistinction)
         |> Seq.iter (fun (k, v) -> tripsByRoute.[k] <- v)
@@ -497,6 +498,7 @@ type JdfMerger() =
                 routeId = rid
                 routeDistinction = ridd
                 stopId = stopIdMap.[ts.stopId]
+                attributes = mapAttributes ts.attributes
             })
         |> Seq.groupBy (fun ts -> ts.routeId, ts.routeDistinction)
         |> Seq.iter (fun (k, v) -> tripStopsByRoute.[k] <- v)
@@ -540,6 +542,7 @@ type JdfMerger() =
                 routeDistinction = ridd
                 agencyId = aid
                 agencyDistinction = aidd
+                attributes = mapAttributes aa.attributes
             })
         |> Seq.groupBy (fun aa -> aa.routeId, aa.routeDistinction)
         |> Seq.iter (fun (k, v) -> agencyAlternationsByRoute.[k] <- v)
@@ -553,7 +556,7 @@ type JdfMerger() =
             })
         |> Seq.groupBy (fun arn -> arn.routeId, arn.routeDistinction)
         |> Seq.iter (fun (k, v) -> alternateRouteNamesByRoute.[k] <- v)
-        
+
         batch.reservationOptions
         |> Seq.map (fun ro ->
             let rid, ridd = routeIdMap.[(ro.routeId, ro.routeDistinction)]

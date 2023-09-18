@@ -45,7 +45,7 @@ let getRowSerializer<'r> (colSerializerFor: Type -> (obj -> string)) =
                     let arr = field.GetValue(r) :?> Array
                     seq {
                         for i in 0..spreadAttr.Len - 1 ->
-                            if arr.Length < i
+                            if i < arr.Length
                             then serializer <| arr.GetValue(i)
                             else ""
                     }

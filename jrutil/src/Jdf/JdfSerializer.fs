@@ -4,11 +4,11 @@
 module JrUtil.JdfSerializer
 
 open System
+open System.IO
 open NodaTime
 
 open JrUtil.CsvSerializer
 open JrUtil.JdfParser
-open System.IO
 
 let rec jdfColSerializerFor colType =
     if colType = typeof<LocalDate> then
