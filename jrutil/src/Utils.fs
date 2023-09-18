@@ -23,7 +23,7 @@ open System
 
 type MultiDict<'k, 'v when 'k: equality>() =
     let dict = Dictionary<'k, ResizeArray<'v>>()
-    
+
     member this.Item
         with get k =
             let success, v = dict.TryGetValue(k)
@@ -34,7 +34,7 @@ type MultiDict<'k, 'v when 'k: equality>() =
                 arr
         and set k (vs: 'v seq) =
             dict.[k] <- ResizeArray(vs)
-                
+
     member this.Keys with get() = dict.Keys
     member this.Values with get() = dict.Values
     member this.Remove(k) = dict.Remove(k)
@@ -230,7 +230,7 @@ let setupLogging (logFile: string option) () =
          .MinimumLevel.Debug()
          .Enrich.FromLogContext()
     if Environment.GetEnvironmentVariable("JRUTIL_LOG_TO_CONSOLE") <> "0" then
-        loggerFactory <- 
+        loggerFactory <-
             loggerFactory.WriteTo.Console(
                 standardErrorFromLevel = LogEventLevel.Verbose,
                 applyThemeToRedirectedOutput = true,
@@ -308,7 +308,7 @@ let innerJoinOn xkey ykey xs ys =
 let optResult error = function
     | Some v -> Ok v
     | None -> Error error
-    
+
 let nullOpt v =
     if v = null then None else Some v
 
@@ -322,3 +322,11 @@ let splitSeq pred xs =
     |> List.tryFind (fun (b, _) -> not b)
     |> Option.defaultValue (false, [])
     |> snd
+
+let concatTo2 xs =
+    let x1s = ResizeArray()
+    let x2s = ResizeArray()
+    for (x1, x2) in xs do
+        x1s.AddRange(x1)
+        x2s.AddRange(x2)
+    x1s, x2s

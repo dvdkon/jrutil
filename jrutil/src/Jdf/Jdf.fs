@@ -32,12 +32,12 @@ let parseAttributes batch (attributes: int option array) =
 let stopZone batch (stop: Stop) =
     let zones =
         batch.routeStops
-        |> Array.filter (fun rs -> rs.stopId = stop.id)
-        |> Array.map (fun rs -> rs.zone)
-        |> Array.choose id
-    match zones with
-    | [||] -> None
-    | _ -> Some <| String.concat "," zones
+        |> Seq.filter (fun rs -> rs.stopId = stop.id)
+        |> Seq.map (fun rs -> rs.zone)
+        |> Seq.choose id
+        |> set
+    if Set.isEmpty zones then None
+    else Some <| String.concat "," zones
 
 /// name: filename inside batch (case-insensitive)
 let tryReadJdfText (dir: JdfBatchDirectory) name =

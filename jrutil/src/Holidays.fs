@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2020 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.Holidays
 
@@ -44,3 +44,11 @@ let czechHolidays year =
         goodFridayDSM % 31, goodFridayDSM / 31 + 3
         easterMondayDSM % 31, easterMondayDSM / 31 + 3
     ]
+
+let czechHolidayDates (fromDate: LocalDate) (toDate: LocalDate) =
+    let di = DateInterval(fromDate, toDate)
+    [fromDate.Year .. toDate.Year]
+    |> List.collect (fun year ->
+        czechHolidays year
+        |> List.map (fun (d, m) -> LocalDate(year, m, d)))
+    |> List.filter di.Contains
