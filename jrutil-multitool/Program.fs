@@ -23,7 +23,7 @@ Usage:
 Options:
     --stop-coords-by-id=FILE    CSV file assigning coordinates to stops by ID
     -g --ext-geodata=FILE       CSV file with stop positions (name,lat,lon,region)
-    -o --overpass-url=URL       URL for OSM Overpass API
+    -o --cz-pbf=URL             OSM data for Czech Republic
     -l --logfile=FILE           Logfile
 
 Passing - to an input path parameter will make most jrutil commands read
@@ -116,7 +116,7 @@ let main (args: string array) =
             let inDir = argValues args "<JDF-in-dir>" |> Seq.head
             let outDir = argValue args "<JDF-out-dir>"
             let geodataPath = optArgValue args "--ext-geodata"
-            let overpassUrl = optArgValue args "--overpass-url"
+            let czPbf = optArgValue args "--cz-pbf"
 
             let extStopsToMatch =
                 geodataPath
@@ -126,10 +126,10 @@ let main (args: string array) =
                         |> ExternalCsv.otherStopsForJdfMatch)
                 |> Option.defaultValue [||]
             let osmStopsToMatch =
-                overpassUrl
-                |> Option.map (fun ourl ->
+                czPbf
+                |> Option.map (fun pbf ->
                     Utils.logWrappedOp "Reading OSM stops" <| fun () ->
-                        Osm.getCzOtherStops ourl "/tmp"
+                        Osm.getCzOtherStops pbf
                         |> Osm.czOtherStopsForJdfMatch)
                 |> Option.defaultValue [||]
             let stopMatcher = new StopMatcher.StopMatcher<_>(Array.concat [
@@ -184,13 +184,13 @@ let main (args: string array) =
                     let batchName = Path.GetFileNameWithoutExtension(batchPath)
                     use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
                     Log.Information("Merging JDF batch {BatchPath}", batchPath)
-                    
+
                     let batch = jdfPar batchDir
                     merger.add(batch)
-                    
+
             Log.Information("Resolving route overlaps")
             merger.resolveRouteOverlaps()
-                    
+
             Log.Information("Writing merged JDF")
             jdfWri (Jdf.FsPath outDir) merger.batch
             Log.Information("Finished!")

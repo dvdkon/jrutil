@@ -334,15 +334,14 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
     |> (fun (ets, ces, cexs) -> set ets, ces.ToArray(), cexs.ToArray())
 
 let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
-    let trips: GtfsModel.Trip array =
-        jdfBatch.trips
-        |> Seq.map (fun jdfTrip ->
+    jdfBatch.trips
+    |> Seq.map (fun jdfTrip ->
         let id = jdfTripId jdfTrip.routeId jdfTrip.routeDistinction jdfTrip.id
         let attrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
         let wheelchairAccessible =
                 attrs |> Set.contains JdfModel.WheelchairAccessible
                 || attrs |> Set.contains JdfModel.PartlyWheelchairAccessible
-        {
+        ({
             routeId = jdfRouteId jdfTrip.routeId jdfTrip.routeDistinction
             serviceId = id
             id = id
@@ -359,8 +358,7 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
                 Some (if attrs |> Set.contains JdfModel.BicycleTransport
                       then GtfsModel.OneOrMore
                       else GtfsModel.NoBicycles)
-        })
-    trips
+        }: GtfsModel.Trip))
 
 let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
     let timeToPeriod (time: LocalTime) =
@@ -387,6 +385,7 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
     |> Seq.groupBy
         (fun ts -> (ts.routeId, ts.routeDistinction, ts.tripId))
     |> Seq.collect (fun (_, jdfTripStops) ->
+        let jdfTripStops = Seq.toArray jdfTripStops
         assert (jdfTripStops.Length >= 2)
         let isReverseTrip = jdfTripStops.[0].tripId % 2L = 0L
 

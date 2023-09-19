@@ -119,6 +119,8 @@ let polygonWgs84ToEtrs89Ex p =
     transformPolygon wgs84Srid etrs89ExSrid wgs84ToEtrs89Ex p
 let pointWgs84ToEtrs89Ex p =
     transformPoint wgs84Srid etrs89ExSrid wgs84ToEtrs89Ex p
+let pointEtrs89ExToWgs84 p =
+    transformPoint etrs89ExSrid wgs84Srid (wgs84ToEtrs89Ex.Inverse()) p
 
 let pointsRadius (points: Point array) =
     let avgX = points |> Array.averageBy (fun p -> p.X)

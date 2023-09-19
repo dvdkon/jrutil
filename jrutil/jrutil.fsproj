@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <!--
   This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-  (c) 2021 David Koňařík
+  (c) 2023 David Koňařík
   -->
 
   <PropertyGroup>
@@ -58,6 +58,8 @@
     <PackageReference Include="NetTopologySuite" Version="2.5.0" />
     <PackageReference Include="NetTopologySuite.Features" Version="2.1.0" />
     <PackageReference Include="NetTopologySuite.IO.GeoJSON4STJ" Version="3.0.0" />
+    <PackageReference Include="OsmSharp" Version="7.0.0-pre022" />
+    <PackageReference Include="OsmSharp.Geo" Version="7.0.0-pre022" />
     <PackageReference Include="ProjNet" Version="2.0.0" />
     <PackageReference Include="Serilog.Formatting.Compact" Version="1.1.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />

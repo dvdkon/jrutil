@@ -7,8 +7,9 @@ open System
 open System.IO
 
 open FSharp.Data
+open NetTopologySuite.Geometries
 
-open JrUtil.SqlRecordStore
+open JrUtil.GeoData.Common
 open JrUtil.GeoData.Osm
 open JrUtil.GeoData.ExternalCsv
 open JrUtil.GeoData.StopMatcher
@@ -29,8 +30,7 @@ type StopMatchType =
 
 type StopMatch = {
     matchType: StopMatchType
-    lat: float
-    lon: float
+    point: Point
 }
 
 type Sr70Stops = CsvProvider<HasHeaders = false, Schema = "sr70(string), name(string)">
@@ -55,21 +55,23 @@ let topMatches matches =
     |> Seq.tryHead
     |> Option.map snd
 
-let getRailStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
+let getRailStopsMatches czPbf stopsPath extSourcesDir =
     let stops =
         Sr70Stops.Load(
             Path.Combine(Environment.CurrentDirectory, stopsPath)).Rows
 
     let stopsOsm =
-        getCzRailStops overpassUrl cacheDir
-        |> Array.map (fun s -> {
-            name = czRailStopName s
-            data = (
-                osmNormalisedSr70 s,
-                float s.Lat, float s.Lon,
-                "OSM",
-                Some <| s.Id)
+        getCzRailStops czPbf
+        |> Seq.map (fun s -> {
+            name = s.name |> Option.defaultValue ""
+            data = {|
+                sr70 = s.sr70
+                point = s.point |> pointWgs84ToEtrs89Ex
+                source = "OSM"
+                osmId = Some <| s.id
+            |}
         })
+        |> Seq.toArray
     let externalData =
         Directory.EnumerateFiles(extSourcesDir)
         |> Seq.collect (fun path ->
@@ -77,11 +79,13 @@ let getRailStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
             CzRailStops.Load(Path.GetFullPath(path)).Rows
             |> Seq.map (fun r -> {
                 name = r.Name
-                data = (
-                    normaliseSr70 r.Sr70,
-                    r.Lat, r.Lon,
-                    sourceName,
-                    None)
+                data = {|
+                    sr70 = Some <| normaliseSr70 r.Sr70
+                    point = wgs84Factory.CreatePoint(Coordinate(r.Lon, r.Lat))
+                          |> pointWgs84ToEtrs89Ex
+                    source = sourceName
+                    osmId = None
+                |}
             }))
         |> Seq.toArray
 
@@ -89,9 +93,7 @@ let getRailStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
         Array.concat [ stopsOsm; externalData ]
     let stopsBySr70 =
         stopsToMatch
-        |> Array.map (fun s ->
-            let sr70, _, _, _, _ = s.data
-            sr70, s)
+        |> Array.choose (fun s -> s.data.sr70 |> Option.map (fun k -> k, s))
         |> Array.groupBy fst
         |> Map
 
@@ -101,18 +103,17 @@ let getRailStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
         let nameMatches =
             matcher.matchStop(stop.Name)
             |> Array.map (fun m ->
-                let _, lat, lon, source, osmId = m.stop.data
+                let d = m.stop.data
                 let matchDesc = {
                     stopName = m.stop.name
                     score = m.score
                 }
                 {
                     matchType =
-                        match osmId with
+                        match d.osmId with
                         | Some i -> OsmByName (i, matchDesc)
-                        | None -> ExternalByName (source, matchDesc)
-                    lat = lat
-                    lon = lon
+                        | None -> ExternalByName (d.source, matchDesc)
+                    point = d.point
                 })
         let sr70Matches =
             stopsBySr70
@@ -120,34 +121,34 @@ let getRailStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
             |> Option.defaultValue [||]
             |> Array.map (fun s ->
                 let _, matchedStop = s
-                let _, lat, lon, source, osmId = matchedStop.data
+                let d = matchedStop.data
                 let matchDesc = {
                     stopName = matchedStop.name
                     score = 1000f
                 }
                 {
                     matchType =
-                        match osmId with
+                        match d.osmId with
                         | Some i -> OsmByTag i
-                        | None -> ExternalById source
-                    lat = lat
-                    lon = lon
+                        | None -> ExternalById d.source
+                    point = d.point
                 })
         sprintf "[%s] %s" stop.Sr70 stop.Name,
         Array.concat [ nameMatches; sr70Matches ])
     |> Seq.toArray
 
-let getOtherStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
+let getOtherStopsMatches czPbf stopsPath extSourcesDir =
     let stops = readStopNamesCsv stopsPath
 
     let stopsOsm =
-        getCzOtherStops overpassUrl cacheDir
+        getCzOtherStops czPbf
         |> Seq.map (fun s -> {
             name = czOtherStopNameRegion s |> fst
-            data = (
-                float s.Lat, float s.Lon,
-                "OSM",
-                Some <| s.Id)
+            data = {|
+                point = s.point |> pointWgs84ToEtrs89Ex
+                source = "OSM"
+                osmId = Some <| s.id
+            |}
         })
         |> Seq.toArray
     let externalData =
@@ -157,10 +158,12 @@ let getOtherStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
             OtherStops.Load(Path.GetFullPath(path)).Rows
             |> Seq.map (fun r -> {
                 name = r.Name
-                data = (
-                    r.Lat, r.Lon,
-                    sourceName,
-                    None)
+                data = {|
+                    point = wgs84Factory.CreatePoint(Coordinate(r.Lon, r.Lat))
+                          |> pointWgs84ToEtrs89Ex
+                    source = sourceName
+                    osmId = None
+                |}
             }))
         |> Seq.toArray
 
@@ -173,18 +176,17 @@ let getOtherStopsMatches overpassUrl cacheDir stopsPath extSourcesDir =
         let matches =
             matcher.matchStop(stop)
             |> Array.map (fun m ->
-                let lat, lon, source, osmId = m.stop.data
+                let d = m.stop.data
                 let matchDesc = {
                     stopName = m.stop.name
                     score = m.score
                 }
                 {
                     matchType =
-                        match osmId with
+                        match d.osmId with
                         | Some i -> OsmByName (i, matchDesc)
-                        | None -> ExternalByName (source, matchDesc)
-                    lat = lat
-                    lon = lon
+                        | None -> ExternalByName (d.source, matchDesc)
+                    point = d.point
                 })
         stop, matches)
     |> Seq.toArray

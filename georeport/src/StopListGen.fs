@@ -15,7 +15,7 @@ let jdfStopNames czSkOnly jdfDir =
     |> Seq.toArray
     |> Array.map (fun (batchName, batchPath) ->
         use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
-        Log.Information("Reading stops from {JDF}", batchPath)
+        Log.Information("Reading stops from {JDF}", batchName)
         try
             let stops: JdfModel.Stop array = stopsParser batchPath
             stops
