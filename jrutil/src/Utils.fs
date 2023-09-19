@@ -330,3 +330,13 @@ let concatTo2 xs =
         x1s.AddRange(x1)
         x2s.AddRange(x2)
     x1s, x2s
+
+let concatTo3 xs =
+    let x1s = ResizeArray()
+    let x2s = ResizeArray()
+    let x3s = ResizeArray()
+    for (x1, x2, x3) in xs do
+        x1s.AddRange(x1)
+        x2s.AddRange(x2)
+        x3s.AddRange(x3)
+    x1s, x2s, x3s

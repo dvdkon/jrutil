@@ -238,6 +238,8 @@ let gtfsCalendarBitmap (calendar: GtfsModel.CalendarEntry) =
         calendar.weekdayService.[dow])
     |> Seq.toArray
 
+// Returns triple of trips with empty calendar (to delete), calendar entries
+// and calendar exceptions
 let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
     let tripsByRoute =
         jdfBatch.trips
@@ -302,8 +304,10 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
 
         // Pick the most efficient representation (calendar + exceptions vs
         // just exceptions)
-        if bitmapDiffCount > bitmapTrueCount then
-            Seq.empty,
+        if bitmapTrueCount = 0 then
+            seq { tripId }, Seq.empty, Seq.empty
+        elif bitmapDiffCount > bitmapTrueCount then
+            Seq.empty, Seq.empty,
             bitmap
             |> Seq.indexed
             |> Seq.choose (fun (i, s) ->
@@ -314,7 +318,7 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
                 }: GtfsModel.CalendarException)
                 else None)
         else
-            seq { calendarEntry },
+            Seq.empty, seq { calendarEntry },
             Seq.zip bitmap calendarBitmap
             |> Seq.indexed
             |> Seq.choose (fun (i, (s, sc)) ->
@@ -326,13 +330,13 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
                 }
                 else None)
     )
-    |> Utils.concatTo2
-    |> (fun (ces, cexs) -> ces.ToArray(), cexs.ToArray())
+    |> Utils.concatTo3
+    |> (fun (ets, ces, cexs) -> set ets, ces.ToArray(), cexs.ToArray())
 
 let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
     let trips: GtfsModel.Trip array =
         jdfBatch.trips
-        |> Array.map (fun jdfTrip ->
+        |> Seq.map (fun jdfTrip ->
         let id = jdfTripId jdfTrip.routeId jdfTrip.routeDistinction jdfTrip.id
         let attrs = Jdf.parseAttributes jdfBatch jdfTrip.attributes
         let wheelchairAccessible =
@@ -380,9 +384,9 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
     // Not even this is enough, though. Imagine a trip that sets out
     // at 8:00 and, without any intermediate stops, arrives at 9:00
     // the next day.
-    |> Array.groupBy
+    |> Seq.groupBy
         (fun ts -> (ts.routeId, ts.routeDistinction, ts.tripId))
-    |> Array.collect (fun (_, jdfTripStops) ->
+    |> Seq.collect (fun (_, jdfTripStops) ->
         assert (jdfTripStops.Length >= 2)
         let isReverseTrip = jdfTripStops.[0].tripId % 2L = 0L
 
@@ -486,19 +490,24 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
                 Some stopTime
         )
         |> Seq.choose id
-        |> Seq.toArray
     )
 
 // Some JDF feeds have only local IDs for stops, some have global IDs for the
 // whole CIS. Set stopIdsCis accordingly.
 let getGtfsFeed stopIdsCis (jdfBatch: JdfModel.JdfBatch) =
-    let calendar, calendarExceptions = getGtfsCalendar jdfBatch
+    let tripsToDelete, calendar, calendarExceptions = getGtfsCalendar jdfBatch
     let feed: GtfsModel.GtfsFeed = {
         agencies = jdfBatch.agencies |> Array.map convertToGtfsAgency
         stops = getGtfsStops stopIdsCis jdfBatch
         routes = getGtfsRoutes jdfBatch
         trips = getGtfsTrips jdfBatch
+            |> Seq.filter (fun t ->
+                tripsToDelete |> Set.contains t.id |> not)
+            |> Seq.toArray
         stopTimes = getGtfsStopTimes stopIdsCis jdfBatch
+            |> Seq.filter (fun ts ->
+                tripsToDelete |> Set.contains ts.tripId |> not)
+            |> Seq.toArray
         calendar = Some calendar
         calendarExceptions = Some calendarExceptions
         feedInfo = None
