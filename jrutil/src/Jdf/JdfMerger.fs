@@ -3,13 +3,14 @@
 
 module JrUtil.JdfMerger
 
-open System
 open System.Collections.Generic
 open NodaTime
 open Serilog
+open NetTopologySuite.Geometries
 
 open JrUtil.JdfModel
 open JrUtil.Utils
+open JrUtil.GeoData.Common
 
 type JdfMerger() =
     let stops = ResizeArray()
@@ -28,7 +29,7 @@ type JdfMerger() =
     let agencyAlternationsByRoute = MultiDict()
     let alternateRouteNamesByRoute = MultiDict()
     let reservationOptionsByRoute = MultiDict()
-    let stopLocations = ResizeArray()
+    let stopLocationsByStop = Dictionary()
 
     let mutable lastStopId = 0
     let mutable lastAttributeRefId = 0
@@ -41,6 +42,14 @@ type JdfMerger() =
 
     let stopNameTuple (s: Stop) =
         s.town, s.district, s.nearbyPlace, s.regionId, s.country
+
+    let locationDistance loc1 loc2 =
+        let locToPt loc =
+            wgs84Factory.CreatePoint(
+                Coordinate(float loc.lon, float loc.lat))
+            |> pointWgs84ToEtrs89Ex
+        (locToPt loc1).Distance(locToPt loc2)
+    let locationDistanceThresh = 1000
 
     member this.batch = {
         version = {
@@ -73,7 +82,7 @@ type JdfMerger() =
             alternateRouteNamesByRoute.Values |> Seq.collect id |> Seq.toArray
         reservationOptions =
             reservationOptionsByRoute.Values |> Seq.collect id |> Seq.toArray
-        stopLocations = stopLocations |> Seq.toArray
+        stopLocations = stopLocationsByStop.Values |> Seq.toArray
     }
 
     member private this.deleteRoute(r: Route) =
@@ -363,12 +372,28 @@ type JdfMerger() =
                 |> Seq.map (fun s -> s.id, stopsByNames.[stopNameTuple s])
             ]
             |> Map
-        stopLocations.AddRange(
-            batch.stopLocations
-            |> Seq.filter (fun sl -> stopsToAddIds |> Set.contains sl.stopId)
-            |> Seq.map (fun sl ->
-                {sl with stopId = stopIdMap.[sl.stopId] })
-        )
+        for sl in batch.stopLocations do
+            let stopId = stopIdMap.[sl.stopId]
+            let hasOldSl, oldSl = stopLocationsByStop.TryGetValue(stopId)
+
+            // Check if old location isn't to far
+            if hasOldSl
+               && oldSl.precision = StopPrecise
+               && sl.precision = StopPrecise
+               && (oldSl.lat <> sl.lat || oldSl.lon <> sl.lon)
+               && locationDistance sl oldSl > locationDistanceThresh then
+                Log.Warning("Stop location for {StopId} in new batch is too \
+                             far from existing location: {Lat}, {Lon}",
+                            stopId, sl.lat, sl.lon)
+
+            // Either this is a new location or an upgrade (town precise to
+            // stop precise)
+            if stopsToAddIds |> Set.contains sl.stopId
+               || not <| hasOldSl
+               || (sl.precision = StopPrecise
+                   && oldSl.precision = TownPrecise)
+            then
+                stopLocationsByStop.[stopId] <- { sl with stopId = stopId }
 
         let stopPostsToAdd =
             stopPosts
