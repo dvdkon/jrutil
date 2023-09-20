@@ -61,7 +61,7 @@ let getRailStopsMatches czPbf stopsPath extSourcesDir =
             Path.Combine(Environment.CurrentDirectory, stopsPath)).Rows
 
     let stopsOsm =
-        getCzRailStops czPbf
+        getCzRailStops czPbf ()
         |> Seq.map (fun s -> {
             name = s.name |> Option.defaultValue ""
             data = {|
@@ -141,7 +141,7 @@ let getOtherStopsMatches czPbf stopsPath extSourcesDir =
     let stops = readStopNamesCsv stopsPath
 
     let stopsOsm =
-        getCzOtherStops czPbf
+        getCzOtherStops czPbf ()
         |> Seq.map (fun s -> {
             name = czOtherStopNameRegion s |> fst
             data = {|

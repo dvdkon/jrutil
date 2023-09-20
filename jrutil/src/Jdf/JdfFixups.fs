@@ -6,6 +6,7 @@
 module JrUtil.JdfFixups
 
 open System
+open System.IO
 open System.Text.RegularExpressions
 open NetTopologySuite.Geometries
 open Serilog
@@ -134,7 +135,9 @@ let eurTownNameMatcher =
                 |> Seq.map (fun r ->
                     { name = r.Name
                       data = r.CountryCode.ToUpper(), r.Lat, r.Lon })
-                |> Seq.toArray)
+                |> Seq.toArray,
+                Utils.persistentCachePath
+                |> Option.map (fun d -> Path.Combine(d, "cz-stop-matcher")))
 
 let matchCzTownByNameRaw town =
     let town =

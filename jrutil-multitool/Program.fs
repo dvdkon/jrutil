@@ -25,6 +25,7 @@ Options:
     -g --ext-geodata=FILE       CSV file with stop positions (name,lat,lon,region)
     -o --cz-pbf=URL             OSM data for Czech Republic
     -l --logfile=FILE           Logfile
+    -c --cache=DIR              Persistent cache directory
 
 Passing - to an input path parameter will make most jrutil commands read
 input filenames from stdin. Each result will be output into a sequentially
@@ -69,6 +70,7 @@ let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
 let main (args: string array) =
     withProcessedArgs docstring args (fun args ->
         setupLogging (optArgValue args "--logfile") ()
+        Utils.persistentCachePath <- optArgValue args "--cache"
 
         let stopCoordsByIdPath = optArgValue args "--stop-coords-by-id"
         if argFlagSet args "jdf-to-gtfs" then
@@ -129,13 +131,13 @@ let main (args: string array) =
                 czPbf
                 |> Option.map (fun pbf ->
                     Utils.logWrappedOp "Reading OSM stops" <| fun () ->
-                        Osm.getCzOtherStops pbf
+                        Osm.getCzOtherStops pbf ()
                         |> Osm.czOtherStopsForJdfMatch)
                 |> Option.defaultValue [||]
-            let stopMatcher = new StopMatcher.StopMatcher<_>(Array.concat [
-                extStopsToMatch
-                osmStopsToMatch
-            ])
+            let stopMatcher = new StopMatcher.StopMatcher<_>(
+                Array.concat [ extStopsToMatch; osmStopsToMatch ],
+                Utils.persistentCachePath
+                |> Option.map (fun d -> Path.Combine(d, "cz-stop-matcher")))
 
             let jdfPar = Jdf.jdfBatchDirParser ()
             let jdfWri = Jdf.jdfBatchDirWriter ()

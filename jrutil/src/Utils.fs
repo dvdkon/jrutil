@@ -9,6 +9,7 @@ open System.Diagnostics
 open System.Globalization
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
+open System.Runtime.Serialization.Formatters.Binary
 open System.Collections.Generic
 open DocoptNet
 open Serilog
@@ -19,6 +20,9 @@ open NodaTime
 open NodaTime.Text
 
 #nowarn "0342"
+// For deprecated BinaryFormatter
+#nowarn "44"
+
 open System
 
 type MultiDict<'k, 'v when 'k: equality>() =
@@ -57,6 +61,22 @@ let memoizeVoidFunc f =
             let result = f()
             cache <- Some result
             result)
+
+let mutable persistentCachePath: string option = None
+
+let cacheVoidFunc (key: string) (f: unit -> 'a) () =
+    match persistentCachePath with
+    | Some pcp ->
+        let cacheFilePath = Path.Combine(pcp, key)
+        if File.Exists(cacheFilePath) then
+            use stream = File.OpenRead(cacheFilePath)
+            (new BinaryFormatter()).Deserialize(stream) :?> 'a
+        else
+            let data = f ()
+            use stream = File.Open(cacheFilePath, FileMode.Create)
+            (new BinaryFormatter()).Serialize(stream, data)
+            data
+    | None -> f ()
 
 let chainCompare next prev =
     if prev <> 0 then prev else next

@@ -30,7 +30,7 @@ let featTagOpt name (feat: IFeature) =
     |> nullOpt
     |> Option.map unbox<string>
 
-let getCzRailStops pbfPath =
+let getCzRailStops pbfPath = cacheVoidFunc "cz-osm-rail-stops" <| fun () ->
     use stream = File.OpenRead(pbfPath)
     (new PBFOsmStreamSource(stream)
      |> Seq.filter (fun node ->
@@ -71,7 +71,7 @@ let czOtherStopNameRegion =
             then n, Some r
             else tn + "," + n, Some r
 
-let getCzOtherStops pbfPath =
+let getCzOtherStops pbfPath = cacheVoidFunc "cz-osm-other-stops" <| fun () ->
     use stream = File.OpenRead(pbfPath)
     (new PBFOsmStreamSource(stream)
      |> Seq.filter (fun node ->
