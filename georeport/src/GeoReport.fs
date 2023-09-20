@@ -142,14 +142,16 @@ let getOtherStopsMatches czPbf stopsPath extSourcesDir =
 
     let stopsOsm =
         getCzOtherStops czPbf ()
-        |> Seq.map (fun s -> {
-            name = czOtherStopNameRegion s |> fst
-            data = {|
-                point = s.point |> pointWgs84ToEtrs89Ex
-                source = "OSM"
-                osmId = Some <| s.id
-            |}
-        })
+        |> Seq.map (fun s ->
+            let etrs89ExPt = pointWgs84ToEtrs89Ex s.point
+            {
+                name = czOtherStopNameRegion s etrs89ExPt |> fst
+                data = {|
+                    point = etrs89ExPt
+                    source = "OSM"
+                    osmId = Some <| s.id
+                |}
+            })
         |> Seq.toArray
     let externalData =
         Directory.EnumerateFiles(extSourcesDir)
