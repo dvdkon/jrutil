@@ -137,7 +137,7 @@ let eurTownNameMatcher =
                       data = r.CountryCode.ToUpper(), r.Lat, r.Lon })
                 |> Seq.toArray,
                 Utils.persistentCachePath
-                |> Option.map (fun d -> Path.Combine(d, "cz-stop-matcher")))
+                |> Option.map (fun d -> Path.Combine(d, "eur-town-matcher")))
 
 let matchCzTownByNameRaw town =
     let town =
