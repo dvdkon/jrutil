@@ -55,12 +55,12 @@ let getCzRailStops pbfPath = cacheVoidFunc "cz-osm-rail-stops" <| fun () ->
 let czOtherStopNameRegion =
     // Used for synonym matching
     let matcher = new StopMatcher<_>([||])
-    fun (stop: CzOtherStop) ->
+    fun (stop: CzOtherStop) etrs89ExPt ->
         // Stops within cities often omit the city's name on the pole, so we
         // have to add it back in. We assume official_name to be the full name.
         match stop.officialName,
               stop.name,
-              czechTownByPoint () stop.point with
+              czechTownByPoint () etrs89ExPt with
         | None, None, _ -> "", None
         | Some n, _, None -> n, None
         | Some n, _, Some (_, r, _) -> n, Some r
@@ -99,13 +99,14 @@ let getCzOtherStops pbfPath = cacheVoidFunc "cz-osm-other-stops" <| fun () ->
 let czOtherStopsForJdfMatch (stops: CzOtherStop seq) =
     stops
     |> Seq.map (fun s ->
-        let name, region = czOtherStopNameRegion s
+        let etrs89ExPt = pointWgs84ToEtrs89Ex s.point
+        let name, region = czOtherStopNameRegion s etrs89ExPt
         {
             name = name
             data = {
                 country = if region.IsSome then Some "CZ" else None
                 regionId = region
-                point = s.point |> pointWgs84ToEtrs89Ex
+                point = etrs89ExPt
                 precision = StopPrecise
             }
         })
