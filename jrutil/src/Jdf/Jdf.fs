@@ -269,7 +269,7 @@ let jdfBatchDirWriter () =
         routeIntegrationWriter dir batch.routeIntegrations ()
         routeStopsWriter dir batch.routeStops ()
         tripsWriter dir batch.trips ()
-        tripGroupsWriter dir batch.trips ()
+        tripGroupsWriter dir batch.tripGroups ()
         tripStopsWriter dir batch.tripStops ()
         routeInfoWriter dir batch.routeInfo ()
         attributeRefsWriter dir batch.attributeRefs ()
