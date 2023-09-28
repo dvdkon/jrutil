@@ -195,6 +195,10 @@ let tripDateBitmap (route: JdfModel.Route)
             | JdfModel.HolidaySundayService
             | JdfModel.DayOfWeekService _ -> true
             | _ -> false)
+    let hasServiceOnlyNote =
+        jdfNotes |> Seq.exists (fun n -> n.noteType = JdfModel.ServiceOnly)
+    let hasServiceNote =
+        jdfNotes |> Seq.exists (fun n -> n.noteType = JdfModel.Service)
     Utils.dateRange route.timetableValidFrom route.timetableValidTo
     |> Seq.map (fun d ->
         let applicableNoteTypes =
@@ -205,9 +209,8 @@ let tripDateBitmap (route: JdfModel.Route)
             |> set
         let hasNote noteType = applicableNoteTypes |> Set.contains noteType
         if hasNote JdfModel.ServiceOnly then true
+        else if hasServiceOnlyNote then false
         else if hasNote JdfModel.NoService then false
-        else if hasNote JdfModel.ServiceAlso then true
-        else if hasNote JdfModel.ServiceAlso then true
         else if hasNote JdfModel.ServiceAlso then true
         else if (hasNote JdfModel.ServiceOddWeeks
                  || hasNote JdfModel.ServiceOddWeeksFromTo)
@@ -216,8 +219,7 @@ let tripDateBitmap (route: JdfModel.Route)
                  || hasNote JdfModel.ServiceEvenWeeksFromTo)
              && WeekYearRules.Iso.GetWeekOfWeekYear(d) % 2 = 1 then false
         else if (not <| hasNote JdfModel.Service)
-             && jdfNotes |> Array.exists (fun sn ->
-                    sn.noteType = JdfModel.Service) then false
+             && hasServiceNote then false
         else if tripAttributes |> Set.contains JdfModel.HolidaySundayService
              && (holidays |> Set.contains d
                  || d.DayOfWeek = IsoDayOfWeek.Sunday) then true
