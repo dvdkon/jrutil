@@ -376,7 +376,7 @@ type JdfMerger() =
             let stopId = stopIdMap.[sl.stopId]
             let hasOldSl, oldSl = stopLocationsByStop.TryGetValue(stopId)
 
-            // Check if old location isn't to far
+            // Check if old location isn't too far
             if hasOldSl
                && oldSl.precision = StopPrecise
                && sl.precision = StopPrecise
@@ -388,8 +388,7 @@ type JdfMerger() =
 
             // Either this is a new location or an upgrade (town precise to
             // stop precise)
-            if stopsToAddIds |> Set.contains sl.stopId
-               || not <| hasOldSl
+            if not hasOldSl
                || (sl.precision = StopPrecise
                    && oldSl.precision = TownPrecise)
             then
