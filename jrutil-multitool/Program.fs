@@ -94,15 +94,15 @@ let main (args: string array) =
                     |> Gtfs.fillStandardRequiredFields
                     |> gtfsSer out
                     Log.Information("Finished!")
-                with
-                    | e -> Log.Error(e, "Error while processing {Batch}", inpath)
+                with e ->
+                    Log.Error(e, "Error while processing {Batch}", inpath)
             )
         else if argFlagSet args "czptt-to-gtfs" then
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
             inOutFiles (argValue args "<CzPtt-in-file>")
                        (argValue args "<GTFS-out-dir>")
             |> Seq.iter (fun (inpath, out) ->
-                printfn "Processing %s" inpath
+                Log.Information("Processing {Batch}", inpath)
                 try
                     let czptt = CzPtt.parseFile inpath
                     let gtfs =
@@ -111,8 +111,8 @@ let main (args: string array) =
                         |> CzPtt.gtfsFeed
                         |> gtfsWithCoords stopCoordsByIdPath
                     gtfsSer out gtfs
-                with
-                    | e -> printfn "Error while processing %s:\n%A" inpath e
+                with e ->
+                    Log.Error(e, "Error while processing {Batch}", inpath)
             )
         else if argFlagSet args "fix-jdf" then
             let inDir = argValues args "<JDF-in-dir>" |> Seq.head
@@ -187,8 +187,12 @@ let main (args: string array) =
                     use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
                     Log.Information("Merging JDF batch {BatchPath}", batchPath)
 
-                    let batch = jdfPar batchDir
-                    merger.add(batch)
+                    try
+                        let batch = jdfPar batchDir
+                        merger.add(batch)
+                    with e ->
+                        Log.Error(e, "Error while processing {Batch}",
+                                  batchPath)
 
             Log.Information("Resolving route overlaps")
             merger.resolveRouteOverlaps()

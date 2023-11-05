@@ -444,6 +444,11 @@ type JdfMerger() =
             ]
             |> Map
 
+        // For later merging steps
+        let routesMap =
+            batch.routes
+            |> Seq.map (fun r -> (r.id, r.idDistinction), r)
+            |> Map
         // We don't resolve validity overlaps here and leave that for a
         // post-processing phase
         let newRoutes =
@@ -504,12 +509,14 @@ type JdfMerger() =
         batch.trips
         |> Seq.map (fun t ->
             let rid, ridd = routeIdMap.[(t.routeId, t.routeDistinction)]
+            let route = routesMap.[(t.routeId, t.routeDistinction)]
             { t with
                 routeId = rid
                 routeDistinction = ridd
                 tripGroupId =
-                    t.tripGroupId
-                    |> Option.map (fun id -> tripGroupIdMap.[id])
+                    if route.grouped
+                    then Some tripGroupIdMap.[Option.get t.tripGroupId]
+                    else None
                 attributes = mapAttributes t.attributes
             })
         |> Seq.groupBy (fun t -> t.routeId, t.routeDistinction)
