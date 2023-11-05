@@ -493,9 +493,17 @@ let getGtfsStopTimes stopIdCis (jdfBatch: JdfModel.JdfBatch) =
         |> Seq.choose id
     )
 
+let warnUnhandledServiceNotes (jdfBatch: JdfModel.JdfBatch) () =
+    jdfBatch.serviceNotes
+    |> Seq.filter (fun sn -> sn.noteType = None)
+    |> Seq.iter (fun sn ->
+        Log.Warning("Unhandled JDF ServiceNote {Designation} {Note}", sn.designation, sn.note))
+
 // Some JDF feeds have only local IDs for stops, some have global IDs for the
 // whole CIS. Set stopIdsCis accordingly.
 let getGtfsFeed stopIdsCis (jdfBatch: JdfModel.JdfBatch) =
+    warnUnhandledServiceNotes jdfBatch ()
+
     let tripsToDelete, calendar, calendarExceptions = getGtfsCalendar jdfBatch
     let feed: GtfsModel.GtfsFeed = {
         agencies = jdfBatch.agencies |> Array.map convertToGtfsAgency
