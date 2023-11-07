@@ -24,16 +24,20 @@
   <Target Name="DownloadJsLibraries" BeforeTargets="Build">
     <DownloadFile
         SourceUrl="https://unpkg.com/vue@3.3.4/dist/vue.global.prod.js"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
+        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/vue.global.prod.js')"/>
     <DownloadFile
         SourceUrl="https://unpkg.com/vue@3.3.4/dist/vue.global.js"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
+        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/vue.global.js')"/>
     <DownloadFile
         SourceUrl="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
+        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/leaflet.css')"/>
     <DownloadFile
         SourceUrl="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" />
+        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
+        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/leaflet.js')"/>
   </Target>
 
 </Project>

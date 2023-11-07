@@ -32,7 +32,9 @@
   </Target>
 
   <Target Name="DownloadJsLibraries" BeforeTargets="Build">
-    <DownloadFile SourceUrl="https://unpkg.com/chart.js@4.3.3/dist/chart.umd.js" DestinationFolder="$(MSBuildProjectDirectory)/wwwroot" />
+    <DownloadFile SourceUrl="https://unpkg.com/chart.js@4.3.3/dist/chart.umd.js"
+                  DestinationFolder="$(MSBuildProjectDirectory)/wwwroot"
+                  Condition="!Exists('$(MSBuildProjectDirectory)/wwwroot/chart.umd.js')"/>
   </Target>
 
 </Project>
