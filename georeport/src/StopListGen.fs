@@ -38,18 +38,21 @@ let jdfStopNames czSkOnly jdfDir =
 
 let czpttStopList czpttDir =
     CzPtt.parseAll czpttDir
-    |> Seq.map (fun doc ->
-        doc.CzpttcisMessage |> Option.map (fun cisMsg ->
-            cisMsg.CzpttInformation.CzpttLocations
+    |> Seq.choose (fun (_, doc) ->
+        match doc with
+        | CzPtt.Timetable cisMsg ->
+            cisMsg.CzpttInformation.CzpttLocation
             |> Array.map (fun loc ->
                 loc.Location.LocationPrimaryCode
+                |> Utils.nullOpt
                 |> Option.map Utils.normaliseSr70
                 |> Option.defaultValue "",
                 loc.Location.PrimaryLocationName
+                |> Utils.nullOpt
                 |> Option.defaultValue ""
             )
             |> set
-        )
-        |> Option.defaultValue Set.empty)
+            |> Some
+        | _ -> None)
     |> Set.unionMany
     |> Set.filter (fun t -> t <> ("", ""))

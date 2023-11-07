@@ -99,21 +99,14 @@ let main (args: string array) =
             )
         else if argFlagSet args "czptt-to-gtfs" then
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (argValue args "<CzPtt-in-file>")
-                       (argValue args "<GTFS-out-dir>")
-            |> Seq.iter (fun (inpath, out) ->
-                Log.Information("Processing {Batch}", inpath)
-                try
-                    let czptt = CzPtt.parseFile inpath
-                    let gtfs =
-                        czptt.CzpttcisMessage
-                        |> Option.get
-                        |> CzPtt.gtfsFeed
-                        |> gtfsWithCoords stopCoordsByIdPath
-                    gtfsSer out gtfs
-                with e ->
-                    Log.Error(e, "Error while processing {Batch}", inpath)
-            )
+            try
+                CzPtt.parseAll (argValue args "<CzPtt-in-file>")
+                |> CzPttToGtfs.gtfsFeedMerged
+                |> gtfsWithCoords stopCoordsByIdPath
+                |> gtfsSer (argValue args "<GTFS-out-dir>")
+                Log.Information("Finished!")
+            with e ->
+                Log.Error(e, "Error while processing CzPtt")
         else if argFlagSet args "fix-jdf" then
             let inDir = argValues args "<JDF-in-dir>" |> Seq.head
             let outDir = argValue args "<JDF-out-dir>"

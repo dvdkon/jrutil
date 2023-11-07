@@ -18,6 +18,15 @@
     <Compile Include="src/CsvSerializer.fs" />
     <Compile Include="src/SqlRecordStore.fs" />
     <Compile Include="src/Holidays.fs" />
+    <Compile Include="src/GeoData/Common.fs" />
+    <Compile Include="src/GeoData/CzRegions.fs" />
+    <Compile Include="src/GeoData/EurTowns.fs" />
+    <Compile Include="src/GeoData/StopMatcher.fs" />
+    <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
+    <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
+    <Compile Include="src/Gtfs/GtfsParser.fs" />
+    <Compile Include="src/Gtfs/GtfsModel.fs" />
+    <Compile Include="src/Gtfs/Gtfs.fs" />
     <Compile Include="src/Jdf/JdfParser.fs" />
     <Compile Include="src/Jdf/JdfSerializer.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
@@ -26,22 +35,15 @@
     <Compile Include="src/Jdf/Jdf109Model.fs" />
     <Compile Include="src/Jdf/Jdf109To110.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
-    <Compile Include="src/GeoData/Common.fs" />
     <Compile Include="src/Jdf/JdfMerger.fs" />
-    <Compile Include="src/GeoData/CzRegions.fs" />
-    <Compile Include="src/GeoData/EurTowns.fs" />
-    <Compile Include="src/GeoData/StopMatcher.fs" />
     <Compile Include="src/Jdf/JdfFixups.fs" />
-    <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
-    <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
-    <Compile Include="src/Gtfs/GtfsParser.fs" />
-    <Compile Include="src/Gtfs/GtfsModel.fs" />
-    <Compile Include="src/Gtfs/Gtfs.fs" />
     <Compile Include="src/Jdf/JdfToGtfs.fs" />
-    <Compile Include="src/CzPtt/KadrEnumWs.fs" />
-    <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/GeoData/Osm.fs" />
     <Compile Include="src/GeoData/ExternalCsv.fs" />
+    <Compile Include="src/CzPtt/KadrEnumWs.fs" />
+    <Compile Include="src/CzPtt/CzPtt.fs" />
+    <Compile Include="src/CzPtt/CzPttMerger.fs" />
+    <Compile Include="src/CzPtt/CzPttToGtfs.fs" />
     <Compile Include="src/RealTime/RealTimeModel.fs" />
     <Compile Include="src/RealTime/RealTimeSql.fs" />
     <Compile Include="src/UndatedTimes.fs" />
@@ -73,6 +75,10 @@
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
     <PackageReference Include="NodaTime" Version="3.0.0" />
     <PackageReference Include="docopt.net" Version="0.8.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ext-services-cs/ext-services-cs.csproj" />
   </ItemGroup>
 
 </Project>

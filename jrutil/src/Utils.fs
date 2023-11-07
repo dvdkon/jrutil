@@ -7,6 +7,7 @@ open System
 open System.IO
 open System.Diagnostics
 open System.Globalization
+open System.Collections
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
 open System.Runtime.Serialization.Formatters.Binary
@@ -42,6 +43,33 @@ type MultiDict<'k, 'v when 'k: equality>() =
     member this.Keys with get() = dict.Keys
     member this.Values with get() = dict.Values
     member this.Remove(k) = dict.Remove(k)
+
+type DateBitmap(interval: DateInterval, bits: BitArray) =
+    do
+        if bits.Length <> interval.Length then
+            failwith "DateBitmap day/bit count mismatch"
+
+    member this.Interval = interval
+    member this.Bits = bits
+
+    member this.Not() =
+        let bitsCopy = bits.Clone() :?> BitArray
+        bitsCopy.Not() |> ignore
+        DateBitmap(interval, bitsCopy)
+    member this.And(other: DateBitmap) =
+        assert (interval = other.Interval)
+        let bitsCopy = bits.Clone() :?> BitArray
+        bitsCopy.And(other.Bits) |> ignore
+        DateBitmap(interval, bitsCopy)
+    member this.ExtendTo(resInterval: DateInterval, value: bool) =
+        assert resInterval.Contains(interval)
+        let extended = BitArray(resInterval.Length)
+        extended.SetAll(value)
+        let offset = (interval.Start - resInterval.Start).Days
+        for i in 0..(bits.Length - 1) do
+            extended.[offset + i] <- bits.[i]
+        DateBitmap(resInterval, extended)
+
 
 let memoize f =
     let cache = new ConcurrentDictionary<_, _>()
@@ -331,6 +359,8 @@ let optResult error = function
 
 let nullOpt v =
     if v = null then None else Some v
+
+let nullableOpt (v: 'a Nullable) = if v.HasValue then Some v.Value else None
 
 let splitSeq pred xs =
     let split = xs |> Seq.groupBy pred |> Seq.toList

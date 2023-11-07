@@ -1,58 +1,33 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2018 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.KadrEnumWs
 
 open FSharp.Data
 
 open JrUtil.Utils
+open KadrWsCiselniky
 
-type CompanyListXml =
-    XmlProvider<"samples/kadrenum/SeznamSpolecnostiResult.xml">
-
-let serviceUrl = "http://provoz.spravazeleznic.cz/kadrws/ciselniky.asmx"
-
-let makeSoapRequest endpoint body =
-    Http.RequestString(
-        serviceUrl,
-        httpMethod="POST",
-        headers=[
-            "Content-Type", "text/xml; charset=utf-8"
-            "SOAPAction", "http://provoz.szdc.cz/kadr/" + endpoint],
-        body=TextRequest body
-    )
+let client = memoizeVoidFunc (fun () ->
+        new CiselnikySoapClient(
+            CiselnikySoapClient.EndpointConfiguration.CiselnikySoap))
 
 let requestCompanyList = memoizeVoidFunc (fun () ->
-    let body =
-        """<?xml version="1.0" encoding="utf-8"?>
-        <soap:Envelope
-                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-                xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-            <soap:Body>
-                <SeznamSpolecnosti xmlns="http://provoz.szdc.cz/kadr">
-                    <jenAktualnePlatne>true</jenAktualnePlatne>
-                </SeznamSpolecnosti>
-            </soap:Body>
-        </soap:Envelope>
-        """
-    let strResp = makeSoapRequest "SeznamSpolecnosti" body
-    CompanyListXml.Parse(strResp))
+    // TODO: Allow for processing older data by processing currently invalid
+    // entries (which we now filter)
+    (client ()).SeznamSpolecnosti(true)
+)
 
 let companyForEvCisloEu evCisloEu =
     let companiesResp = requestCompanyList()
-    let companies =
-        companiesResp
-         .Body
-         .SeznamSpolecnostiResponse
-         .SeznamSpolecnostiResult
-         .Spolecnosts
+    let companies = companiesResp.Spolecnost
     let matching =
         companies
-        |> Seq.filter (fun c -> c.EvCisloEu = evCisloEu)
+        |> Seq.filter (fun c -> c.EvCisloEU = evCisloEu)
         // Try to get the most applicable company first
         |> Seq.sortByDescending (fun c ->
             c.Licence
+            |> nullOpt
             |> Option.map (fun lic ->
                 [lic.VerejnaDopr; lic.PrapravaOsob; lic.DrahaCelostatni]
                 |> Seq.filter id
@@ -61,3 +36,13 @@ let companyForEvCisloEu evCisloEu =
         )
     let best = Seq.tryHead matching
     best
+
+let trafficTypes = memoizeVoidFunc (fun () ->
+    (client ()).SeznamDruhuVlaku(true).DruhVlaku
+    |> Seq.map (fun e -> e.KodTAF, e.Zkratka)
+    |> Map)
+
+let commercialTrafficTypes = memoizeVoidFunc (fun () ->
+    (client ()).SeznamKomercniDruhVlaku().KomercniDruhVlaku
+    |> Seq.map (fun e -> e.KodTAF, e.Kod)
+    |> Map)
