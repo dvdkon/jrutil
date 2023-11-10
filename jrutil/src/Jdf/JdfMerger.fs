@@ -12,7 +12,13 @@ open JrUtil.JdfModel
 open JrUtil.Utils
 open JrUtil.GeoData.Common
 
-type JdfMerger() =
+type StopMergeStrategy =
+    // The default, should work on any valid JDF
+    | MergeStopsByName
+    // Can be convenient if you know all batches have consistent IDs
+    | MergeStopsById
+
+type JdfMerger(stopMergeStrategy: StopMergeStrategy) =
     let stops = ResizeArray()
     let stopPosts = ResizeArray()
     let agenciesByIco = MultiDict()
@@ -31,12 +37,13 @@ type JdfMerger() =
     let reservationOptionsByRoute = MultiDict()
     let stopLocationsByStop = Dictionary()
 
-    let mutable lastStopId = 0
+    let mutable lastStopId = 0L
     let mutable lastAttributeRefId = 0
     let mutable lastTripGroupId = 0
 
     let attributeRefsByValue = Dictionary()
     let stopsByNames = Dictionary()
+    let stopsByIds = Dictionary()
     let stopPostsSet = HashSet()
     let batchDateByRoute = Dictionary()
 
@@ -50,6 +57,13 @@ type JdfMerger() =
             |> pointWgs84ToEtrs89Ex
         (locToPt loc1).Distance(locToPt loc2)
     let locationDistanceThresh = 1000
+
+    let matchingStop (s: Stop) =
+        let ok, s2 =
+            match stopMergeStrategy with
+            | MergeStopsByName -> stopsByNames.TryGetValue(stopNameTuple s)
+            | MergeStopsById -> stopsByIds.TryGetValue(s.id)
+        if ok then Some s2 else None
 
     member this.batch = {
         version = {
@@ -348,28 +362,33 @@ type JdfMerger() =
 
         let existingStops, stopsToAdd =
             batch.stops
-            |> splitSeq (fun s ->
-                stopsByNames.ContainsKey(stopNameTuple s))
+            |> splitSeq (fun s -> matchingStop s |> Option.isSome)
         let stopsToAddIds = stopsToAdd |> Seq.map (fun s -> s.id) |> Set
         let stopsToAddNewIds =
             stopsToAdd
             |> Seq.map (fun s ->
-                lastStopId <- lastStopId + 1
                 { s with
-                    id = lastStopId
+                    id =
+                        match stopMergeStrategy with
+                        | MergeStopsByName ->
+                            lastStopId <- lastStopId + 1L
+                            lastStopId
+                        | MergeStopsById -> s.id
                     attributes = mapAttributes s.attributes }
             )
             |> Seq.cache
         stops.AddRange(stopsToAddNewIds)
         for s in stopsToAddNewIds do
-            stopsByNames.[stopNameTuple s] <- s.id
+            match stopMergeStrategy with
+            | MergeStopsByName -> stopsByNames[stopNameTuple s] <- s.id
+            | MergeStopsById -> stopsByIds[s.id] <- s.id
         let stopIdMap =
             Seq.concat [
                 Seq.zip stopsToAdd stopsToAddNewIds
                 |> Seq.map (fun (s, sni) -> s.id, sni.id)
 
                 existingStops
-                |> Seq.map (fun s -> s.id, stopsByNames.[stopNameTuple s])
+                |> Seq.map (fun s -> s.id, matchingStop s |> Option.get)
             ]
             |> Map
         for sl in batch.stopLocations do

@@ -26,6 +26,7 @@ Options:
     -o --cz-pbf=URL             OSM data for Czech Republic
     -l --logfile=FILE           Logfile
     -c --cache=DIR              Persistent cache directory
+    -i --by-id                  Merge stops by numeric ID
 
 Passing - to an input path parameter will make most jrutil commands read
 input filenames from stdin. Each result will be output into a sequentially
@@ -169,8 +170,11 @@ let main (args: string array) =
             Log.Information("Finished!")
         else if argFlagSet args "merge-jdf" then
             let outDir = argValue args "<JDF-out-dir>"
+            let mergeById = argFlagSet args "--by-id"
 
-            let merger = JdfMerger.JdfMerger()
+            let merger = JdfMerger.JdfMerger(
+                if mergeById then JdfMerger.MergeStopsById
+                else JdfMerger.MergeStopsByName)
             let jdfPar = Jdf.jdfBatchDirParser ()
             let jdfWri = Jdf.jdfBatchDirWriter ()
 
