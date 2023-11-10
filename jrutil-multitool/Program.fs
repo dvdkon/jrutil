@@ -2,6 +2,7 @@
 // (c) 2023 David Koňařík
 
 open System.IO
+open System.Text.RegularExpressions
 open FSharp.Data
 open Serilog
 open Serilog.Context
@@ -21,12 +22,12 @@ Usage:
     jrutil-multitool.exe --help
 
 Options:
-    --stop-coords-by-id=FILE    CSV file assigning coordinates to stops by ID
-    -g --ext-geodata=FILE       CSV file with stop positions (name,lat,lon,region)
-    -o --cz-pbf=URL             OSM data for Czech Republic
-    -l --logfile=FILE           Logfile
-    -c --cache=DIR              Persistent cache directory
-    -i --by-id                  Merge stops by numeric ID
+    -C --stop-coords-by-id=FILE  CSV file assigning coordinates to stops by ID
+    -g --ext-geodata=FILE        CSV file with stop positions (name,lat,lon,region)
+    -o --cz-pbf=URL              OSM data for Czech Republic
+    -l --logfile=FILE            Logfile
+    -c --cache=DIR               Persistent cache directory
+    -i --by-id                   Merge stops by numeric ID
 
 Passing - to an input path parameter will make most jrutil commands read
 input filenames from stdin. Each result will be output into a sequentially
@@ -49,6 +50,13 @@ let inOutFiles inpath outpath =
         seq [(inpath, outpath)]
 
 let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
+    // Allow specific platforms to get fallback positions for stations
+    let sr70sRegex = new Regex("-SR70S-CZ-(\\d+)")
+    let idsToMatch id =
+        let m = sr70sRegex.Match(id)
+        if m.Success then [id; sprintf "-SR70S-CZ-" + m.Groups.[1].Value]
+        else [id]
+
     match stopCoordsByIdPath with
     | Some p ->
         let coords =
@@ -59,7 +67,9 @@ let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
             stops =
                 gtfs.stops
                 |> Array.map (fun s ->
-                    match coords |> Map.tryFind s.id with
+                    match idsToMatch s.id
+                          |> Seq.choose (fun id -> coords |> Map.tryFind id)
+                          |> Seq.tryHead with
                     | Some (lat, lon) -> { s with
                                              lat = Some lat
                                              lon = Some lon }

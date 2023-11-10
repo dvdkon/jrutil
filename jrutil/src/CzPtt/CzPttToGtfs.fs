@@ -86,7 +86,7 @@ let gtfsTripId czptt =
              |> identifierStr)
 
 let gtfsStationId (loc: CzPttXml.CzpttLocation) =
-    sprintf "-SR80ST-%s-%s"
+    sprintf "-SR70ST-%s-%s"
             loc.Location.CountryCodeIso
             (loc.Location.LocationPrimaryCode)
 
@@ -96,7 +96,7 @@ let gtfsStopId (loc: CzPttXml.CzpttLocation) =
         |> nullOpt
         |> Option.map (fun lsi ->
             lsi.LocationSubsidiaryCode.Value)
-    sprintf "-SR80S-%s-%s%s"
+    sprintf "-SR70S-%s-%s%s"
             loc.Location.CountryCodeIso
             (loc.Location.LocationPrimaryCode)
             (platform
