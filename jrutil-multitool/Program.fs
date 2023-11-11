@@ -51,10 +51,10 @@ let inOutFiles inpath outpath =
 
 let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
     // Allow specific platforms to get fallback positions for stations
-    let sr70sRegex = new Regex("-SR70S-CZ-(\\d+)")
+    let sr70sRegex = new Regex("^-SR70S-CZ-(\\d+)")
     let idsToMatch id =
         let m = sr70sRegex.Match(id)
-        if m.Success then [id; sprintf "-SR70S-CZ-" + m.Groups.[1].Value]
+        if m.Success then [id; sprintf "-SR70ST-CZ-" + m.Groups.[1].Value]
         else [id]
 
     match stopCoordsByIdPath with
