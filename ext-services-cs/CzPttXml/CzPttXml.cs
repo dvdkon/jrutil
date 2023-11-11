@@ -538,9 +538,13 @@ namespace CzPttXml
     public partial class Timing
     {
         
+        /// <summary>
+        /// <para xml:lang="en">Pattern: \d{2}:\d{2}:\d{2}\.\d+\+\d{2}:\d{2}.</para>
+        /// </summary>
+        [System.ComponentModel.DataAnnotations.RegularExpressionAttribute("\\d{2}:\\d{2}:\\d{2}\\.\\d+\\+\\d{2}:\\d{2}")]
         [System.ComponentModel.DataAnnotations.RequiredAttribute()]
-        [System.Xml.Serialization.XmlElementAttribute("Time", DataType="time")]
-        public System.DateTime Time { get; set; }
+        [System.Xml.Serialization.XmlElementAttribute("Time")]
+        public string Time { get; set; }
         
         [System.ComponentModel.DataAnnotations.RequiredAttribute()]
         [System.Xml.Serialization.XmlElementAttribute("Offset")]

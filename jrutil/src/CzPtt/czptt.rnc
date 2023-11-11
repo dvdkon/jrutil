@@ -75,7 +75,14 @@ CZPTTCISMessage =
 					element DwellTime { xsd:decimal }?,
 					element Timing {
 						attribute TimingQualifierCode { "ALA" | "ALD" },
-						element Time { xsd:time },
+						element Time {
+							# Should be xsd:time, but then it gets deserialised
+							# as System.DateTime and we lose the timezone
+							# offset
+							xsd:string {
+								pattern="\d{2}:\d{2}:\d{2}\.\d+\+\d{2}:\d{2}"
+							}
+						},
 						element Offset { xsd:integer }
 					}*
 				}?,

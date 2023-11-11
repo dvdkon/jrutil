@@ -4,6 +4,7 @@
 module JrUtil.CzPttToGtfs
 
 open NodaTime
+open NodaTime.Text
 open Serilog
 open Serilog.Context
 
@@ -50,7 +51,6 @@ let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
 let hasPublicLocations (czptt: CzPttXml.CzpttcisMessage) =
     czptt.CzpttInformation.CzpttLocation
     |> Seq.exists isPublicLocation
-    
 
 // Information about the train is stored in each CZPTTLocation element.
 // This is not explicitly stated in the specification, but each file only
@@ -63,6 +63,28 @@ let firstValidLocation (czptt: CzPttXml.CzpttcisMessage) =
     | None ->
         raise (CzPttInvalidException "Invalid CZPTT - no valid stops")
 
+let negativeDayOffset (czptt: CzPttXml.CzpttcisMessage) =
+    let findOffset name (loc: CzPttXml.CzpttLocation) =
+        nullOpt loc.TimingAtLocation
+        |> Option.bind (fun tal -> nullOpt tal.Timing)
+        |> Option.defaultValue [||]
+        |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
+        |> Option.map (fun t -> int t.Offset)
+
+    let minOffset =
+        czptt.CzpttInformation.CzpttLocation
+        |> Seq.choose (fun l ->
+            [findOffset CzPttXml.TimingTimingQualifierCode.Ala l
+             findOffset CzPttXml.TimingTimingQualifierCode.Ald l]
+            |> Seq.choose id
+            |> Seq.sort
+            |> Seq.tryHead)
+        |> Seq.sort
+        |> Seq.tryHead
+    match minOffset with
+    | Some o when o < 0 -> o
+    | _ -> 0
+
 let trainTypePrefix (location: CzPttXml.CzpttLocation) =
     match (nullOpt location.CommercialTrafficType,
            nullOpt location.TrafficType) with
@@ -70,19 +92,43 @@ let trainTypePrefix (location: CzPttXml.CzpttLocation) =
     | (_, Some tt) -> (KadrEnumWs.trafficTypes ()).[tt]
     | _ -> ""
 
-let gtfsAgencyId (czptt: CzPttXml.CzpttcisMessage) =
-    let trainIdentifier = timetableIdentifier czptt CzPttXml.ObjectType.Tr
-    let agencyNum = trainIdentifier.Company
-    sprintf "-CZPTTA-%s" agencyNum
+let networkSpecificParams (czptt: CzPttXml.CzpttcisMessage) =
+    czptt.NetworkSpecificParameter
+    |> nullOpt
+    |> Option.map (fun nsps ->
+        Seq.zip nsps.Name nsps.Value |> Map)
+    |> Option.defaultValue (Map [])
 
-let gtfsRouteId (czptt: CzPttXml.CzpttcisMessage) =
-    sprintf "-CZTRAINR-%s"
-            (timetableIdentifier czptt CzPttXml.ObjectType.Tr
-             |> identifierStr)
+let trainNameShort (location: CzPttXml.CzpttLocation) =
+    [Some <| trainTypePrefix location
+     nullOpt location.OperationalTrainNumber ]
+    |> List.choose id
+    |> String.concat " "
+
+let trainNameLong (czptt: CzPttXml.CzpttcisMessage)
+                  (location: CzPttXml.CzpttLocation) =
+    [Some <| trainNameShort location
+     networkSpecificParams czptt |> Map.tryFind "CZTrainName"]
+    |> List.choose id
+    |> String.concat " "
+
+let gtfsAgencyId num =
+    sprintf "-CZPTTA-%s" num
+
+let gtfsCzpttAgencyId (czptt: CzPttXml.CzpttcisMessage) =
+    let trainIdentifier = timetableIdentifier czptt CzPttXml.ObjectType.Tr
+    gtfsAgencyId trainIdentifier.Company
+
+let gtfsRouteId (czptt: CzPttXml.CzpttcisMessage)
+                (location: CzPttXml.CzpttLocation) =
+    let trId = timetableIdentifier czptt CzPttXml.ObjectType.Tr
+    sprintf "-CZTRAINR-%s-%s"
+            trId.TimetableYear
+            ((trainNameShort location).Replace(' ', '-'))
 
 let gtfsTripId czptt =
     sprintf "-CZTRAINT-%s"
-            (timetableIdentifier czptt CzPttXml.ObjectType.Tr
+            (timetableIdentifier czptt CzPttXml.ObjectType.Pa
              |> identifierStr)
 
 let gtfsStationId (loc: CzPttXml.CzpttLocation) =
@@ -103,39 +149,26 @@ let gtfsStopId (loc: CzPttXml.CzpttLocation) =
              |> Option.map (fun p -> "-" + p)
              |> Option.defaultValue "")
 
-let networkSpecificParams (czptt: CzPttXml.CzpttcisMessage) =
-    czptt.NetworkSpecificParameter
-    |> nullOpt
-    |> Option.map (fun nsps ->
-        Seq.zip nsps.Name nsps.Value |> Map)
-    |> Option.defaultValue (Map [])
+let gtfsRoutes (czptts: CzPttXml.CzpttcisMessage seq) =
+    czptts
+    |> Seq.map (fun czptt ->
+        let firstLocation = firstValidLocation czptt
 
-let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
-    let firstLocation = firstValidLocation czptt
-
-    // Name may end up being empty, but this should never happen in a normal
-    // dataset.
-    let name =
-        [Some <| trainTypePrefix firstLocation
-         nullOpt firstLocation.OperationalTrainNumber
-         networkSpecificParams czptt |> Map.tryFind "CZTrainName"]
-        |> List.choose id
-        |> String.concat " "
-
-    let route: Route = {
-        id = gtfsRouteId czptt
-        agencyId = Some <| gtfsAgencyId czptt
-        shortName = Some name
-        longName = None
-        description = None
-        routeType = gtfsRouteType firstLocation
-        url = None
-        color = None
-        textColor = None
-        sortOrder = None
-    }
-
-    route
+        {
+            id = gtfsRouteId czptt firstLocation
+            agencyId = Some <| gtfsCzpttAgencyId czptt
+            shortName = Some <| trainNameShort firstLocation
+            longName = Some <| trainNameLong czptt firstLocation
+            description = None
+            routeType = gtfsRouteType firstLocation
+            url = None
+            color = None
+            textColor = None
+            sortOrder = None
+        })
+    |> Seq.groupBy (fun r -> r.id)
+    |> Seq.map (snd >> Seq.head)
+    |> Seq.toArray
 
 let gtfsStops (czptts: CzPttXml.CzpttcisMessage seq) =
     czptts
@@ -193,8 +226,9 @@ let gtfsStops (czptts: CzPttXml.CzpttcisMessage seq) =
 
 let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
     let id = gtfsTripId czptt
+    let firstLocation = firstValidLocation czptt
     let trip: Trip = {
-        routeId = gtfsRouteId czptt
+        routeId = gtfsRouteId czptt firstLocation
         serviceId = id
         id = id
         headsign = None
@@ -207,25 +241,34 @@ let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
     }
     trip
 
+let czpttTimePattern = LocalTimePattern.CreateWithInvariantCulture(
+    "HH:mm:ss.fffffff")
 let timingToPeriod (timing: CzPttXml.Timing) =
-    // The timezone information should be dealt with by setting stops' timezones
-    let time = LocalDateTime.FromDateTime(timing.Time).TimeOfDay
+    // TODO: The timezone information should be dealt with by setting stops'
+    // timezones
+    let time = czpttTimePattern.Parse(timing.Time.Split("+").[0])
+    assert time.Success
     let dayOffset = Period.FromDays(int timing.Offset)
-    (time - LocalTime.Midnight) + dayOffset
+    (time.Value - LocalTime.Midnight) + dayOffset
 
+let findTime name (loc: CzPttXml.CzpttLocation) =
+    loc.TimingAtLocation.Timing
+    |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
+    |> Option.map timingToPeriod
 
 let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
+    let offset = negativeDayOffset czptt
+    let applyOffset =
+        Option.map (fun p -> p + Period.FromDays(-offset))
+
     let info = czptt.CzpttInformation
     info.CzpttLocation
     |> Array.filter isPublicLocation
     |> Array.mapi (fun i loc ->
-        let findTime name =
-            loc.TimingAtLocation.Timing
-            |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
-            |> Option.map timingToPeriod
-
-        let arrTime = findTime CzPttXml.TimingTimingQualifierCode.Ala
-        let depTime = findTime CzPttXml.TimingTimingQualifierCode.Ald
+        let arrTime = findTime CzPttXml.TimingTimingQualifierCode.Ala loc
+                      |> applyOffset
+        let depTime = findTime CzPttXml.TimingTimingQualifierCode.Ald loc
+                      |> applyOffset
 
         let hasActivity a = locationActivities loc |> Seq.contains a
         let service =
@@ -260,18 +303,18 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
     let toDate = nullableOpt cal.ValidityPeriod.EndDateTime
     let days = dateTimeRange fromDate (toDate |> Option.defaultValue fromDate)
     assert (days.Length = cal.BitmapDays.Length)
+    let offset = negativeDayOffset czptt
+
     days
     |> List.mapi (fun i date ->
-        let calException: CalendarException = {
+        {
             id = gtfsTripId czptt
-            date = LocalDate.FromDateTime(date)
+            date = LocalDate.FromDateTime(date).PlusDays(offset)
             exceptionType =
                 if cal.BitmapDays.[i] = '1'
                 then ServiceAdded
                 else ServiceRemoved
-        }
-        calException
-    )
+        })
 
 let gtfsFeedInfo (czptts: CzPttXml.CzpttcisMessage seq) =
     let dates =
@@ -307,9 +350,13 @@ let gtfsAgencies (czptts: CzPttXml.CzpttcisMessage seq) =
             KadrEnumWs.companyForEvCisloEu agencyNum
             |> Option.get
         {
-            id = Some <| agencyNum
+            id = Some <| gtfsAgencyId agencyNum
             name = agency.ObchodNazev
-            url = nullOpt agency.WWW
+            url =
+                nullOpt agency.WWW
+                |> Option.map (fun www ->
+                    if www.Contains("://") then www
+                    else "http://" + www)
             timezone = "Europe/Prague" // TODO
             lang = None
             phone = nullOpt agency.Telefon
@@ -324,7 +371,7 @@ let gtfsFeed (czptts: CzPttXml.CzpttcisMessage seq) =
     let feed: GtfsFeed = {
         agencies = gtfsAgencies publicMessages
         stops = gtfsStops publicMessages |> Seq.toArray
-        routes = publicMessages |> Seq.map gtfsRoute |> Seq.toArray
+        routes = gtfsRoutes publicMessages
         trips = publicMessages |> Seq.map gtfsTrip |> Seq.toArray
         stopTimes = publicMessages |> Seq.collect gtfsStopTimes |> Seq.toArray
         calendar = None

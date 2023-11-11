@@ -114,6 +114,7 @@ let main (args: string array) =
                 CzPtt.parseAll (argValue args "<CzPtt-in-file>")
                 |> CzPttToGtfs.gtfsFeedMerged
                 |> gtfsWithCoords stopCoordsByIdPath
+                |> Gtfs.fillStandardRequiredFields
                 |> gtfsSer (argValue args "<GTFS-out-dir>")
                 Log.Information("Finished!")
             with e ->
