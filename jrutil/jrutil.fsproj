@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <!--
   This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
   (c) 2023 David Koňařík
@@ -72,7 +72,7 @@
     <PackageReference Include="Serilog" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
-    <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
+    <PackageReference Include="System.Data.SqlClient" Version="4.8.5" />
     <PackageReference Include="NodaTime" Version="3.0.0" />
     <PackageReference Include="docopt.net" Version="0.8.1" />
   </ItemGroup>
