@@ -159,7 +159,8 @@ let fetchTrainDetail indexData nameIdMap trainId () =
         let lastStop =
             Map.tryFind "potvrzená stanice" tableMap
             |> Option.orElse (Map.tryFind "poslední známá poloha:" tableMap)
-            |> Option.get
+            |> Option.defaultWith (fun () ->
+                failwith "Failed to get current station")
         let delayStr =
             Map.tryFind "náskok" tableMap
             |> Option.map ((+) "-")
@@ -203,6 +204,7 @@ let fetchTrainRoute indexData nameIdMap trainId () =
     let undated =
         doc.CssSelect(".route .row")
         |> Seq.mapi (fun i row ->
+            let stopped = row.Elements().[0].HasClass("bold")
             let cols =
                 row.Elements()
                 |> Seq.map (fun c -> c.InnerText().Trim())
@@ -230,6 +232,7 @@ let fetchTrainRoute indexData nameIdMap trainId () =
                 departedAt =
                     if i > currentStationIdx then None else parseTime cols.[8]
                 shouldDepartAt = parseParTime cols.[9]
+                stopped = Some stopped
             }
         )
         |> Seq.toArray
@@ -243,7 +246,7 @@ let fetchTrainRoute indexData nameIdMap trainId () =
     // XXX: Sometimes there are stops that later disappear. No important ones,
     // but it's curious nonetheless
 
-    dateUndatedStopHistory timezone currentStationIdx now undated 
+    dateUndatedStopHistory timezone currentStationIdx now undated
     |> Seq.toArray
 
 let fetchAllTrains indexData nameIdMap () =

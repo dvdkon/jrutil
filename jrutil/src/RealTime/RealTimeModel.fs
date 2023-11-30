@@ -19,6 +19,8 @@ type StopHistoryItem = {
     shouldArriveAt: LocalDateTime option
     departedAt: LocalDateTime option
     shouldDepartAt: LocalDateTime option
+    // false for stops which are only passed through without stopping
+    stopped: bool option
 }
 
 /// Represents a trip's current position as observed at one moment

@@ -33,6 +33,7 @@ type DbStopHistoryItem = {
     shouldArriveAt: LocalDateTime option
     departedAt: LocalDateTime option
     shouldDepartAt: LocalDateTime option
+    stopped: bool option
 }
 
 type DbTripDetail = {
@@ -97,7 +98,8 @@ let stopHistoryInserter =
                             arrivedAt = excluded.arrivedAt,
                             shouldArriveAt = excluded.shouldArriveAt,
                             departedAt = excluded.departedAt,
-                            shouldDepartAt = excluded.shouldDepartAt
+                            shouldDepartAt = excluded.shouldDepartAt,
+                            stopped = excluded.stopped
                             """)
         "stopHistory"
 
@@ -164,6 +166,7 @@ let insertTripPosition =
                     shouldArriveAt = item.shouldArriveAt
                     departedAt = item.departedAt
                     shouldDepartAt = item.shouldDepartAt
+                    stopped = item.stopped
                 })
             try
                 insertStopHistory conn tripPos.tripId tripPos.tripStartDate rows
