@@ -60,6 +60,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = None
                 departedAt = Some <| LocalTime(9, 10)
                 shouldDepartAt = Some <| LocalTime(9, 8)
+                stopped = Some true
             }
             {
                 UndatedStopHistoryItem.stopId = "2"
@@ -67,6 +68,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalTime(10, 10)
                 departedAt = None
                 shouldDepartAt = Some <| LocalTime(10, 15)
+                stopped = Some true
             }
             {
                 UndatedStopHistoryItem.stopId = "3"
@@ -74,6 +76,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalTime(10, 30)
                 departedAt = Some <| LocalTime(10, 30)
                 shouldDepartAt = Some <| LocalTime(10, 30)
+                stopped = Some true
             }
         |]
         let timezone = DateTimeZoneProviders.Tzdb.["Europe/Prague"]
@@ -89,6 +92,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = None
                 departedAt = Some <| LocalDateTime(2020, 1, 1, 9, 10)
                 shouldDepartAt = Some <| LocalDateTime(2020, 1, 1, 9, 8)
+                stopped = Some true
             }
             {
                 StopHistoryItem.stopId = "2"
@@ -98,6 +102,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalDateTime(2020, 1, 1, 10, 10)
                 departedAt = None
                 shouldDepartAt = Some <| LocalDateTime(2020, 1, 1, 10, 15)
+                stopped = Some true
             }
             {
                 StopHistoryItem.stopId = "3"
@@ -107,6 +112,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalDateTime(2020, 1, 1, 10, 30)
                 departedAt = Some <| LocalDateTime(2020, 1, 1, 10, 30)
                 shouldDepartAt = Some <| LocalDateTime(2020, 1, 1, 10, 30)
+                stopped = Some true
             }
         |]
 
@@ -119,6 +125,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = None
                 departedAt = Some <| LocalTime(23, 10)
                 shouldDepartAt = Some <| LocalTime(23, 0)
+                stopped = Some true
             }
             {
                 UndatedStopHistoryItem.stopId = "2"
@@ -126,6 +133,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalTime(0, 0)
                 departedAt = Some <| LocalTime(0, 10)
                 shouldDepartAt = Some <| LocalTime(0, 5)
+                stopped = Some true
             }
             {
                 UndatedStopHistoryItem.stopId = "3"
@@ -133,6 +141,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalTime(2, 0)
                 departedAt = Some <| LocalTime(2, 20)
                 shouldDepartAt = Some <| LocalTime(2, 10)
+                stopped = Some true
             }
         |]
         let timezone = DateTimeZoneProviders.Tzdb.["Europe/Prague"]
@@ -148,6 +157,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = None
                 departedAt = Some <| LocalDateTime(2020, 1, 9, 23, 10)
                 shouldDepartAt = Some <| LocalDateTime(2020, 1, 9, 23, 0)
+                stopped = Some true
             }
             {
                 StopHistoryItem.stopId = "2"
@@ -157,6 +167,7 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalDateTime(2020, 1, 10, 0, 0)
                 departedAt = Some <| LocalDateTime(2020, 1, 10, 0, 10)
                 shouldDepartAt = Some <| LocalDateTime(2020, 1, 10, 0, 5)
+                stopped = Some true
             }
             {
                 StopHistoryItem.stopId = "3"
@@ -166,5 +177,6 @@ type UndatedStopHistoryTests() =
                 shouldArriveAt = Some <| LocalDateTime(2020, 1, 10, 2, 0)
                 departedAt = Some <| LocalDateTime(2020, 1, 10, 2, 20)
                 shouldDepartAt = Some <| LocalDateTime(2020, 1, 10, 2, 10)
+                stopped = Some true
             }
         |]
