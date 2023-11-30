@@ -66,6 +66,7 @@ type UndatedStopHistoryItem = {
     shouldArriveAt: LocalTime option
     departedAt: LocalTime option
     shouldDepartAt: LocalTime option
+    stopped: bool option
 }
 
 let dateUndatedStopHistory
@@ -100,5 +101,6 @@ let dateUndatedStopHistory
             shouldArriveAt = ttTimes.[i*2]
             departedAt = rtTimes.[i*2 + 1]
             shouldDepartAt = ttTimes.[i*2 + 1]
+            stopped = item.stopped
         }
     )

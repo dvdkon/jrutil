@@ -73,18 +73,20 @@ let webMercatorFactory = GeometryFactory(PrecisionModel(), webMercatorSrid)
 let etrs89ExFactory = GeometryFactory(PrecisionModel(), etrs89ExSrid)
 
 let coordTransformFactory = CoordinateTransformationFactory()
-let wgs84ToWebMercator = coordTransformFactory.CreateFromCoordinateSystems(
-    wgs84, webMercator)
-let wgs84ToEtrs89Ex = coordTransformFactory.CreateFromCoordinateSystems(
-    wgs84, etrs89Ex)
+let wgs84ToWebMercator =
+    coordTransformFactory.CreateFromCoordinateSystems(wgs84, webMercator)
+     .MathTransform
+let wgs84ToEtrs89Ex =
+    coordTransformFactory.CreateFromCoordinateSystems(wgs84, etrs89Ex)
+     .MathTransform
 
-let transformCoordinates (transform: ICoordinateTransformation) =
+let transformCoordinates (transform: MathTransform) =
     Array.map (fun (c: Coordinate) ->
-        let out = transform.MathTransform.Transform([| c.X; c.Y |])
+        let out = transform.Transform([| c.X; c.Y |])
         Coordinate(out.[0], out.[1]))
 
 let transformPolygon sourceSrid targetSrid
-                     (transform: ICoordinateTransformation)
+                     (transform: MathTransform)
                      (polygon: Polygon) =
     assert (polygon.SRID = sourceSrid)
     let tcs = transformCoordinates transform
@@ -98,11 +100,11 @@ let transformPolygon sourceSrid targetSrid
     outPolygon
 
 let transformPoint sourceSrid targetSrid
-                   (transform: ICoordinateTransformation)
+                   (transform: MathTransform)
                    (point: Point) =
     assert (point.SRID = sourceSrid)
 
-    let outCoord = transform.MathTransform.Transform([|
+    let outCoord = transform.Transform([|
         point.Coordinate.X; point.Coordinate.Y |])
     let outPoint = Point(outCoord.[0], outCoord.[1])
     outPoint.SRID <- targetSrid
@@ -117,6 +119,8 @@ let polygonWgs84ToEtrs89Ex p =
     transformPolygon wgs84Srid etrs89ExSrid wgs84ToEtrs89Ex p
 let pointWgs84ToEtrs89Ex p =
     transformPoint wgs84Srid etrs89ExSrid wgs84ToEtrs89Ex p
+let pointEtrs89ExToWgs84 p =
+    transformPoint etrs89ExSrid wgs84Srid (wgs84ToEtrs89Ex.Inverse()) p
 
 let pointsRadius (points: Point array) =
     let avgX = points |> Array.averageBy (fun p -> p.X)

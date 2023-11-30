@@ -7,7 +7,7 @@ open System
 open NodaTime
 
 open JrUtil
-open JrUtil.CsvParser
+open JrUtil.CsvMetadata
 
 // This file is basically just parts of the JdfModel.fs file copypasted here
 // with some changes to reflect JDF 1.10

@@ -135,7 +135,7 @@ let processPositions noTrains (trips: V2VehiclePositionsOutput.Feature seq) =
                                 |> Option.defaultValue 0M
                                 |> int64)
                         shouldDepartAt = Some departure
-
+                        stopped = None // TODO
                     }
                 )
                 |> Seq.toArray

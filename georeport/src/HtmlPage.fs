@@ -8,12 +8,8 @@ open System.Text.Json
 open System.Text.Json.Serialization
 open Giraffe.GiraffeViewEngine
 
+open JrUtil.GeoData.Common
 open GeoReport.Processing
-
-type StopWithMatch = {
-    name: string
-    matches: StopMatch array
-}
 
 let globalStyle = File.ReadAllText(__SOURCE_DIRECTORY__ + "/style.css")
 let globalScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/script.js")
@@ -21,27 +17,26 @@ let vueJsScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/../thirdparty/vue.gl
 let leafletStyle = File.ReadAllText(__SOURCE_DIRECTORY__ + "/../thirdparty/leaflet.css")
 let leafletScript = File.ReadAllText(__SOURCE_DIRECTORY__ + "/../thirdparty/leaflet.js")
 
-let matchRadiusStr matches =
-    if matches = [||] then None
-    else let avgLat = matches |> Array.averageBy (fun m -> m.lat)
-         let avgLon = matches |> Array.averageBy (fun m -> m.lon)
-         let radiusDeg =
-             matches
-             |> Array.map (fun m ->
-                 ((m.lat - avgLat)**2.0 + (m.lon - avgLon)**2.0)**0.5)
-             |> Array.max
-         Some <| radiusDeg * 60.0
-
 let processForJs stopMatches =
     stopMatches
-    |> Array.map (fun (name, matches) -> {
+    |> Array.map (fun (name, matches) -> {|
             name = name
-            matches = matches
-                      |> Array.sortBy (fun m -> matchPriority m.matchType)
-        })
+            matches =
+                matches
+                |> Seq.sortBy (fun m -> matchPriority m.matchType)
+                |> Seq.map (fun m ->
+                    let wgs84Point = pointEtrs89ExToWgs84 m.point
+                    {|
+                        matchType = m.matchType
+                        lat = wgs84Point.Y
+                        lon = wgs84Point.X
+                        x = m.point.X
+                        y = m.point.Y
+                    |})
+        |})
 
 let resultPage railMatches otherMatches =
-    let serializerOpts = 
+    let serializerOpts =
         JsonFSharpOptions.Default().ToJsonSerializerOptions()
     html [] [
         head [] [

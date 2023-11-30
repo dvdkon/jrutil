@@ -1,37 +1,32 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.Gtfs
 
 open System.IO
-open System.Data.Common
-open System.Runtime.InteropServices
-open Npgsql
 
-open JrUtil.Utils
 open JrUtil.GtfsCsvSerializer
 open JrUtil.GtfsModel
-open JrUtil.GtfsModelMeta
 open JrUtil.GtfsParser
-open JrUtil.SqlRecordStore
 
 let gtfsFeedToFolder () =
     // This is an attempt at speeding serialization up. In the end it didn't do
     // much, but this should be faster so I'm leaving it like this
-    let agencySerializer = getRowsSerializer<Agency>
-    let stopSerializer = getRowsSerializer<Stop>
-    let routeSerializer = getRowsSerializer<Route>
-    let tripSerializer = getRowsSerializer<Trip>
-    let stopTimeSerializer = getRowsSerializer<StopTime>
-    let calendarEntrySerializer = getRowsSerializer<CalendarEntry>
-    let calendarExceptionSerializer = getRowsSerializer<CalendarException>
-    let feedInfoSerializer = getRowsSerializer<FeedInfo>
+    let agencySerializer = getRowsSerializerWriter<Agency>
+    let stopSerializer = getRowsSerializerWriter<Stop>
+    let routeSerializer = getRowsSerializerWriter<Route>
+    let tripSerializer = getRowsSerializerWriter<Trip>
+    let stopTimeSerializer = getRowsSerializerWriter<StopTime>
+    let calendarEntrySerializer = getRowsSerializerWriter<CalendarEntry>
+    let calendarExceptionSerializer = getRowsSerializerWriter<CalendarException>
+    let feedInfoSerializer = getRowsSerializerWriter<FeedInfo>
 
     fun path feed ->
         Directory.CreateDirectory(path) |> ignore
         let serializeTo name ser obj =
             let filePath = Path.Combine(path, name)
-            File.WriteAllText(filePath, ser obj)
+            use file = File.Open(filePath, FileMode.Create)
+            ser file obj
         let serializeToOpt name ser obj =
             obj |> Option.iter (fun o -> serializeTo name ser o)
         serializeTo "agency.txt" agencySerializer feed.agencies
@@ -82,3 +77,26 @@ let gtfsParseFolder () =
                 |> Option.map (fun fi -> fi.[0])
         }
         feed
+
+/// The GTFS standard requires that some fields we have no way of filling from
+/// source data be populated, and some GTFS-consuming software actually needs
+/// them filled, even if the user doesn't. To make our exports GTFS-compliant,
+/// fill them with nonsense.
+let fillStandardRequiredFields (feed: GtfsFeed) =
+    { feed with
+        agencies =
+            feed.agencies
+            |> Array.map (fun a ->
+                { a with
+                    url = a.url
+                        |> Option.defaultValue "jrutil://invalid"
+                        |> Some
+                })
+        stops =
+            feed.stops
+            |> Array.map (fun s ->
+                { s with
+                    lat = s.lat |> Option.defaultValue 0m |> Some
+                    lon = s.lon |> Option.defaultValue 0m |> Some
+                })
+    }

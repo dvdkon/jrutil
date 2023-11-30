@@ -2,22 +2,32 @@
 // (c) 2023 David Koňařík
 
 open System.IO
+open System.Text.RegularExpressions
 open FSharp.Data
+open Serilog
+open Serilog.Context
 
 open JrUtil
+open JrUtil.GeoData
 open JrUtil.Utils
-open JrUtil.SqlRecordStore
 
 let docstring = (fun (s: string) -> s.Trim()) """
 jrutil, a tool for working with czech public transport data
 
 Usage:
-    jrutil-multitool.exe jdf-to-gtfs [--stop-coords-by-id=FILE] <JDF-in-dir> <GTFS-out-dir>
-    jrutil-multitool.exe czptt-to-gtfs <CzPtt-in-file> <GTFS-out-dir>
+    jrutil-multitool.exe jdf-to-gtfs [options] <JDF-in-dir> <GTFS-out-dir>
+    jrutil-multitool.exe czptt-to-gtfs [options] <CzPtt-in-file> <GTFS-out-dir>
+    jrutil-multitool.exe fix-jdf [options] <JDF-in-dir> <JDF-out-dir>
+    jrutil-multitool.exe merge-jdf [options] <JDF-out-dir> <JDF-in-dir>...
     jrutil-multitool.exe --help
 
 Options:
-    --stop-coords-by-id=FILE CSV file assigning coordinates to stops by ID
+    -C --stop-coords-by-id=FILE  CSV file assigning coordinates to stops by ID
+    -g --ext-geodata=FILE        CSV file with stop positions (name,lat,lon,region)
+    -o --cz-pbf=URL              OSM data for Czech Republic
+    -l --logfile=FILE            Logfile
+    -c --cache=DIR               Persistent cache directory
+    -i --by-id                   Merge stops by numeric ID
 
 Passing - to an input path parameter will make most jrutil commands read
 input filenames from stdin. Each result will be output into a sequentially
@@ -29,7 +39,7 @@ type StopCoordsById = CsvProvider<
     Schema = "id(string), lat(decimal), lon(decimal)">
 
 let stdinLinesSeq () =
-    Seq.initInfinite (fun i -> stdin.ReadLine())
+    Seq.initInfinite (fun _ -> stdin.ReadLine())
     |> Seq.takeWhile (fun l -> l <> null)
 
 let inOutFiles inpath outpath =
@@ -40,6 +50,13 @@ let inOutFiles inpath outpath =
         seq [(inpath, outpath)]
 
 let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
+    // Allow specific platforms to get fallback positions for stations
+    let sr70sRegex = new Regex("^-SR70S-CZ-(\\d+)")
+    let idsToMatch id =
+        let m = sr70sRegex.Match(id)
+        if m.Success then [id; sprintf "-SR70ST-CZ-" + m.Groups.[1].Value]
+        else [id]
+
     match stopCoordsByIdPath with
     | Some p ->
         let coords =
@@ -50,7 +67,9 @@ let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
             stops =
                 gtfs.stops
                 |> Array.map (fun s ->
-                    match coords |> Map.tryFind s.id with
+                    match idsToMatch s.id
+                          |> Seq.choose (fun id -> coords |> Map.tryFind id)
+                          |> Seq.tryHead with
                     | Some (lat, lon) -> { s with
                                              lat = Some lat
                                              lon = Some lon }
@@ -61,42 +80,134 @@ let gtfsWithCoords stopCoordsByIdPath (gtfs: GtfsModel.GtfsFeed) =
 [<EntryPoint>]
 let main (args: string array) =
     withProcessedArgs docstring args (fun args ->
+        setupLogging (optArgValue args "--logfile") ()
+        Utils.persistentCachePath <- optArgValue args "--cache"
+
         let stopCoordsByIdPath = optArgValue args "--stop-coords-by-id"
         if argFlagSet args "jdf-to-gtfs" then
             let jdfPar = Jdf.jdfBatchDirParser ()
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (argValue args "<JDF-in-dir>")
+            inOutFiles (argValues args "<JDF-in-dir>" |> Seq.head)
                        (argValue args "<GTFS-out-dir>")
             |> Seq.iter (fun (inpath, out) ->
-                printfn "Processing %s" inpath
+                Log.Information("Processing {Batch}", inpath)
                 try
-                    let jdf = jdfPar inpath
+                    Log.Information("Reading JDF")
+                    let jdf = jdfPar (Jdf.FsPath inpath)
                     // TODO: Allow choice for stopIdsCis
+                    Log.Information("Converting to GTFS")
                     let gtfs =
                         JdfToGtfs.getGtfsFeed false jdf
                         |> gtfsWithCoords stopCoordsByIdPath
 
-                    gtfsSer out gtfs
-                with
-                    | e -> printfn "Error while processing %s:\n%A" inpath e
+                    Log.Information("Writing GTFS")
+                    gtfs
+                    |> Gtfs.fillStandardRequiredFields
+                    |> gtfsSer out
+                    Log.Information("Finished!")
+                with e ->
+                    Log.Error(e, "Error while processing {Batch}", inpath)
             )
         else if argFlagSet args "czptt-to-gtfs" then
             let gtfsSer = Gtfs.gtfsFeedToFolder ()
-            inOutFiles (argValue args "<CzPtt-in-file>")
-                       (argValue args "<GTFS-out-dir>")
-            |> Seq.iter (fun (inpath, out) ->
-                printfn "Processing %s" inpath
-                try
-                    let czptt = CzPtt.parseFile inpath
-                    let gtfs =
-                        czptt.CzpttcisMessage
-                        |> Option.get
-                        |> CzPtt.gtfsFeed
-                        |> gtfsWithCoords stopCoordsByIdPath
-                    gtfsSer out gtfs
-                with
-                    | e -> printfn "Error while processing %s:\n%A" inpath e
-            )
+            try
+                CzPtt.parseAll (argValue args "<CzPtt-in-file>")
+                |> CzPttToGtfs.gtfsFeedMerged
+                |> gtfsWithCoords stopCoordsByIdPath
+                |> Gtfs.fillStandardRequiredFields
+                |> gtfsSer (argValue args "<GTFS-out-dir>")
+                Log.Information("Finished!")
+            with e ->
+                Log.Error(e, "Error while processing CzPtt")
+        else if argFlagSet args "fix-jdf" then
+            let inDir = argValues args "<JDF-in-dir>" |> Seq.head
+            let outDir = argValue args "<JDF-out-dir>"
+            let geodataPath = optArgValue args "--ext-geodata"
+            let czPbf = optArgValue args "--cz-pbf"
+
+            let extStopsToMatch =
+                geodataPath
+                |> Option.map (fun gdp ->
+                    Utils.logWrappedOp "Reading external stops" <| fun () ->
+                        ExternalCsv.OtherStops.Parse(File.ReadAllText(gdp))
+                        |> ExternalCsv.otherStopsForJdfMatch)
+                |> Option.defaultValue [||]
+            let osmStopsToMatch =
+                czPbf
+                |> Option.map (fun pbf ->
+                    Utils.logWrappedOp "Reading OSM stops" <| fun () ->
+                        Osm.getCzOtherStops pbf ()
+                        |> Osm.czOtherStopsForJdfMatch)
+                |> Option.defaultValue [||]
+            let stopMatcher = new StopMatcher.StopMatcher<_>(
+                Array.concat [ extStopsToMatch; osmStopsToMatch ],
+                Utils.persistentCachePath
+                |> Option.map (fun d -> Path.Combine(d, "cz-stop-matcher")))
+
+            let jdfPar = Jdf.jdfBatchDirParser ()
+            let jdfWri = Jdf.jdfBatchDirWriter ()
+            Jdf.findJdfBatches inDir
+            |> Seq.iter (fun (batchPath, batchDir) ->
+                let batchName = Path.GetFileNameWithoutExtension(batchPath)
+                use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
+                Log.Information("Processing JDF batch {BatchPath}", batchPath)
+
+                let batch = jdfPar batchDir
+                let batchFixed, stopMatches =
+                    JdfFixups.fixPublicCisJrBatch stopMatcher batch
+
+                let stopsWithMatches = Array.zip batchFixed.stops stopMatches
+                let batchWithLocations =
+                    JdfFixups.addStopLocations batchFixed stopsWithMatches
+                Seq.concat [
+                    batchFixed.tripStops
+                    |> Seq.groupBy (fun ts -> ts.routeId, ts.tripId)
+                    |> Seq.map snd
+                    // Take one trip most likely to contain all stops' km
+                    // distances (testing all takes too much time)
+                    |> Seq.sortByDescending Seq.length
+                    |> Seq.head
+                    |> fun ts ->
+                        JdfFixups.checkMatchDistances
+                            (Seq.toArray ts) stopsWithMatches
+
+                    JdfFixups.checkMissingRegionsCountries batchFixed
+                ]
+                |> Seq.iter (fun msg -> Log.Write(msg))
+
+                let fixedOutDir = Path.Combine(outDir, batchName)
+                Directory.CreateDirectory(fixedOutDir) |> ignore
+                jdfWri (Jdf.FsPath fixedOutDir) batchWithLocations)
+            Log.Information("Finished!")
+        else if argFlagSet args "merge-jdf" then
+            let outDir = argValue args "<JDF-out-dir>"
+            let mergeById = argFlagSet args "--by-id"
+
+            let merger = JdfMerger.JdfMerger(
+                if mergeById then JdfMerger.MergeStopsById
+                else JdfMerger.MergeStopsByName)
+            let jdfPar = Jdf.jdfBatchDirParser ()
+            let jdfWri = Jdf.jdfBatchDirWriter ()
+
+            for inDir in argValues args "<JDF-in-dir>" do
+                for batchPath, batchDir in Jdf.findJdfBatches inDir do
+                    let batchName = Path.GetFileNameWithoutExtension(batchPath)
+                    use _logCtx = LogContext.PushProperty("JdfBatch", batchName)
+                    Log.Information("Merging JDF batch {BatchPath}", batchPath)
+
+                    try
+                        let batch = jdfPar batchDir
+                        merger.add(batch)
+                    with e ->
+                        Log.Error(e, "Error while processing {Batch}",
+                                  batchPath)
+
+            Log.Information("Resolving route overlaps")
+            merger.resolveRouteOverlaps()
+
+            Log.Information("Writing merged JDF")
+            jdfWri (Jdf.FsPath outDir) merger.batch
+            Log.Information("Finished!")
         else printfn "%s" docstring
         0
     )

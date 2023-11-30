@@ -23,8 +23,7 @@ report options:
     --other-stops=PATH        Path to CSV of non-railway stops
     --rail-ext-sources=PATH   Folder with external geodata sources for railway stops
     --other-ext-sources=PATH  Folder with external geodata sources for non-railway stops
-    --overpass-url=URL        URL of OSM Overpass API instance (optional)
-    --cache-dir=DIR           Overpass result cache directory [default: /tmp]
+    --cz-pbf=URL              OSM data for Czech Republic
     --logfile=PATH            Output path for logfile (default is console output)
     --cz-sk-only              Don't include "foreign" stops in output
 
@@ -37,32 +36,25 @@ Non-railway external source is a CSV with columns name,lat,lon
 Setting an empty cache dir will disable caching
 """
 
-let defaultOverpassUrl = "https://lz4.overpass-api.de/api/interpreter"
-
 [<EntryPoint>]
 let main argv =
     withProcessedArgs docstring argv (fun args ->
         setupLogging (optArgValue args "--logfile") ()
         if argFlagSet args "report" then
-            let overpassUrl = optArgValue args "--overpass-url"
-                              |> Option.defaultValue defaultOverpassUrl
-
+            let czPbfPath = argValue args "--cz-pbf"
             let railStopsPath = argValue args "--rail-stops"
             let otherStopsPath = argValue args "--other-stops"
             let railExtSourcesDir = argValue args "--rail-ext-sources"
             let otherExtSourcesDir = argValue args "--other-ext-sources"
-            let cacheDir = argValue args "--cache-dir"
 
             Log.Information("Getting rail stop matches")
             let railStopMatches =
-                getRailStopsMatches overpassUrl
-                                    cacheDir
+                getRailStopsMatches czPbfPath
                                     railStopsPath
                                     railExtSourcesDir
             Log.Information("Getting other stop matches")
             let otherStopMatches =
-                getOtherStopsMatches overpassUrl
-                                     cacheDir
+                getOtherStopsMatches czPbfPath
                                      otherStopsPath
                                      otherExtSourcesDir
 

@@ -5,6 +5,7 @@ module JrUtil.Grapp
 
 open System
 open System.IO
+open System.Net
 open System.Text.Json
 open System.Text.RegularExpressions
 open FSharp.Data
@@ -19,6 +20,7 @@ let baseUrl = "https://grapp.spravazeleznic.cz/"
 
 type IndexData = {
     token: string
+    cookies: CookieContainer
     carrierCodes: string array
     trainTypes: string array
     delayGroups: string array
@@ -80,13 +82,16 @@ let stopIdForName (nameIdMap: Map<string, string>) name =
         "GRAPPST-" + name.Replace(" ", "_")
 
 let fetchIndexData () =
-    let doc = HtmlDocument.Load(baseUrl)
+    let cookies = CookieContainer()
+    let resp = Http.RequestString(baseUrl, cookieContainer = cookies)
+    let doc = HtmlDocument.Parse(resp)
     let cbValues selector =
         doc.CssSelect(selector)
         |> Seq.map (fun cb -> cb.AttributeValue("value"))
         |> Seq.toArray
     {
         token = doc.CssSelect("input#token").Head.AttributeValue("value")
+        cookies = cookies
         carrierCodes = cbValues ".carrierCB"
         trainTypes = cbValues ".publicKindOfTrainCB"
         delayGroups = cbValues ".delayCB"
@@ -115,15 +120,18 @@ let fetchAllTrainsSummary indexData () =
         TrainOutOfOrder = true
         TrainRunning = true
     })
-    let resp =
+    let respStr =
         Http.RequestString(
             sprintf "%s/post/trains/GetTrainsWithFilter/%s"
                     baseUrl indexData.token,
             httpMethod = "POST",
             headers = ["Content-Type", "application/json; charset=utf-8"],
-            body = TextRequest body
-        )
-    GetTrainsWithFilterOutput.Parse(resp).Trains
+            cookieContainer = indexData.cookies,
+            body = TextRequest body)
+    let resp = GetTrainsWithFilterOutput.Parse(respStr)
+    if resp.Status <> "OK" then
+        failwithf "Error status returned: %s" resp.Status
+    resp.Trains
 
 /// XXX: Workaround for FSharp.Data HTML Parser bug:
 /// https://github.com/fsharp/FSharp.Data/issues/1330
@@ -131,10 +139,11 @@ let fsharpDataHtmlWorkaround html =
     Regex("(&[^;]+;) +(&[^;]+;)").Replace(html, "$1&#32;$2")
 
 // Returns Option to handle the case when the ID is invalid/no longer available
-let fetchTrainDetail token nameIdMap trainId () =
+let fetchTrainDetail indexData nameIdMap trainId () =
     let resp =
         Http.RequestString(sprintf "%s/OneTrain/MainInfo/%s?trainId=%d"
-                                   baseUrl token trainId)
+                                   baseUrl indexData.token trainId,
+                           cookieContainer = indexData.cookies)
     // XXX: Remove the <html> tag when the FSharp.Data fix makes it into a
     // release
     let doc = HtmlDocument.Parse("<html>" + (fsharpDataHtmlWorkaround resp) + "<html>")
@@ -150,7 +159,8 @@ let fetchTrainDetail token nameIdMap trainId () =
         let lastStop =
             Map.tryFind "potvrzená stanice" tableMap
             |> Option.orElse (Map.tryFind "poslední známá poloha:" tableMap)
-            |> Option.get
+            |> Option.defaultWith (fun () ->
+                failwith "Failed to get current station")
         let delayStr =
             Map.tryFind "náskok" tableMap
             |> Option.map ((+) "-")
@@ -164,10 +174,11 @@ let fetchTrainDetail token nameIdMap trainId () =
             routePageAvailable = doc.CssSelect(".action") |> Seq.isEmpty |> not
         }
 
-let fetchTrainRoute token nameIdMap trainId () =
+let fetchTrainRoute indexData nameIdMap trainId () =
     let resp =
         Http.RequestString(sprintf "%s/OneTrain/RouteInfo/%s?trainId=%d"
-                                   baseUrl token trainId)
+                                   baseUrl indexData.token trainId,
+                           cookieContainer = indexData.cookies)
     // XXX: Remove the <html> tag when the FSharp.Data fix makes it into a
     // release (https://github.com/fsharp/FSharp.Data/pull/1290)
     let doc = HtmlDocument.Parse("<html>" + (fsharpDataHtmlWorkaround resp) + "<html>")
@@ -193,6 +204,7 @@ let fetchTrainRoute token nameIdMap trainId () =
     let undated =
         doc.CssSelect(".route .row")
         |> Seq.mapi (fun i row ->
+            let stopped = row.Elements().[0].HasClass("bold")
             let cols =
                 row.Elements()
                 |> Seq.map (fun c -> c.InnerText().Trim())
@@ -220,6 +232,7 @@ let fetchTrainRoute token nameIdMap trainId () =
                 departedAt =
                     if i > currentStationIdx then None else parseTime cols.[8]
                 shouldDepartAt = parseParTime cols.[9]
+                stopped = Some stopped
             }
         )
         |> Seq.toArray
@@ -233,7 +246,7 @@ let fetchTrainRoute token nameIdMap trainId () =
     // XXX: Sometimes there are stops that later disappear. No important ones,
     // but it's curious nonetheless
 
-    dateUndatedStopHistory timezone currentStationIdx now undated 
+    dateUndatedStopHistory timezone currentStationIdx now undated
     |> Seq.toArray
 
 let fetchAllTrains indexData nameIdMap () =
@@ -241,7 +254,7 @@ let fetchAllTrains indexData nameIdMap () =
     trains |> Seq.choose (fun train ->
         let trainName = train.Title.Trim()
         try
-            fetchTrainDetail indexData.token nameIdMap train.Id ()
+            fetchTrainDetail indexData nameIdMap train.Id ()
             |> Option.bind (fun detail ->
                 // We can't get the start day for a train without the full
                 // route, so just exclude them not to pollute the resultant data
@@ -250,7 +263,7 @@ let fetchAllTrains indexData nameIdMap () =
                     None
                 else
                     let route =
-                        fetchTrainRoute indexData.token nameIdMap train.Id ()
+                        fetchTrainRoute indexData nameIdMap train.Id ()
                     let startTime =
                         route.[0].shouldDepartAt
                         |> Option.orElse route.[0].departedAt

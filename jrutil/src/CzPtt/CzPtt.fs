@@ -1,41 +1,31 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2023 David Koňařík
 
 module JrUtil.CzPtt
 
 open System
 open System.IO
+open System.Collections
 open System.IO.Compression
-open System.Globalization
-open FSharp.Data
+open System.Xml.Serialization
 open NodaTime
-open Serilog
 
 open JrUtil.Utils
 open JrUtil.UnionCodec
-open JrUtil.GtfsModel
-open JrUtil
-
-// TODO: Unused data:
-// Some TrainActivities (Doesn't wait for connection...)
-
-// Note that some files will error out. This is fine, as long as they don't
-// describe an actual train. Some files seem to be "broken" (TODO: Why?)
 
 exception CzPttInvalidException of msg: string
 with override this.Message = this.msg
 
-type CzPttXml = XmlProvider<Schema=const(__SOURCE_DIRECTORY__ + "/czptt.xsd")>
+type CzpttMessage =
+    | Timetable of CzPttXml.CzpttcisMessage
+    | Cancellation of CzPttXml.CzCanceledPttMessage
 
-// TODO: Handle unknown cases in enum?
-type LocationType =
-    | [<StrValue("01")>] Origin
-    | [<StrValue("02")>] Intermediate
-    | [<StrValue("03")>] Destination
-    | [<StrValue("04")>] Handover
-    | [<StrValue("05")>] Interchange
-    | [<StrValue("06")>] HandoverAndInterchange
-    | [<StrValue("07")>] StateBorder
+type TrainType =
+    // The StrValues actually reflect the generated enum, not the actual string
+    // in XML
+    | [<StrValue("Item0")>] PassengerPrivate
+    | [<StrValue("Item1")>] PassengerPublic
+    | [<StrValue("Item2")>] Freight
 
 type TrainActivity =
     | [<StrValue("0001")>] Stops
@@ -61,386 +51,99 @@ type TrainActivity =
     | [<StrValue("0002")>] InternalStop
     | [<StrValue("CZ13")>] UnpublishedStop
 
-// Traffic types could be a union, but that would make creating train names
-// harder. (Each case would need to have two string values - the one used
-// in data and the one used for display)
-let trafficTypes =
-    Map [
-        ("11", "Os")
-        ("C1", "Ex")
-        ("C2", "R")
-        ("C3", "Sp")
-        ("C4", "Sv")
-    ]
-
-let commercialTrafficTypes =
-    Map [
-        // Some of these do not have "trademarkish" non-translateable names in
-        // the official docs ("Fast train" for "R"). These are almost never
-        // written like that anywhere, so the abbreviation is used for the
-        // "long name" as well.
-        ("50", ("EuroCity", "EC"))
-        ("63", ("Intercity", "IC"))
-        ("69", ("Express", "Ex"))
-        ("70", ("Euro Night", "EN"))
-        ("84", ("Os", "Os"))
-        ("94", ("SuperCity", "SC"))
-        ("122", ("Sp", "Sp"))
-        ("157", ("R", "R"))
-        ("209", ("RailJet", "rj"))
-        ("9000", ("Rex", "Rx"))
-        ("9001", ("Trilex-expres", "TLX"))
-        ("9002", ("Trilex", "TL"))
-        ("9003", ("LEO Expres", "LE"))
-        ("9004", ("Regiojet", "RJ"))
-        ("9005", ("Arriva Expres", "AEx"))
-        ("9006", ("Leo Expres Tenders", "LET"))
-    ]
+// This is more complicated than necessary, because readers can't seek and
+// XmlSerializer doesn't want to deserialize both generated types at the same
+// time.
+let parseFromReader (withReader: (TextReader -> obj) -> obj) =
+    let cisSerializer = XmlSerializer(typeof<CzPttXml.CzpttcisMessage>)
+    let cancelSerializer = XmlSerializer(typeof<CzPttXml.CzCanceledPttMessage>)
+    try
+        Timetable <| (withReader cisSerializer.Deserialize :?> _)
+    with e1 ->
+        try
+            Cancellation <| (withReader cancelSerializer.Deserialize :?> _)
+        with e2 ->
+            failwithf "Failed deserializing CZPTT XML message:\n\
+                       As CZPTTCISMessage: %A\nAs CZCanceledMessage: %A" e1 e2
 
 let parseText (text: string) =
-    let doc = CzPttXml.Parse(text)
-    doc
+    parseFromReader (fun f ->
+        use reader = new StringReader(text)
+        f reader)
 
 let parseFile (path: string) =
-    parseText (File.ReadAllText(path))
+    use stream = File.OpenRead(path)
+    parseFromReader (fun f ->
+        stream.Seek(0, SeekOrigin.Begin) |> ignore
+        use reader = new StreamReader(stream)
+        f reader)
 
 /// Takes a path and finds all .xml documents under that path (incl. in ZIP
 /// files) and parses them
 let rec parseAll (path: string) =
-    if path.ToLower().EndsWith(".xml.zip") then
+    if path.ToLower().EndsWith(".xml.zip")
+       || path.ToLower().EndsWith(".xml.gz") then
         // GZip is not ZIP, but tell that to SŽ
         // The data's good, so I don't complain
         use stream = File.Open(path, FileMode.Open)
         use gzStream = new GZipStream(stream, CompressionMode.Decompress)
         use reader = new StreamReader(gzStream)
         let doc =  parseText <| reader.ReadToEnd()
-        seq { doc }
+        seq { path, doc }
     else if Path.GetExtension(path).ToLower() = ".xml" then
-        seq { parseFile path }
+        seq { path, parseFile path }
     else if Path.GetExtension(path).ToLower() = ".zip" then
         ZipFile.OpenRead(path).Entries
         |> Seq.filter (fun entry ->
             Path.GetExtension(entry.Name).ToLower() = ".zip")
         |> Seq.map (fun entry ->
             use reader = new StreamReader(entry.Open())
-            parseText <| reader.ReadToEnd())
+            $"path//{entry.Name}", parseText <| reader.ReadToEnd())
     else if Directory.Exists(path) then
         Seq.concat [Directory.EnumerateFiles(path);
                     Directory.EnumerateDirectories(path)]
         |> Seq.collect parseAll
     else Seq.empty
 
-let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
-    let ttAbbr = loc.TrafficType |> Option.map (fun tt -> trafficTypes.[tt])
-    let cttAbbr = loc.CommercialTrafficType |> Option.map (fun ctt ->
-        commercialTrafficTypes.[ctt] |> snd)
-    match cttAbbr with
-    | Some ctt ->
-        match ctt with
-        | "EC" | "IC" | "LE" | "RJ" | "AEx" -> "102" // Long Distance Trains
-        | "EN" -> "105" // Sleeper Rail
-        | "Ex" | "Rx" | "rj" | "TLX" | "TL"
-        | "R" | "SC" -> "103" // Inter Regional Rail
-        | "Os" | "Sp" -> "106" // Regional Rail
-        | _ -> failwithf "Invalid state: %s" ctt
-    | None ->
-        match ttAbbr with
-        | Some tt ->
-            match tt with
-            // These labels don't really say how long a train route goes,
-            // but they do signify how many stops they make.
-            // So even if an "Os" train can go from Prague to Ústí n.L.
-            // or from Vsetín to Velké Karlovice, they'll always
-            // make more stops than an equivalent "R" or "Ex" train.
-            | "Os" | "Sp" -> "106" // Regional Rail
-            | "R" -> "103" // Inter Regional Rail
-            | "Ex" -> "102" // Long Distance Rail
-            | "Sv" -> "100" // Railway Service (Sv -- maintenance train)
-            | _ -> failwith "Invalid state"
-        | None -> "100" // Railway
+let parseCalendar (calendar: CzPttXml.PlannedCalendar) =
+    let startDate = LocalDate.FromDateTime(calendar.ValidityPeriod.StartDateTime)
+    let endDate = calendar.ValidityPeriod.EndDateTime
+                  |> nullableOpt
+                  |> Option.map LocalDate.FromDateTime
+                  |> Option.defaultValue startDate
+    DateBitmap(
+        DateInterval(startDate, endDate),
+        calendar.BitmapDays
+        |> Seq.map (fun c -> c = '1')
+        |> Seq.toArray
+        |> BitArray)
 
-let getIdentifierByType (czptt: CzPttXml.CzpttcisMessage) idt =
-    czptt.Identifiers.PlannedTransportIdentifiers
-    |> Array.find (fun ti -> ti.ObjectType = idt)
+let serializeCalendar (bitmap: DateBitmap) =
+    CzPttXml.PlannedCalendar(
+        ValidityPeriod = CzPttXml.ValidityPeriod(
+        StartDateTime = bitmap.Interval.Start.ToDateTimeUnspecified(),
+        EndDateTime = bitmap.Interval.End.ToDateTimeUnspecified()),
+        BitmapDays = String([|
+            for i in 0 .. (bitmap.Bits.Length - 1) ->
+                if bitmap.Bits.[i] then '1' else '0' |]))
 
-let activities (loc: CzPttXml.CzpttLocation) =
-    loc.TrainActivities
-    |> Seq.map ((fun ta -> ta.TrainActivityType) >> parseUnion<TrainActivity>)
+let timetableIdentifier (czptt: CzPttXml.CzpttcisMessage) idt =
+    czptt.Identifiers |> Array.find (fun ti -> ti.ObjectType = idt)
 
-let isValidGtfsStop (loc: CzPttXml.CzpttLocation) =
-    // Only use stops with some activity in GTFS and without internal activities
-    // XXX: Maybe it might be useful to include all stops in some cases?
-    loc.TrainActivities.Length > 0
-    && not (activities loc |> Seq.contains InternalStop)
-    && not (activities loc |> Seq.contains UnpublishedStop)
+let identifierStr (ident: CzPttXml.TransportIdentifier) =
+    sprintf "%s:%s:%s" ident.TimetableYear ident.Core ident.Variant
 
-// Information about the train is stored in each CZPTTLocation element.
-// This is not explicitly stated in the specification, but each file only
-// contains data about one trip (TODO: Verify). This means we can simply
-// take the first *valid* element and get the data from there.
-let firstValidLocation (czptt: CzPttXml.CzpttcisMessage) =
-    match czptt.CzpttInformation.CzpttLocations
-          |> Seq.tryFind isValidGtfsStop with
-    | Some fl -> fl
-    | None ->
-        raise (CzPttInvalidException "Invalid CZPTT - no valid stops")
+let locationActivities (loc: CzPttXml.CzpttLocation) =
+    loc.TrainActivity
+    |> Seq.map (fun ta -> ta.TrainActivityType |> parseUnion<TrainActivity>)
 
-let trainTypePrefix (location: CzPttXml.CzpttLocation) =
-    match (location.CommercialTrafficType,
-           location.TrafficType) with
-    | (Some ctt, _) -> commercialTrafficTypes.[ctt] |> fst
-    | (_, Some tt) -> trafficTypes.[tt]
-    | _ -> ""
+let locationTrainType (loc: CzPttXml.CzpttLocation) =
+    loc.TrainType
+    |> nullableOpt
+    |> Option.map (fun tt -> tt.ToString() |> parseUnion<TrainType>)
 
-let gtfsAgencyId (czptt: CzPttXml.CzpttcisMessage) =
-    let trainIdentifier = getIdentifierByType czptt "TR"
-    let agencyNum = trainIdentifier.Company
-    sprintf "-CZPTTA-%s" agencyNum
-
-let gtfsRouteId czptt =
-    let loc = firstValidLocation czptt
-    sprintf "-CZTRAINR-%s-%s"
-            (trainTypePrefix loc)
-            (Option.get loc.OperationalTrainNumber)
-
-let gtfsTripId czptt =
-    let loc = firstValidLocation czptt
-    sprintf "-CZTRAINT-%s-%s"
-            (trainTypePrefix loc)
-            (Option.get loc.OperationalTrainNumber)
-
-let gtfsStationId (loc: CzPttXml.CzpttLocation) =
-    sprintf "-SR80ST-%s-%s"
-            loc.Location.CountryCodeIso
-            (loc.Location.LocationPrimaryCode |> Option.get)
-
-let gtfsStopId (loc: CzPttXml.CzpttLocation) =
-    let platform =
-        loc.Location.LocationSubsidiaryIdentification
-        |> Option.map (fun lsi ->
-            lsi.LocationSubsidiaryCode.Value)
-    sprintf "-SR80S-%s-%s%s"
-            loc.Location.CountryCodeIso
-            (loc.Location.LocationPrimaryCode |> Option.get)
-            (platform
-             |> Option.map (fun p -> "-" + p)
-             |> Option.defaultValue "")
-
-let networkSpecificParams (czptt: CzPttXml.CzpttcisMessage) =
-    czptt.NetworkSpecificParameter
-    |> Option.map (fun nsps ->
-        Seq.zip nsps.Names nsps.Values |> Map)
-    |> Option.defaultValue (Map [])
-
-let gtfsRoute (czptt: CzPttXml.CzpttcisMessage) =
-    let firstLocation = firstValidLocation czptt
-
-    // Name may end up being empty, but this should never happen in a normal
-    // dataset.
-    let name =
-        [Some <| trainTypePrefix firstLocation
-         firstLocation.OperationalTrainNumber
-         networkSpecificParams czptt |> Map.tryFind "CZTrainName"]
-        |> List.choose id
-        |> String.concat " "
-
-    let trainIdentifier = getIdentifierByType czptt "TR"
-
-    let route: Route = {
-        id = gtfsRouteId czptt
-        agencyId = Some <| gtfsAgencyId czptt
-        shortName = Some name
-        longName = None
-        description = None
-        routeType = gtfsRouteType firstLocation
-        url = None
-        color = None
-        textColor = None
-        sortOrder = None
-    }
-
-    route
-
-let gtfsStops (czptt: CzPttXml.CzpttcisMessage) =
-    let info = czptt.CzpttInformation
-    info.CzpttLocations
-    |> Array.filter isValidGtfsStop
-    |> Array.collect (fun loc ->
-        let createStop locType station platform = {
-            id = if locType = Station
-                 then gtfsStationId loc
-                 else gtfsStopId loc
-            code = None
-            name = loc.Location.PrimaryLocationName |> Option.defaultValue ""
-            description = None
-            lat = None
-            lon = None
-            // Train routes can still have zones when joined into an
-            // integrated transport system, just this format doesn't have
-            // them.
-            zoneId = None
-            url = None
-            locationType = Some locType
-            parentStation = station
-            // TODO: It may be possible to get the timezone of a station by
-            // looking at the arrival/departure times' time zone. This will
-            // have to be combined with some logic that knows about daylight
-            // saving time, since the time zone is stored as an offset from
-            // UTC. Or we could just assign a time zone per country and not
-            // care about Russia. Or maybe GTFS accepts timezone info as a
-            // UTC offset?
-            timezone =
-                if locType = Station then Some "Europe/Prague" else None
-            // Attributes are missing from this format, unfortunately.
-            wheelchairBoarding = None
-            platformCode = platform
-        }
-
-        match loc.Location.LocationSubsidiaryIdentification with
-        | Some lsi ->
-            let platformCode = lsi.LocationSubsidiaryCode.Value
-            let station = createStop Station None None
-            let platform =
-                createStop
-                    Stop
-                    (gtfsStationId loc |> Some)
-                    (Some platformCode)
-            [| station; platform |]
-        | None ->
-            [| createStop Stop None None |]
-    )
-    // Deal with stops being driven through multiple times
-    |> Array.groupBy (fun s -> s.id)
-    |> Array.map (fun (_, ss) -> Seq.head ss)
-
-
-let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
-    let id = gtfsTripId czptt
-    let trip: Trip = {
-        routeId = gtfsRouteId czptt
-        serviceId = id
-        id = id
-        headsign = None
-        shortName = None
-        directionId = None
-        blockId = None
-        shapeId = None
-        wheelchairAccessible = None
-        bikesAllowed = None
-    }
-    trip
-
-let timingToPeriod (timing: CzPttXml.Timing) =
-    // The timezone information should be dealt with by setting stops' timezones
-    let timeStr = timing.Time.Split("+").[0]
-    let time = parsePeriod @"hh\:mm\:ss\.fffffff" timeStr
-    let dayOffset = Period.FromDays(int timing.Offset)
-    time + dayOffset
-
-
-let gtfsStopTimes (czptt: CzPttXml.CzpttcisMessage) =
-    let info = czptt.CzpttInformation
-    info.CzpttLocations
-    |> Array.filter isValidGtfsStop
-    |> Array.mapi (fun i loc ->
-        let findTime name =
-            loc.TimingAtLocation.Value.Timings
-            |> Array.tryFind (fun t -> t.TimingQualifierCode = name)
-            |> Option.map timingToPeriod
-
-        let arrTime = findTime "ALA"
-        let depTime = findTime "ALD"
-
-        let hasActivity a = activities loc |> Seq.contains a
-        let service =
-            if hasActivity RequestStop
-            then CoordinationWithDriver
-            else RegularlyScheduled
-
-        let stopTime: StopTime = {
-            tripId = gtfsTripId czptt
-            arrivalTime = arrTime |> Option.orElse depTime
-            departureTime = depTime |> Option.orElse arrTime
-            stopId = gtfsStopId loc
-            stopSequence = i
-            headsign = None
-            pickupType =
-                Some (if hasActivity DisembarkOnly then NoService
-                      else service)
-            dropoffType =
-                Some (if hasActivity EmbarkOnly then NoService
-                      else service)
-            shapeDistTraveled = None
-            timepoint = Some Exact
-            stopZoneIds = None
-        }
-        stopTime
-    )
-
-let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
-    let info = czptt.CzpttInformation
-    let cal = info.PlannedCalendar
-    let fromDate = cal.ValidityPeriod.StartDateTime
-    let toDate = cal.ValidityPeriod.EndDateTime
-    let days = dateTimeRange fromDate (toDate |> Option.defaultValue fromDate)
-    assert (days.Length = cal.BitmapDays.Length)
-    days
-    |> List.mapi (fun i date ->
-        let calException: CalendarException = {
-            id = gtfsTripId czptt
-            date = LocalDate.FromDateTime(date)
-            exceptionType =
-                if cal.BitmapDays.[i] = '1'
-                then ServiceAdded
-                else ServiceRemoved
-        }
-        calException
-    )
-
-let gtfsFeedInfo (czptt: CzPttXml.CzpttcisMessage) =
-    let info = czptt.CzpttInformation
-    let cal = info.PlannedCalendar
-    let fromDate = LocalDate.FromDateTime(cal.ValidityPeriod.StartDateTime)
-    let toDate = cal.ValidityPeriod.EndDateTime
-                 |> Option.map (fun dt -> LocalDate.FromDateTime(dt))
-    let feedInfo = {
-        publisherName = "JrUtil"
-        publisherUrl = "https://gitlab.com/dvdkon/jrutil"
-        lang = "cs"
-        startDate = Some fromDate
-        endDate = toDate |> Option.defaultValue fromDate |> Some
-        version = None
-    }
-    feedInfo
-
-let gtfsAgency (czptt: CzPttXml.CzpttcisMessage) =
-    let trainIdentifier = getIdentifierByType czptt "TR"
-    let agencyNum = trainIdentifier.Company
-    let agency =
-        KadrEnumWs.companyForEvCisloEu agencyNum
-        |> Option.get
-    let gtfsAgency: Agency = {
-        id = Some <| gtfsAgencyId czptt
-        name = agency.ObchodNazev
-        url = agency.Www |> Option.defaultValue ""
-        timezone = "Europe/Prague" // TODO
-        lang = None
-        phone = agency.Telefon
-        fareUrl = None
-        email = agency.Email
-    }
-    gtfsAgency
-
-let gtfsFeed (czptt: CzPttXml.CzpttcisMessage) =
-    let feed: GtfsFeed = {
-        agencies = [| gtfsAgency czptt |]
-        stops = gtfsStops czptt
-        routes = [| gtfsRoute czptt |]
-        trips = [| gtfsTrip czptt |]
-        stopTimes = gtfsStopTimes czptt
-        calendar = None
-        calendarExceptions =
-            gtfsCalendarExceptions czptt |> List.toArray |> Some
-        feedInfo = gtfsFeedInfo czptt |> Some
-    }
-    feed
+let isPublicLocation (loc: CzPttXml.CzpttLocation) =
+    (loc.TrainActivity |> nullOpt |> Option.defaultValue [||]).Length > 0
+    && not (locationActivities loc |> Seq.contains InternalStop)
+    && not (locationActivities loc |> Seq.contains UnpublishedStop)
+    && locationTrainType loc = Some PassengerPublic

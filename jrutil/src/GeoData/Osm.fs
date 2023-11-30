@@ -5,95 +5,62 @@ module JrUtil.GeoData.Osm
 
 open System
 open System.IO
-open System.Text
-open System.Threading
-open System.Security.Cryptography
-
-open Serilog
-open FSharp.Data
+open OsmSharp
+open OsmSharp.Geo
+open OsmSharp.Streams
+open NetTopologySuite.Features
 open NetTopologySuite.Geometries
 
 open JrUtil.GeoData.CzRegions
 open JrUtil.GeoData.Common
 open JrUtil.GeoData.StopMatcher
+open JrUtil.JdfModel
+open JrUtil.JdfFixups
 open JrUtil.Utils
 
-let czechRepBBox = [| 48.195; 12.000; 51.385; 18.951 |]
-let czechRepBBoxStr = String.Join(',', czechRepBBox)
+type CzOtherStop = {
+    id: int64
+    name: string option
+    officialName: string option
+    point: Point
+}
 
-type OtherStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../../samples/osm_other_stops.json")>
-type CzRailStops = JsonProvider<const(__SOURCE_DIRECTORY__ + "/../../samples/osm_railway_stops.json")>
+let featTagOpt name (feat: IFeature) =
+    feat.Attributes.GetOptionalValue(name)
+    |> nullOpt
+    |> Option.map unbox<string>
 
-// cacheDir = "" -- no caching
-let queryOverpass overpassUrl cacheDir (query: string) =
-    let rec sendRequest () =
-        let resp =
-            Http.Request(
-                overpassUrl,
-                httpMethod = "POST",
-                body = FormValues ["data", query],
-                timeout = 3600000,
-                responseEncodingOverride = "UTF-8",
-                silentHttpErrors = true)
-        // We're rate limited, wait a while and try again
-        if resp.StatusCode = 429 then
-            Thread.Sleep(60000)
-            sendRequest()
-        else
-            match resp.Body with
-            | Text(str) -> str
-            | _ -> failwith "Overpass request returned non-string body"
-    match cacheDir with
-    | "" -> sendRequest()
-    | cd ->
-        let queryBytes = Encoding.Default.GetBytes(query)
-        let queryHash =
-            Convert.ToBase64String(SHA512.Create()
-                                    .ComputeHash(queryBytes))
-             .Replace("/", "-")
-        let filename =
-            "jrutil_overpass_cache_" + queryHash
-        let path = Path.Combine(cd, filename)
-        if File.Exists(path) then File.ReadAllText(path)
-        else
-            let result = sendRequest()
-            File.WriteAllText(path, result)
-            result
-
-let getCzRailStops overpassUrl cacheDir =
-    queryOverpass overpassUrl cacheDir ("[bbox:" + czechRepBBoxStr + """]
-        [out:json][timeout:100];
-        ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
-        node["railway"~"halt|station"][!"subway"](area.cz);
-        out;
-    """)
-    |> CzRailStops.Parse
-    |> (fun rs -> rs.Elements)
-
-let osmNormalisedSr70 (stop: CzRailStops.Element) =
-    stop.Tags.RefSr70
-    |> Option.orElse stop.Tags.RailwayRef
-    |> Option.map (fun x -> x.ToString() |> normaliseSr70)
-    |> Option.defaultValue ""
-
-let czRailStopName (stop: CzRailStops.Element) =
-    stop.Tags.Name
-    |> Option.orElse stop.Tags.NameCs
-    |> Option.defaultValue "" // TODO: Log stops without name
+let getCzRailStops pbfPath = cacheVoidFunc "cz-osm-rail-stops" <| fun () ->
+    use stream = File.OpenRead(pbfPath)
+    (new PBFOsmStreamSource(stream)
+     |> Seq.filter (fun node ->
+         node.Type = OsmGeoType.Node
+         && (node.Tags.Contains("railway", "halt")
+             || node.Tags.Contains("railway", "station"))
+         && not (node.Tags.ContainsKey("subway"))))
+     .ToFeatureSource()
+    |> Seq.map (fun feat -> {|
+        id = feat.Attributes.["id"] :?> int64
+        sr70 =
+            featTagOpt "ref:sr70" feat
+            |> Option.orElse (featTagOpt "railway:ref" feat)
+            |> Option.map normaliseSr70
+        name =
+            featTagOpt "name" feat
+            |> Option.orElse (featTagOpt "name:cs" feat)
+        point = wgs84Factory.CreateGeometry(feat.Geometry) :?> Point
+    |})
+    |> Seq.toArray
 
 let czOtherStopNameRegion =
     // Used for synonym matching
     let matcher = new StopMatcher<_>([||])
-    fun (stop: OtherStops.Element) ->
+    fun (stop: CzOtherStop) etrs89ExPt ->
         // Stops within cities often omit the city's name on the pole, so we
         // have to add it back in. We assume official_name to be the full name.
-        let point =
-            wgs84Factory.CreatePoint(
-                Coordinate(float stop.Lon, float stop.Lat))
-            |> pointWgs84ToEtrs89Ex
-        match stop.Tags.OfficialName,
-              stop.Tags.Name,
-              czechTownByPoint () point with
+        match stop.officialName,
+              stop.name,
+              czechTownByPoint () etrs89ExPt with
         | None, None, _ -> "", None
         | Some n, _, None -> n, None
         | Some n, _, Some (_, r, _) -> n, Some r
@@ -104,33 +71,43 @@ let czOtherStopNameRegion =
             then n, Some r
             else tn + "," + n, Some r
 
-let getCzOtherStops overpassUrl cacheDir =
-    let subdivisions = 4;
-    let latStep = (czechRepBBox.[2] - czechRepBBox.[0]) / (float subdivisions)
-    let lonStep = (czechRepBBox.[3] - czechRepBBox.[1]) / (float subdivisions)
-    seq {
-        for i in 0 .. subdivisions do
-        for j in 0 .. subdivisions do
-            let bbox = String.Join(',', [|
-                czechRepBBox.[0] + ((float i) * latStep)
-                czechRepBBox.[1] + ((float j) * lonStep)
-                czechRepBBox.[0] + ((float (i + 1)) * latStep)
-                czechRepBBox.[1] + ((float (j + 1)) * lonStep)
-            |])
-            queryOverpass overpassUrl cacheDir ("[bbox:" + bbox + """]
-                [out:json][timeout:10000][maxsize:1073741824];
-                ( area["ISO3166-1"="CZ"][admin_level=2]; )->.cz;
-                (
-                    node(area.cz)[highway=bus_stop];
-                    node(area.cz)[public_transport=platform][!train][!railway];
-                    node(area.cz)[public_transport=pole];
-                    node(area.cz)[railway=tram_stop];
-                    node(area.cz)[public_transport=station][!train][!railway];
-                    node(area.cz)[amenity=bus_station];
-                );
-                out;
-            """)
-            |> OtherStops.Parse
-            |> (fun os -> os.Elements)
-    }
-    |> Seq.concat
+let getCzOtherStops pbfPath = cacheVoidFunc "cz-osm-other-stops" <| fun () ->
+    use stream = File.OpenRead(pbfPath)
+    (new PBFOsmStreamSource(stream)
+     |> Seq.filter (fun node ->
+         node.Type = OsmGeoType.Node
+         && not (node.Tags.ContainsKey("train"))
+         && (not (node.Tags.ContainsKey("railway"))
+             || node.Tags.ContainsKey("tram"))
+         && (node.Tags.Contains("highway", "bus_stop")
+             || node.Tags.Contains("public_transport", "platform")
+             || node.Tags.Contains("public_transport", "pole")
+             || node.Tags.Contains("public_transport", "station")
+             || node.Tags.Contains("railway", "tram_stop")
+             || node.Tags.Contains("amenity", "bus_station"))))
+     .ToFeatureSource()
+    |> Seq.map (fun feat -> {
+        id = feat.Attributes.["id"] :?> int64
+        name =
+            featTagOpt "name" feat
+            |> Option.orElse (featTagOpt "name:cs" feat)
+        officialName = featTagOpt "official_name" feat
+        point = wgs84Factory.CreateGeometry(feat.Geometry) :?> Point
+    })
+    |> Seq.toArray
+
+let czOtherStopsForJdfMatch (stops: CzOtherStop seq) =
+    stops
+    |> Seq.map (fun s ->
+        let etrs89ExPt = pointWgs84ToEtrs89Ex s.point
+        let name, region = czOtherStopNameRegion s etrs89ExPt
+        {
+            name = name
+            data = {
+                country = if region.IsSome then Some "CZ" else None
+                regionId = region
+                point = etrs89ExPt
+                precision = StopPrecise
+            }
+        })
+    |> Seq.toArray

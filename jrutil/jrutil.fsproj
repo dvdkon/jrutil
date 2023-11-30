@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <!--
   This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-  (c) 2021 David Koňařík
+  (c) 2023 David Koňařík
   -->
 
   <PropertyGroup>
@@ -13,31 +13,37 @@
     <Compile Include="src/ReflectionUtils.fs" />
     <Compile Include="src/UnionCodec.fs" />
     <Compile Include="src/AutoCopy.fs" />
+    <Compile Include="src/CsvMetadata.fs" />
     <Compile Include="src/CsvParser.fs" />
+    <Compile Include="src/CsvSerializer.fs" />
     <Compile Include="src/SqlRecordStore.fs" />
     <Compile Include="src/Holidays.fs" />
+    <Compile Include="src/GeoData/Common.fs" />
+    <Compile Include="src/GeoData/CzRegions.fs" />
+    <Compile Include="src/GeoData/EurTowns.fs" />
+    <Compile Include="src/GeoData/StopMatcher.fs" />
+    <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
+    <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
+    <Compile Include="src/Gtfs/GtfsParser.fs" />
+    <Compile Include="src/Gtfs/GtfsModel.fs" />
+    <Compile Include="src/Gtfs/Gtfs.fs" />
     <Compile Include="src/Jdf/JdfParser.fs" />
+    <Compile Include="src/Jdf/JdfSerializer.fs" />
     <Compile Include="src/Jdf/JdfModel.fs" />
     <Compile Include="src/Jdf/Jdf110Model.fs" />
     <Compile Include="src/Jdf/Jdf110To111.fs" />
     <Compile Include="src/Jdf/Jdf109Model.fs" />
     <Compile Include="src/Jdf/Jdf109To110.fs" />
     <Compile Include="src/Jdf/Jdf.fs" />
-    <Compile Include="src/GeoData/Common.fs" />
-    <Compile Include="src/GeoData/CzRegions.fs" />
-    <Compile Include="src/GeoData/EurTowns.fs" />
-    <Compile Include="src/GeoData/StopMatcher.fs" />
+    <Compile Include="src/Jdf/JdfMerger.fs" />
     <Compile Include="src/Jdf/JdfFixups.fs" />
-    <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
-    <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
-    <Compile Include="src/Gtfs/GtfsParser.fs" />
-    <Compile Include="src/Gtfs/GtfsModel.fs" />
-    <Compile Include="src/Gtfs/Gtfs.fs" />
     <Compile Include="src/Jdf/JdfToGtfs.fs" />
-    <Compile Include="src/CzPtt/KadrEnumWs.fs" />
-    <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/GeoData/Osm.fs" />
     <Compile Include="src/GeoData/ExternalCsv.fs" />
+    <Compile Include="src/CzPtt/KadrEnumWs.fs" />
+    <Compile Include="src/CzPtt/CzPtt.fs" />
+    <Compile Include="src/CzPtt/CzPttMerger.fs" />
+    <Compile Include="src/CzPtt/CzPttToGtfs.fs" />
     <Compile Include="src/RealTime/RealTimeModel.fs" />
     <Compile Include="src/RealTime/RealTimeSql.fs" />
     <Compile Include="src/UndatedTimes.fs" />
@@ -54,7 +60,10 @@
     <PackageReference Include="NetTopologySuite" Version="2.5.0" />
     <PackageReference Include="NetTopologySuite.Features" Version="2.1.0" />
     <PackageReference Include="NetTopologySuite.IO.GeoJSON4STJ" Version="3.0.0" />
+    <PackageReference Include="OsmSharp" Version="7.0.0-pre022" />
+    <PackageReference Include="OsmSharp.Geo" Version="7.0.0-pre022" />
     <PackageReference Include="ProjNet" Version="2.0.0" />
+    <PackageReference Include="Serilog.Formatting.Compact" Version="1.1.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.0" />
     <PackageReference Include="FSharp.Data" Version="3.3.3" />
     <PackageReference Include="Npgsql" Version="4.1.4" />
@@ -66,6 +75,10 @@
     <PackageReference Include="System.Data.SqlClient" Version="4.5.1" />
     <PackageReference Include="NodaTime" Version="3.0.0" />
     <PackageReference Include="docopt.net" Version="0.8.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../ext-services-cs/ext-services-cs.csproj" />
   </ItemGroup>
 
 </Project>

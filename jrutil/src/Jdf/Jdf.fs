@@ -3,14 +3,20 @@
 
 module JrUtil.Jdf
 
-open JrUtil.Utils
+open System.IO
+open System.IO.Compression
+open System.Text.RegularExpressions
+
 open JrUtil.JdfParser
 open JrUtil.JdfModel
 open JrUtil.Jdf110To111
 open JrUtil.Jdf109To110
-open System
-open System.IO
-open System.Text.RegularExpressions
+open JrUtil.JdfSerializer
+open JrUtil.Utils
+
+type JdfBatchDirectory =
+    | FsPath of string
+    | ZipArchive of ZipArchive
 
 let parseAttributes batch (attributes: int option array) =
     attributes
@@ -26,12 +32,24 @@ let parseAttributes batch (attributes: int option array) =
 let stopZone batch (stop: Stop) =
     let zones =
         batch.routeStops
-        |> Array.filter (fun rs -> rs.stopId = stop.id)
-        |> Array.map (fun rs -> rs.zone)
-        |> Array.choose id
-    match zones with
-    | [||] -> None
-    | _ -> Some <| String.concat "," zones
+        |> Seq.filter (fun rs -> rs.stopId = stop.id)
+        |> Seq.map (fun rs -> rs.zone)
+        |> Seq.choose id
+        |> set
+    if Set.isEmpty zones then None
+    else Some <| String.concat "," zones
+
+/// name: filename inside batch (case-insensitive)
+let tryReadJdfText (dir: JdfBatchDirectory) name =
+    match dir with
+    | FsPath path ->
+        findPathCaseInsensitive path name
+        |> Option.map (fun p -> File.ReadAllText(p, jdfEncoding))
+    | ZipArchive arch ->
+        tryParseJdfTextFromZip (fun s ->
+            use reader = new StreamReader(s, jdfEncoding)
+            reader.ReadToEnd()
+        ) arch name
 
 let jdfBatchDirVersion path =
     let versionFile =
@@ -41,10 +59,17 @@ let jdfBatchDirVersion path =
 
 let fileParserTry name =
     // TODO: Is putting the parser in a variable better for performance?
-    let parser = getJdfParser
-    fun (path: string) ->
-        tryReadJdfText path name
-        |> Option.map parser
+    let parser: Stream -> 'a seq = getJdfParser
+    fun path ->
+        match path with
+        | FsPath dir ->
+            findPathCaseInsensitive dir name
+            |> Option.map (fun fullPath ->
+                use stream = File.OpenRead(fullPath)
+                parser stream |> Seq.toArray)
+        | ZipArchive arch ->
+            tryParseJdfTextFromZip parser arch name
+            |> Option.map Seq.toArray
 let fileParser name =
     let inner = fileParserTry name
     fun path -> inner path |> Option.get
@@ -70,6 +95,7 @@ let jdf111BatchDirParser () =
     let agencyAlternationsParser = fileParserOrEmpty "Altdop.txt"
     let alternateRouteNamesParser = fileParserOrEmpty "Altlinky.txt"
     let reservationOptionsParser = fileParserOrEmpty "Mistenky.txt"
+    let stopLocationsParser = fileParserOrEmpty "Polzast.txt"
     fun path ->
         {
             version = (versionParser path).[0]
@@ -89,6 +115,7 @@ let jdf111BatchDirParser () =
             agencyAlternations = agencyAlternationsParser path
             alternateRouteNames = alternateRouteNamesParser path
             reservationOptions = reservationOptionsParser path
+            stopLocations = stopLocationsParser path
         }
 
 // This repetition is annoying. Refactoring suggestions welcome.
@@ -183,9 +210,10 @@ let jdfBatchDirParser () =
 
 let rec findJdfBatches (path: string) =
     if Path.GetFileName(path).ToLower() = "verzejdf.txt" then
-        [Path.GetDirectoryName(path)]
+        let dirPath = Path.GetDirectoryName(path)
+        [dirPath, FsPath dirPath]
     else if Path.GetExtension(path).ToLower() = ".zip" then
-        [path]
+        [path, ZipArchive <| ZipFile.OpenRead(path)]
     else if Directory.Exists(path) then
         Seq.concat [Directory.EnumerateFiles(path);
                     Directory.EnumerateDirectories(path)]
@@ -198,3 +226,56 @@ let jdfStopNameString (stop: Stop) =
             stop.town
             (stop.district |> Option.defaultValue "")
             (stop.nearbyPlace |> Option.defaultValue "")
+
+let fileWriter name =
+    let serializer: Stream -> 'r seq -> unit = getJdfSerializerWriter
+    fun (dir: JdfBatchDirectory) records () ->
+        match dir with
+        | FsPath path ->
+            use stream = File.Open(Path.Combine(path, name), FileMode.Create)
+            serializer stream records
+        | ZipArchive arch ->
+            use stream = arch.CreateEntry(name).Open()
+            serializer stream records
+
+let jdfBatchDirWriter () =
+    let versionWriter = fileWriter "VerzeJDF.txt"
+    let stopsWriter = fileWriter "Zastavky.txt"
+    let stopPostsWriter = fileWriter "Oznacniky.txt"
+    let agenciesWriter = fileWriter "Dopravci.txt"
+    let routesWriter = fileWriter "Linky.txt"
+    let routeIntegrationWriter = fileWriter "LinExt.txt"
+    let routeStopsWriter = fileWriter "Zaslinky.txt"
+    let tripsWriter = fileWriter "Spoje.txt"
+    let tripGroupsWriter = fileWriter "SpojSkup.txt"
+    let tripStopsWriter = fileWriter "Zasspoje.txt"
+    let routeInfoWriter = fileWriter "Udaje.txt"
+    let attributeRefsWriter = fileWriter "Pevnykod.txt"
+    let serviceNotesWriter = fileWriter "Caskody.txt"
+    let transfersWriter = fileWriter "Navaznosti.txt"
+    let agencyAlternationsWriter = fileWriter "Altdop.txt"
+    let alternateRouteNamesWriter = fileWriter "Altlinky.txt"
+    let reservationOptionsWriter = fileWriter "Mistenky.txt"
+    let stopLocationsWriter = fileWriter "Polzast.txt"
+
+    fun dir (batch: JdfBatch) ->
+        versionWriter dir [|
+            { batch.version with version = "1.11" }
+        |] ()
+        stopsWriter dir batch.stops ()
+        stopPostsWriter dir batch.stopPosts ()
+        agenciesWriter dir batch.agencies ()
+        routesWriter dir batch.routes ()
+        routeIntegrationWriter dir batch.routeIntegrations ()
+        routeStopsWriter dir batch.routeStops ()
+        tripsWriter dir batch.trips ()
+        tripGroupsWriter dir batch.tripGroups ()
+        tripStopsWriter dir batch.tripStops ()
+        routeInfoWriter dir batch.routeInfo ()
+        attributeRefsWriter dir batch.attributeRefs ()
+        serviceNotesWriter dir batch.serviceNotes ()
+        transfersWriter dir batch.transfers ()
+        agencyAlternationsWriter dir batch.agencyAlternations ()
+        alternateRouteNamesWriter dir batch.alternateRouteNames ()
+        reservationOptionsWriter dir batch.reservationOptions ()
+        stopLocationsWriter dir batch.stopLocations ()

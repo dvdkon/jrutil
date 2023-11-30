@@ -4,6 +4,7 @@
 module JrUtil.GtfsCsvSerializer
 
 open System
+open System.IO
 open System.Globalization
 open Microsoft.FSharp.Reflection
 open NodaTime
@@ -69,8 +70,12 @@ let getSerializer<'r> =
         |> Array.map (fun c -> sprintf "\"%s\"" (c.Replace("\"","\"\"")))
         |> String.concat ","
 
-let getRowsSerializer<'r> =
+let getRowsSerializerWriter<'r> =
     let header = getHeader typeof<'r> |> String.concat ","
     let serializer = getSerializer<'r>
-    fun rows ->
-        header + "\n" + (rows |> Seq.map serializer |> String.concat "\n")
+    fun (stream: Stream) records ->
+        use writer = new StreamWriter(stream)
+        writer.Write(header + "\n")
+        for record in records do
+            writer.Write(serializer record)
+            writer.Write("\n")

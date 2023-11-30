@@ -4,11 +4,13 @@
 module JrUtil.JdfModel
 
 open System
+open System.Globalization
 open System.Text.RegularExpressions
 open NodaTime
+open NodaTime.Text
 
 open JrUtil.Utils
-open JrUtil.CsvParser
+open JrUtil.CsvMetadata
 open JrUtil.UnionCodec
 
 // A bit of trickery to deal with F#'s lack of support for mutually recursive
@@ -71,6 +73,13 @@ type Attribute =
              | None -> let dp = getUnionParser typeof<Attribute>
                        attributeDefaultParser <- Some (dp)
                        dp str
+    static member private baseSerializer =
+        getUnionSerializer typeof<Attribute>
+    member this.CsvSerialize() =
+        match this with
+        | DayOfWeekService d -> string d
+        | _ -> Attribute.baseSerializer this
+
 
 // TODO: .NET reflection docs (not the F#-specific ones) say, that field order
 // isn't guaranteed by reflection. Maybe these types' fields will need some
@@ -78,11 +87,12 @@ type Attribute =
 
 type JdfVersion = {
     version: string
-    duNum: int option // TODO: What is this exactly?
+    // Číslo dopravního úřadu
+    duNum: int option
     region: string option
     batchId: string option
     creationDate: LocalDate option
-    name: String option
+    generator: String option
 }
 
 type Stop = {
@@ -221,6 +231,8 @@ type RouteStop = {
     routeDistinction: int
 }
 
+let private timePattern =
+    LocalTimePattern.CreateWithInvariantCulture("HHmm")
 type TripStopTime =
     // The annotations are here just because they look good
     // (and as documentation)
@@ -236,7 +248,12 @@ type TripStopTime =
         match str with
         | "|" -> Passing
         | "<" -> NotPassing
-        | _ -> parseTime "HHmm" str |> StopTime
+        | _ -> timePattern.Parse(str).GetValueOrThrow() |> StopTime
+    member this.CsvSerialize() =
+        match this with
+        | Passing -> "|"
+        | NotPassing -> "<"
+        | StopTime t -> timePattern.Format(t)
 
 type TripStop = {
     routeId: string
@@ -292,8 +309,8 @@ type Transfer = {
     routeId: string
     tripId: int64
     routeStopId: int64
-    // All points to global register
     transferRouteId: int64 option
+    // All these IDs point to the global stop register, *not* to local stop IDs
     transferStopId: int64 option
     transferStopPostId: int64 option
     transferEndStopId: int64 option
@@ -331,6 +348,18 @@ type ReservationOptions = {
     routeDistinction: int
 }
 
+type GeodataPrecision =
+    | [<StrValue("S")>] StopPrecise
+    | [<StrValue("T")>] TownPrecise
+
+// JrUtil extension
+type StopLocation = {
+    stopId: int64
+    lat: decimal
+    lon: decimal
+    precision: GeodataPrecision
+}
+
 type JdfBatch = {
     version: JdfVersion
     stops: Stop array
@@ -349,4 +378,5 @@ type JdfBatch = {
     agencyAlternations: AgencyAlternation array
     alternateRouteNames: AlternateRouteName array
     reservationOptions: ReservationOptions array
+    stopLocations: StopLocation array
 }

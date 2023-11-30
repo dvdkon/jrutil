@@ -7,19 +7,69 @@ open System
 open System.IO
 open System.Diagnostics
 open System.Globalization
+open System.Collections
 open System.Collections.Concurrent
 open System.Runtime.InteropServices
+open System.Runtime.Serialization.Formatters.Binary
 open System.Collections.Generic
 open DocoptNet
 open Serilog
 open Serilog.Events
 open Serilog.Sinks.SystemConsole.Themes
-open Serilog.Formatting.Json
+open Serilog.Formatting.Compact
 open NodaTime
 open NodaTime.Text
-open NetTopologySuite.Geometries
 
 #nowarn "0342"
+// For deprecated BinaryFormatter
+#nowarn "44"
+
+open System
+
+type MultiDict<'k, 'v when 'k: equality>() =
+    let dict = Dictionary<'k, ResizeArray<'v>>()
+
+    member this.Item
+        with get k =
+            let success, v = dict.TryGetValue(k)
+            if success then v
+            else
+                let arr = ResizeArray()
+                dict.[k] <- arr
+                arr
+        and set k (vs: 'v seq) =
+            dict.[k] <- ResizeArray(vs)
+
+    member this.Keys with get() = dict.Keys
+    member this.Values with get() = dict.Values
+    member this.Remove(k) = dict.Remove(k)
+
+type DateBitmap(interval: DateInterval, bits: BitArray) =
+    do
+        if bits.Length <> interval.Length then
+            failwith "DateBitmap day/bit count mismatch"
+
+    member this.Interval = interval
+    member this.Bits = bits
+
+    member this.Not() =
+        let bitsCopy = bits.Clone() :?> BitArray
+        bitsCopy.Not() |> ignore
+        DateBitmap(interval, bitsCopy)
+    member this.And(other: DateBitmap) =
+        assert (interval = other.Interval)
+        let bitsCopy = bits.Clone() :?> BitArray
+        bitsCopy.And(other.Bits) |> ignore
+        DateBitmap(interval, bitsCopy)
+    member this.ExtendTo(resInterval: DateInterval, value: bool) =
+        assert resInterval.Contains(interval)
+        let extended = BitArray(resInterval.Length)
+        extended.SetAll(value)
+        let offset = (interval.Start - resInterval.Start).Days
+        for i in 0..(bits.Length - 1) do
+            extended.[offset + i] <- bits.[i]
+        DateBitmap(resInterval, extended)
+
 
 let memoize f =
     let cache = new ConcurrentDictionary<_, _>()
@@ -39,6 +89,22 @@ let memoizeVoidFunc f =
             let result = f()
             cache <- Some result
             result)
+
+let mutable persistentCachePath: string option = None
+
+let cacheVoidFunc (key: string) (f: unit -> 'a) () =
+    match persistentCachePath with
+    | Some pcp ->
+        let cacheFilePath = Path.Combine(pcp, key)
+        if File.Exists(cacheFilePath) then
+            use stream = File.OpenRead(cacheFilePath)
+            (new BinaryFormatter()).Deserialize(stream) :?> 'a
+        else
+            let data = f ()
+            use stream = File.Open(cacheFilePath, FileMode.Create)
+            (new BinaryFormatter()).Serialize(stream, data)
+            data
+    | None -> f ()
 
 let chainCompare next prev =
     if prev <> 0 then prev else next
@@ -211,20 +277,35 @@ let setupLogging (logFile: string option) () =
         LoggerConfiguration()
          .MinimumLevel.Debug()
          .Enrich.FromLogContext()
-         .WriteTo.Console(
-             standardErrorFromLevel = LogEventLevel.Verbose,
-             applyThemeToRedirectedOutput = true,
-             theme = if RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-                     then SystemConsoleTheme.Literate :> ConsoleTheme
-                     else AnsiConsoleTheme.Literate :> ConsoleTheme)
+    if Environment.GetEnvironmentVariable("JRUTIL_LOG_TO_CONSOLE") <> "0" then
+        loggerFactory <-
+            loggerFactory.WriteTo.Console(
+                standardErrorFromLevel = LogEventLevel.Verbose,
+                applyThemeToRedirectedOutput = true,
+                theme =
+                    if RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                        then SystemConsoleTheme.Literate :> ConsoleTheme
+                        else AnsiConsoleTheme.Literate :> ConsoleTheme)
     logFile |> Option.iter (fun lf ->
         if lf.StartsWith("display:") then
             loggerFactory <- loggerFactory.WriteTo.File(lf.[8..])
         else if lf.StartsWith("json:") then
-            loggerFactory <- loggerFactory.WriteTo.File(JsonFormatter(), lf.[5..])
+            loggerFactory <- loggerFactory.WriteTo.File(
+                CompactJsonFormatter(), lf.[5..])
+        else if lf.StartsWith("rjson:") then
+            loggerFactory <- loggerFactory.WriteTo.File(
+                RenderedCompactJsonFormatter(), lf.[6..])
         else
             loggerFactory <- loggerFactory.WriteTo.File(lf))
     Log.Logger <- loggerFactory.CreateLogger()
+
+/// Create Serilog event without logging it immediately
+let logEvent level (msg: string) (props: 'a array) =
+    let valid, parsedMsg, boundProps =
+        Log.BindMessageTemplate(msg, props |> Array.map box)
+    if not valid then
+        failwithf "Invalid log event: '%s' %A" msg props
+    LogEvent(DateTimeOffset.Now, level, null, parsedMsg, boundProps)
 
 /// Useful for wrapping long computations for logging, e.g.
 /// `logWrappedOp "Computing Pi" (getDigitsOfPi 1000)`
@@ -275,3 +356,37 @@ let innerJoinOn xkey ykey xs ys =
 let optResult error = function
     | Some v -> Ok v
     | None -> Error error
+
+let nullOpt v =
+    if v = null then None else Some v
+
+let nullableOpt (v: 'a Nullable) = if v.HasValue then Some v.Value else None
+
+let splitSeq pred xs =
+    let split = xs |> Seq.groupBy pred |> Seq.toList
+    split
+    |> List.tryFind (fun (b, _) -> b)
+    |> Option.defaultValue (true, [])
+    |> snd,
+    split
+    |> List.tryFind (fun (b, _) -> not b)
+    |> Option.defaultValue (false, [])
+    |> snd
+
+let concatTo2 xs =
+    let x1s = ResizeArray()
+    let x2s = ResizeArray()
+    for (x1, x2) in xs do
+        x1s.AddRange(x1)
+        x2s.AddRange(x2)
+    x1s, x2s
+
+let concatTo3 xs =
+    let x1s = ResizeArray()
+    let x2s = ResizeArray()
+    let x3s = ResizeArray()
+    for (x1, x2, x3) in xs do
+        x1s.AddRange(x1)
+        x2s.AddRange(x2)
+        x3s.AddRange(x3)
+    x1s, x2s, x3s

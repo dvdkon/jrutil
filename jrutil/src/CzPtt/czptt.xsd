@@ -85,8 +85,8 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  <xs:element name="StartDateTime" type="xs:date"/>
-  <xs:element name="EndDateTime" type="xs:date"/>
+  <xs:element name="StartDateTime" type="xs:dateTime"/>
+  <xs:element name="EndDateTime" type="xs:dateTime"/>
   <xs:element name="CZPTTCISMessage">
     <xs:complexType>
       <xs:sequence>
@@ -104,7 +104,7 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  <xs:element name="CZPTTCreation" type="xs:date"/>
+  <xs:element name="CZPTTCreation" type="xs:dateTime"/>
   <xs:element name="CZPTTInformation">
     <xs:complexType>
       <xs:sequence>
@@ -192,14 +192,22 @@
       </xs:attribute>
     </xs:complexType>
   </xs:element>
-  <xs:element name="Time" type="xs:time"/>
+  <xs:element name="Time">
+    <xs:simpleType>
+      <xs:restriction base="xs:string">
+        <xs:pattern value="\d{2}:\d{2}:\d{2}\.\d+\+\d{2}:\d{2}"/>
+      </xs:restriction>
+    </xs:simpleType>
+  </xs:element>
   <xs:element name="Offset" type="xs:integer"/>
   <xs:element name="ResponsibleRU" type="company"/>
   <xs:element name="ResponsibleIM" type="company"/>
   <xs:element name="TrainType">
     <xs:simpleType>
       <xs:restriction base="xs:token">
+        <xs:enumeration value="0"/>
         <xs:enumeration value="1"/>
+        <xs:enumeration value="2"/>
       </xs:restriction>
     </xs:simpleType>
   </xs:element>
@@ -257,5 +265,5 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  <xs:element name="CZPTTCancelation" type="xs:date"/>
+  <xs:element name="CZPTTCancelation" type="xs:dateTime"/>
 </xs:schema>

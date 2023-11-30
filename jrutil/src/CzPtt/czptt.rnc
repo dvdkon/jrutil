@@ -36,8 +36,8 @@ PlannedCalendar =
 	element PlannedCalendar {
 		element BitmapDays { xsd:string { pattern="[10]+" } },
 		element ValidityPeriod {
-			element StartDateTime { xsd:date },
-			element EndDateTime { xsd:date }?
+			element StartDateTime { xsd:dateTime },
+			element EndDateTime { xsd:dateTime }?
 		}
 	}
 
@@ -50,7 +50,7 @@ CZPTTCISMessage =
 			PlannedTransportIdentifiers+
 		},
 
-		element CZPTTCreation { xsd:date },
+		element CZPTTCreation { xsd:dateTime },
 
 		element CZPTTInformation {
 			PlannedCalendar,
@@ -75,13 +75,20 @@ CZPTTCISMessage =
 					element DwellTime { xsd:decimal }?,
 					element Timing {
 						attribute TimingQualifierCode { "ALA" | "ALD" },
-						element Time { xsd:time },
+						element Time {
+							# Should be xsd:time, but then it gets deserialised
+							# as System.DateTime and we lose the timezone
+							# offset
+							xsd:string {
+								pattern="\d{2}:\d{2}:\d{2}\.\d+\+\d{2}:\d{2}"
+							}
+						},
 						element Offset { xsd:integer }
 					}*
 				}?,
 				element ResponsibleRU { company }?,
 				element ResponsibleIM { company }?,
-				element TrainType { "1" }?,
+				element TrainType { "0" | "1" | "2" }?,
 				element TrafficType { xsd:string { pattern="[0-9A-Z]{2}" } }?,
 				element CommercialTrafficType {
 					xsd:string { pattern="[0-9A-B]{2,4}" }
@@ -107,7 +114,7 @@ CZCanceledPTTMessage =
 	element CZCanceledPTTMessage {
 		PlannedTransportIdentifiers+,
 		element CZPTTCancelation {
-			xsd:date
+			xsd:dateTime
 		},
 		PlannedCalendar
 	}
