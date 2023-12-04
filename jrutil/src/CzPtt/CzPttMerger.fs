@@ -7,6 +7,7 @@ open System.Collections.Generic
 
 open JrUtil.CzPtt
 open Serilog
+open Serilog.Context
 
 type CzPttMerger() =
     let getPaidStr (ptis: CzPttXml.TransportIdentifier seq) =
@@ -45,3 +46,17 @@ type CzPttMerger() =
         match msg with
         | Timetable m -> this.Add(m)
         | Cancellation c -> this.Cancel(c)
+
+    member this.ProcessAll(msgs: (string * CzpttMessage) seq) =
+        // We need to process the timetables first, before we can cancel them
+        let msgs =
+            msgs
+            |> Seq.sortBy (fun (_, m) ->
+                match m with Timetable _ -> 0 | Cancellation _ -> 1)
+        for name, msg in msgs do
+            use _logCtx = LogContext.PushProperty("CzPttFile", name)
+            Log.Information("Merging CZPTT file {CzPttFile}", name)
+            try
+                this.Process(msg)
+            with
+            | e -> Log.Error(e, "Error while merging {CzPttFile}", name)

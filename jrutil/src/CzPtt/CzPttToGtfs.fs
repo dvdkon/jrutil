@@ -386,17 +386,5 @@ let gtfsFeed (czptts: CzPttXml.CzpttcisMessage seq) =
 
 let gtfsFeedMerged (msgs: (string * CzpttMessage) seq) =
     let merger = CzPttMerger()
-    // We need to process the timetables first, before we can cancel them
-    let msgs =
-        msgs
-        |> Seq.sortBy (fun (_, m) ->
-            match m with Timetable _ -> 0 | Cancellation _ -> 1)
-    for name, msg in msgs do
-        use _logCtx = LogContext.PushProperty("CzPttFile", name)
-        Log.Information("Merging CZPTT file {CzPttFile}", name)
-        try
-            merger.Process(msg)
-        with
-        | e -> Log.Error(e, "Error while merging {CzPttFile}", name)
-
+    merger.ProcessAll(msgs)
     gtfsFeed merger.Messages.Values
