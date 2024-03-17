@@ -39,6 +39,8 @@ let stopZone batch (stop: Stop) =
     if Set.isEmpty zones then None
     else Some <| String.concat "," zones
 
+let tripIsReverse tripId = tripId % 2L = 0L
+
 /// name: filename inside batch (case-insensitive)
 let tryReadJdfText (dir: JdfBatchDirectory) name =
     match dir with
