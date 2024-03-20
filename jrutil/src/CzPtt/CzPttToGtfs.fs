@@ -317,6 +317,9 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
                 then ServiceAdded
                 else ServiceRemoved
         })
+    // We don't need to keep the service removals, since we don't have any
+    // calendars to exclude from
+    |> List.filter (fun e -> e.exceptionType = ServiceAdded)
 
 let gtfsFeedInfo (czptts: CzPttXml.CzpttcisMessage seq) =
     let dates =

@@ -38,9 +38,13 @@ type CzPttMerger() =
             let newBitmap =
                 msgBitmap.And(
                     cancelBitmap.ExtendTo(msgBitmap.Interval, false).Not())
-            msg.CzpttInformation.PlannedCalendar <-
-                serializeCalendar(newBitmap)
-            ()
+            if newBitmap.HasAnySet() |> not then
+                // Train was fully cancelled, remove it entirely
+                this.Messages.Remove(paid) |> ignore
+            else
+                msg.CzpttInformation.PlannedCalendar <-
+                    serializeCalendar(newBitmap)
+                ()
 
     member this.Process(msg: CzpttMessage) =
         match msg with

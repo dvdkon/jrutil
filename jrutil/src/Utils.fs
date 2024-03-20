@@ -69,7 +69,12 @@ type DateBitmap(interval: DateInterval, bits: BitArray) =
         for i in 0..(bits.Length - 1) do
             extended.[offset + i] <- bits.[i]
         DateBitmap(resInterval, extended)
-
+    member this.HasAnySet() =
+        // TODO: Use native .HasAnySet() when we get to .NET 8
+        let mutable anySet = false
+        for x in this.Bits do
+            if x then anySet <- true
+        anySet
 
 let memoize f =
     let cache = new ConcurrentDictionary<_, _>()
