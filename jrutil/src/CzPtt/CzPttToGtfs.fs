@@ -107,10 +107,12 @@ let trainNameShort (location: CzPttXml.CzpttLocation) =
 
 let trainNameLong (czptt: CzPttXml.CzpttcisMessage)
                   (location: CzPttXml.CzpttLocation) =
-    [Some <| trainNameShort location
-     networkSpecificParams czptt |> Map.tryFind "CZTrainName"]
-    |> List.choose id
-    |> String.concat " "
+    // Most software interprets GTFS long names as something that should be
+    // appended to the short name, not as an alternative. Give them just the
+    // optional train name
+    networkSpecificParams czptt
+    |> Map.tryFind "CZTrainName"
+    |> Option.defaultValue ""
 
 let gtfsAgencyId num =
     sprintf "-CZPTTA-%s" num
