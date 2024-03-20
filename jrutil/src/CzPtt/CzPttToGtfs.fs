@@ -151,9 +151,17 @@ let gtfsStopId (loc: CzPttXml.CzpttLocation) =
              |> Option.map (fun p -> "-" + p)
              |> Option.defaultValue "")
 
+let mapMsgsTrying f (msgs: CzPttXml.CzpttcisMessage seq) =
+    msgs |> Seq.choose (fun msg ->
+        try Some <| f msg
+        with e ->
+            let ident = timetableIdentifier msg CzPttXml.ObjectType.Pa
+            Log.Error(e, "Error while handling message {PaId}", identifierStr ident)
+            None)
+
 let gtfsRoutes (czptts: CzPttXml.CzpttcisMessage seq) =
     czptts
-    |> Seq.map (fun czptt ->
+    |> mapMsgsTrying (fun czptt ->
         let firstLocation = firstValidLocation czptt
 
         {
@@ -377,12 +385,17 @@ let gtfsFeed (czptts: CzPttXml.CzpttcisMessage seq) =
         agencies = gtfsAgencies publicMessages
         stops = gtfsStops publicMessages |> Seq.toArray
         routes = gtfsRoutes publicMessages
-        trips = publicMessages |> Seq.map gtfsTrip |> Seq.toArray
-        stopTimes = publicMessages |> Seq.collect gtfsStopTimes |> Seq.toArray
+        trips = publicMessages |> mapMsgsTrying gtfsTrip |> Seq.toArray
+        stopTimes =
+            publicMessages
+            |> mapMsgsTrying gtfsStopTimes
+            |> Seq.collect id
+            |> Seq.toArray
         calendar = None
         calendarExceptions =
             publicMessages
-            |> Seq.collect gtfsCalendarExceptions
+            |> mapMsgsTrying gtfsCalendarExceptions
+            |> Seq.collect id
             |> Seq.toArray
             |> Some
         feedInfo = gtfsFeedInfo publicMessages |> Some
