@@ -27,7 +27,7 @@ let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
     | Some ctt ->
         match ctt with
         | "EC" | "IC" | "LE" | "RJ" | "AEx" -> "102" // Long Distance Trains
-        | "EN" | "NJ" -> "105" // Sleeper Rail
+        | "EN" | "NJ" | "ES" -> "105" // Sleeper Rail
         | "Ex" | "Rx" | "rj" | "TLX" | "TL"
         | "R" | "SC" -> "103" // Inter Regional Rail
         | "Os" | "Sp" | "LET" -> "106" // Regional Rail
