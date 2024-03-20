@@ -95,7 +95,7 @@ let rec parseAll (path: string) =
     else if Path.GetExtension(path).ToLower() = ".zip" then
         ZipFile.OpenRead(path).Entries
         |> Seq.filter (fun entry ->
-            Path.GetExtension(entry.Name).ToLower() = ".zip")
+            Path.GetExtension(entry.Name).ToLower() = ".xml")
         |> Seq.map (fun entry ->
             use reader = new StreamReader(entry.Open())
             $"path//{entry.Name}", parseText <| reader.ReadToEnd())
