@@ -65,7 +65,7 @@ type Attribute =
     | [<StrValue("s")>] SelfServiceTicketTrain
 
     with
-    static member CsvParse(str) =
+    static member CsvParse(str: string) =
         if Regex.IsMatch(str, @"^\d+$")
         then DayOfWeekService (int str) |> box
         else match attributeDefaultParser with

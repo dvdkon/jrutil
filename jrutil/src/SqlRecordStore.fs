@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2024 David Koňařík
 
 module JrUtil.SqlRecordStore
 
@@ -35,14 +35,11 @@ type SqlRow(columnNames: string seq, cols: obj array) =
     member this.Item(columnIndex) =
         cols.[columnIndex]
 
-NpgsqlConnection.GlobalTypeMapper.UseNodaTime() |> ignore
-
 // Don't forget to .Close()/use the result!
-let getPostgresqlConnection connstr =
-    let conn = new NpgsqlConnection(connstr)
-    conn.Open()
-    conn.TypeMapper.UseNodaTime() |> ignore // TODO: Shouldn't be necessary
-    conn
+let getPostgresqlConnection (connstr: string) =
+    let datasrc = NpgsqlDataSourceBuilder(connstr) // TODO: Reuse as intended?
+    datasrc.UseNodaTime() |> ignore
+    datasrc.Build().OpenConnection()
 
 let rec sqlAdoTypeFor t =
     if t = typeof<string> then NpgsqlDbType.Text

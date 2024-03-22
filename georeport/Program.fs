@@ -1,7 +1,7 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
 // (c) 2023 David Koňařík
 
-open Giraffe.GiraffeViewEngine
+open Giraffe.ViewEngine
 open Serilog
 
 open JrUtil.Utils
@@ -60,7 +60,7 @@ let main argv =
 
             Log.Information("Creating report")
             let page = resultPage railStopMatches otherStopMatches
-            let html = renderHtmlDocument page
+            let html = RenderView.AsString.htmlNode page
             printfn "%s" html
 
             0

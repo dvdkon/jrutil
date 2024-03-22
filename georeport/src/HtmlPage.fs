@@ -6,7 +6,7 @@ module GeoReport.HtmlPage
 open System.IO
 open System.Text.Json
 open System.Text.Json.Serialization
-open Giraffe.GiraffeViewEngine
+open Giraffe.ViewEngine
 
 open JrUtil.GeoData.Common
 open GeoReport.Processing
