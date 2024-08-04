@@ -116,7 +116,8 @@ type RoutesController() =
                 WHERE lastDate >= @dateFrom::date
                   AND firstDate <= @dateTo::date
                   AND {searchSql}
-                ORDER BY routeId
+                -- Order by first numeric component in name
+                ORDER BY (regexp_match(name, '\d+'))[1]::int
                 LIMIT @perPage
                 OFFSET @page * @perPage
                 """ pars
