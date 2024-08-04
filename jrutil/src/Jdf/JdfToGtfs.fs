@@ -3,7 +3,6 @@
 
 module JrUtil.JdfToGtfs
 
-open System
 open System.Text.RegularExpressions
 open NodaTime
 open NodaTime.Calendars
@@ -336,6 +335,18 @@ let getGtfsCalendar (jdfBatch: JdfModel.JdfBatch) =
     |> (fun (ets, ces, cexs) -> set ets, ces.ToArray(), cexs.ToArray())
 
 let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
+    let lastStopPerTrip =
+        jdfBatch.tripStops
+        |> Seq.groupBy (fun ts -> ts.routeId, ts.routeDistinction, ts.tripId)
+        |> Seq.map (fun (k, tss) ->
+            let lastTs =
+                tss
+                |> Seq.maxBy (fun ts ->
+                    ts.routeStopId
+                    * (if Jdf.tripIsReverse ts.tripId then -1L else 1))
+            k, lastTs.stopId)
+        |> Map
+    let stopById = jdfBatch.stops |> Seq.map (fun s -> s.id, s) |> Map
     jdfBatch.trips
     |> Seq.map (fun jdfTrip ->
         let id = jdfTripId jdfTrip.routeId jdfTrip.routeDistinction jdfTrip.id
@@ -347,11 +358,16 @@ let getGtfsTrips (jdfBatch: JdfModel.JdfBatch) =
             routeId = jdfRouteId jdfTrip.routeId jdfTrip.routeDistinction
             serviceId = id
             id = id
-            headsign = None
+            headsign =
+                stopById.[lastStopPerTrip.[
+                    jdfTrip.routeId, jdfTrip.routeDistinction, jdfTrip.id]]
+                |> getStopName
+                |> Some
             // This is kind of arbitrary
             // TODO: Customizability?
             shortName = Some (sprintf "%s %d" jdfTrip.routeId jdfTrip.id)
-            directionId = Some (if jdfTrip.id % 2L = 0L then "0" else "1")
+            directionId = Some (if Jdf.tripIsReverse jdfTrip.id
+                                then "0" else "1")
             blockId = None
             shapeId = None
             wheelchairAccessible =

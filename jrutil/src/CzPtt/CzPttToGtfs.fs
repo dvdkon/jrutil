@@ -27,7 +27,7 @@ let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
     | Some ctt ->
         match ctt with
         | "EC" | "IC" | "LE" | "RJ" | "AEx" -> "102" // Long Distance Trains
-        | "EN" | "NJ" -> "105" // Sleeper Rail
+        | "EN" | "NJ" | "ES" -> "105" // Sleeper Rail
         | "Ex" | "Rx" | "rj" | "TLX" | "TL"
         | "R" | "SC" -> "103" // Inter Regional Rail
         | "Os" | "Sp" | "LET" -> "106" // Regional Rail
@@ -107,10 +107,12 @@ let trainNameShort (location: CzPttXml.CzpttLocation) =
 
 let trainNameLong (czptt: CzPttXml.CzpttcisMessage)
                   (location: CzPttXml.CzpttLocation) =
-    [Some <| trainNameShort location
-     networkSpecificParams czptt |> Map.tryFind "CZTrainName"]
-    |> List.choose id
-    |> String.concat " "
+    // Most software interprets GTFS long names as something that should be
+    // appended to the short name, not as an alternative. Give them just the
+    // optional train name
+    networkSpecificParams czptt
+    |> Map.tryFind "CZTrainName"
+    |> Option.defaultValue ""
 
 let gtfsAgencyId num =
     sprintf "-CZPTTA-%s" num
@@ -149,9 +151,17 @@ let gtfsStopId (loc: CzPttXml.CzpttLocation) =
              |> Option.map (fun p -> "-" + p)
              |> Option.defaultValue "")
 
+let mapMsgsTrying f (msgs: CzPttXml.CzpttcisMessage seq) =
+    msgs |> Seq.choose (fun msg ->
+        try Some <| f msg
+        with e ->
+            let ident = timetableIdentifier msg CzPttXml.ObjectType.Pa
+            Log.Error(e, "Error while handling message {PaId}", identifierStr ident)
+            None)
+
 let gtfsRoutes (czptts: CzPttXml.CzpttcisMessage seq) =
     czptts
-    |> Seq.map (fun czptt ->
+    |> mapMsgsTrying (fun czptt ->
         let firstLocation = firstValidLocation czptt
 
         {
@@ -315,6 +325,9 @@ let gtfsCalendarExceptions (czptt: CzPttXml.CzpttcisMessage) =
                 then ServiceAdded
                 else ServiceRemoved
         })
+    // We don't need to keep the service removals, since we don't have any
+    // calendars to exclude from
+    |> List.filter (fun e -> e.exceptionType = ServiceAdded)
 
 let gtfsFeedInfo (czptts: CzPttXml.CzpttcisMessage seq) =
     let dates =
@@ -372,12 +385,17 @@ let gtfsFeed (czptts: CzPttXml.CzpttcisMessage seq) =
         agencies = gtfsAgencies publicMessages
         stops = gtfsStops publicMessages |> Seq.toArray
         routes = gtfsRoutes publicMessages
-        trips = publicMessages |> Seq.map gtfsTrip |> Seq.toArray
-        stopTimes = publicMessages |> Seq.collect gtfsStopTimes |> Seq.toArray
+        trips = publicMessages |> mapMsgsTrying gtfsTrip |> Seq.toArray
+        stopTimes =
+            publicMessages
+            |> mapMsgsTrying gtfsStopTimes
+            |> Seq.collect id
+            |> Seq.toArray
         calendar = None
         calendarExceptions =
             publicMessages
-            |> Seq.collect gtfsCalendarExceptions
+            |> mapMsgsTrying gtfsCalendarExceptions
+            |> Seq.collect id
             |> Seq.toArray
             |> Some
         feedInfo = gtfsFeedInfo publicMessages |> Some
@@ -386,17 +404,5 @@ let gtfsFeed (czptts: CzPttXml.CzpttcisMessage seq) =
 
 let gtfsFeedMerged (msgs: (string * CzpttMessage) seq) =
     let merger = CzPttMerger()
-    // We need to process the timetables first, before we can cancel them
-    let msgs =
-        msgs
-        |> Seq.sortBy (fun (_, m) ->
-            match m with Timetable _ -> 0 | Cancellation _ -> 1)
-    for name, msg in msgs do
-        use _logCtx = LogContext.PushProperty("CzPttFile", name)
-        Log.Information("Merging CZPTT file {CzPttFile}", name)
-        try
-            merger.Process(msg)
-        with
-        | e -> Log.Error(e, "Error while merging {CzPttFile}", name)
-
+    merger.ProcessAll(msgs)
     gtfsFeed merger.Messages.Values

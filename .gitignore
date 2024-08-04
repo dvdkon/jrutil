@@ -10,6 +10,7 @@
 /georeport/thirdparty
 /rtview/wwwroot/chart.umd.js
 /rtview/wwwroot/rtview.css
-!/scripts/find_jdf_with_mhd_naming.fsx
 /scripts/*/
 /scripts/*
+!/scripts/find_jdf_with_mhd_naming.fsx
+!/scripts/czptt_agency_map.fsx

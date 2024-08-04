@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2019 David Koňařík
+// (c) 2024 David Koňařík
 
 module JrUtil.SqlRecordStore
 
@@ -35,14 +35,11 @@ type SqlRow(columnNames: string seq, cols: obj array) =
     member this.Item(columnIndex) =
         cols.[columnIndex]
 
-NpgsqlConnection.GlobalTypeMapper.UseNodaTime() |> ignore
-
 // Don't forget to .Close()/use the result!
-let getPostgresqlConnection connstr =
-    let conn = new NpgsqlConnection(connstr)
-    conn.Open()
-    conn.TypeMapper.UseNodaTime() |> ignore // TODO: Shouldn't be necessary
-    conn
+let getPostgresqlConnection (connstr: string) =
+    let datasrc = NpgsqlDataSourceBuilder(connstr) // TODO: Reuse as intended?
+    datasrc.UseNodaTime() |> ignore
+    datasrc.Build().OpenConnection()
 
 let rec sqlAdoTypeFor t =
     if t = typeof<string> then NpgsqlDbType.Text
@@ -54,11 +51,11 @@ let rec sqlAdoTypeFor t =
     else if t = typeof<bool> then NpgsqlDbType.Boolean
     else if t = typeof<DateTime> then NpgsqlDbType.Timestamp
     else if t = typeof<LocalDateTime> then NpgsqlDbType.Timestamp
-    else if t = typeof<Instant> then NpgsqlDbType.Timestamp
+    else if t = typeof<Instant> then NpgsqlDbType.TimestampTz
     else if t = typeof<LocalDate> then NpgsqlDbType.Date
     else if t = typeof<LocalTime> then NpgsqlDbType.Time
     else if t = typeof<Period> then NpgsqlDbType.Interval
-    else if t.IsSubclassOf(typeof<DateTimeZone>) then NpgsqlDbType.Unknown
+    else if t.IsSubclassOf(typeof<DateTimeZone>) then NpgsqlDbType.Text
     else if t.IsSubclassOf(typeof<NpgsqlRange<_>>) then NpgsqlDbType.Range
     else if t = typeof<DBNull> then NpgsqlDbType.Unknown
     else if typeIsOption t then
@@ -81,7 +78,7 @@ let sqlTypeFor (type_: Type) =
         else if t = typeof<bool> then "BOOLEAN"
         else if t = typeof<DateTime> then "TIMESTAMP"
         else if t = typeof<LocalDateTime> then "TIMESTAMP"
-        else if t = typeof<Instant> then "TIMESTAMP"
+        else if t = typeof<Instant> then "TIMESTAMPTZ"
         else if t = typeof<LocalDate> then "DATE"
         else if t = typeof<LocalTime> then "TIME"
         else if t = typeof<Period> then "INTERVAL"
@@ -114,6 +111,11 @@ let rec createSqlValuePreparer t =
             if isNull value || optionCaseGetter value <> optionSomeCase.Tag
             then box DBNull.Value
             else innerPreparer (valueProp.GetValue(value))
+    elif t.IsSubclassOf(typeof<DateTimeZone>) then
+        // Npgsql stopped stringifying unknown types, we now have to do this
+        // ourselves
+        fun (value: obj) ->
+            box (value.ToString())
     else
         fun value ->
             if isNull value then box DBNull.Value

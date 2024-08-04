@@ -88,17 +88,17 @@ let rec parseAll (path: string) =
         use stream = File.Open(path, FileMode.Open)
         use gzStream = new GZipStream(stream, CompressionMode.Decompress)
         use reader = new StreamReader(gzStream)
-        let doc =  parseText <| reader.ReadToEnd()
+        let doc = parseText <| reader.ReadToEnd()
         seq { path, doc }
     else if Path.GetExtension(path).ToLower() = ".xml" then
         seq { path, parseFile path }
     else if Path.GetExtension(path).ToLower() = ".zip" then
         ZipFile.OpenRead(path).Entries
         |> Seq.filter (fun entry ->
-            Path.GetExtension(entry.Name).ToLower() = ".zip")
+            Path.GetExtension(entry.Name).ToLower() = ".xml")
         |> Seq.map (fun entry ->
             use reader = new StreamReader(entry.Open())
-            $"path//{entry.Name}", parseText <| reader.ReadToEnd())
+            $"{path}//{entry.Name}", parseText <| reader.ReadToEnd())
     else if Directory.Exists(path) then
         Seq.concat [Directory.EnumerateFiles(path);
                     Directory.EnumerateDirectories(path)]
