@@ -65,6 +65,10 @@ let pageMaster t content =
             link [_rel "stylesheet"
                   _type "text/css"
                   _href "/rtview.css"]
+            script [attr "data-goatcounter"
+                         "https://dvdkon-rtview.gcwa.ggu.cz/count"
+                    _async
+                    _src "//dvdkon-rtview.gcwa.ggu.cz/count.js"] []
         ]
         body [] [
             content
