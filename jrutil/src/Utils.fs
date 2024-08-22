@@ -65,7 +65,7 @@ type DateBitmap(interval: DateInterval, bits: BitArray) =
         assert resInterval.Contains(interval)
         let extended = BitArray(resInterval.Length)
         extended.SetAll(value)
-        let offset = (interval.Start - resInterval.Start).Days
+        let offset = Period.DaysBetween(resInterval.Start, interval.Start)
         for i in 0..(bits.Length - 1) do
             extended.[offset + i] <- bits.[i]
         DateBitmap(resInterval, extended)
