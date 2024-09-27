@@ -361,7 +361,10 @@ let gtfsAgencies (czptts: CzPttXml.CzpttcisMessage seq) =
     |> Seq.map (fun agencyNum ->
         let agency =
             KadrEnumWs.companyForEvCisloEu agencyNum
-            |> Option.get
+            |> Option.defaultWith (fun () ->
+                Log.Error("Did not find company for {AgencyNum} in KADR", agencyNum)
+                KadrWsCiselniky.Spolecnost(ObchodNazev = $"Unknown {agencyNum}")
+            )
         {
             id = Some <| gtfsAgencyId agencyNum
             name = agency.ObchodNazev
