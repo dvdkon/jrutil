@@ -34,22 +34,29 @@ type TrainDetail = {
 
 type GetTrainsWithFilterInput = {
     CarrierCode: string array
-    Delay: string array
-    DelayMax: int
-    DelayMin: int
-    FreightKindOfTrain: string array
     PublicKindOfTrain: string array
-    SearchByTrainName: bool
-    SearchByTrainNumber: bool
-    SearchByTRID: bool
-    SearchByVehicleNumber: bool
-    SearchExtraTrain: bool
-    SearchPhrase: string
-    SearchTextType: string
-    SelectedTrain: int
+    FreightKindOfTrain: string array
+    KindOfExtraordinary: string array
+    // Present in JS source code, but not sent
+    // NoteOfExtraordinary: string array
+    TrainRunning: bool
+    PMD: bool
     TrainNoChange: int
     TrainOutOfOrder: bool
-    TrainRunning: bool
+    Delay: string array
+    DelayMin: int
+    DelayMax: int
+    SearchByTrainNumber: bool
+    SearchByTrainName: bool
+    SearchByTRID: bool
+    SearchByVehicleNumber: bool
+    SearchTextType: string
+    SearchPhrase: string
+    SelectedTrain: int
+    RequestedBy: int
+    OrderedBy: string
+    UnRestriction: bool
+    PlRestriction: bool
 }
 
 type GetTrainsWithFilterOutput =
@@ -103,22 +110,27 @@ let fetchAllTrainsSummary indexData () =
             indexData.carrierCodes
             [| "f_o_r_e_i_g_n" |]
         ]
+        PublicKindOfTrain = indexData.trainTypes
+        FreightKindOfTrain = [||]
+        KindOfExtraordinary = [||]
+        TrainRunning = true
+        PMD = false
+        TrainNoChange = 0
+        TrainOutOfOrder = true
         Delay = indexData.delayGroups
         DelayMax = -99999
         DelayMin = -99999
-        FreightKindOfTrain = [||]
-        PublicKindOfTrain = indexData.trainTypes
         SearchByTrainName = false
         SearchByTrainNumber = false
         SearchByTRID = false
         SearchByVehicleNumber = false
-        SearchExtraTrain = false
         SearchPhrase = ""
         SearchTextType = "0"
         SelectedTrain = -1
-        TrainNoChange = 0
-        TrainOutOfOrder = true
-        TrainRunning = true
+        RequestedBy = -1
+        OrderedBy = ""
+        UnRestriction = true
+        PlRestriction = true
     })
     let respStr =
         Http.RequestString(
