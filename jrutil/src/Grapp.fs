@@ -27,8 +27,8 @@ type IndexData = {
 }
 
 type TrainDetail = {
-    lastStopId: string
-    delay: float
+    lastStopId: string option
+    delay: float option
     routePageAvailable: bool
 }
 
@@ -171,18 +171,17 @@ let fetchTrainDetail indexData nameIdMap trainId () =
         let lastStop =
             Map.tryFind "potvrzená stanice" tableMap
             |> Option.orElse (Map.tryFind "poslední známá poloha:" tableMap)
-            |> Option.defaultWith (fun () ->
-                failwith "Failed to get current station")
-        let delayStr =
+            |> Option.map (stopIdForName nameIdMap)
+        let delay =
             Map.tryFind "náskok" tableMap
             |> Option.map ((+) "-")
             |> Option.orElse (Map.tryFind "zpoždění" tableMap)
-            |> Option.get
+            |> Option.map (fun ds ->
+                if ds = "-" then 0.0
+                else float <| ds.Replace("min", ""))
         Some {
-            lastStopId = stopIdForName nameIdMap lastStop
-            delay =
-                if delayStr = "-" then 0.0
-                else float <| delayStr.Replace("min", "")
+            lastStopId = lastStop
+            delay = delay
             routePageAvailable = doc.CssSelect(".action") |> Seq.isEmpty |> not
         }
 
@@ -191,12 +190,8 @@ let fetchTrainRoute indexData nameIdMap trainId () =
         Http.RequestString(sprintf "%s/OneTrain/RouteInfo/%s?trainId=%d"
                                    baseUrl indexData.token trainId,
                            cookieContainer = indexData.cookies)
-    // XXX: Remove the <html> tag when the FSharp.Data fix makes it into a
-    // release (https://github.com/fsharp/FSharp.Data/pull/1290)
-    let doc = HtmlDocument.Parse("<html>" + (fsharpDataHtmlWorkaround resp) + "<html>")
+    let doc = HtmlDocument.Parse(fsharpDataHtmlWorkaround resp)
 
-
-    // TODO: Maybe use data from train detail page?
     let currentStationIdx =
         match doc.CssSelect(".route .row")
               |> Seq.tryFindIndex (fun row ->
@@ -290,8 +285,8 @@ let fetchAllTrains indexData nameIdMap () =
                             lat = float train.Gps.[0]
                             lon = float train.Gps.[1]
                         }
-                        lastStopId = Some detail.lastStopId
-                        delay = Some detail.delay
+                        lastStopId = detail.lastStopId
+                        delay = detail.delay
                         stopHistory = Some route
                         routeId = sprintf "-CZTRAINR-%s" trainId
                         shortName = Some trainName
