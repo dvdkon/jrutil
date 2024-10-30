@@ -218,7 +218,7 @@ let sqlInsertColumnsStr recType =
     |> Seq.map (fun f -> sprintf "\"%s\"" (sqlIdent f.Name))
     |> String.concat ", "
 
-let getSqlInserterTemplated = memoize <| fun recType ->
+let getSqlInserterTemplatedDyn = memoize <| fun recType ->
     assert FSharpType.IsRecord(recType)
     let fieldsGetter = FSharpValue.PreComputeRecordReader recType
     let columnsStr = sqlInsertColumnsStr recType
@@ -226,7 +226,7 @@ let getSqlInserterTemplated = memoize <| fun recType ->
         FSharpType.GetRecordFields(recType)
         |> Seq.map (fun f -> getSqlValuePreparer f.PropertyType)
         |> Seq.toArray
-    fun template table (conn: DbConnection) (os: obj seq) ->
+    let insertBatch template table (conn: DbConnection) (os: obj seq) =
         if not <| Seq.isEmpty os then
             let ps =
                 os
@@ -246,14 +246,28 @@ let getSqlInserterTemplated = memoize <| fun recType ->
                 template (sqlIdent table) columnsStr paramsStr
             executeSql conn sql ps
 
-let getSqlInserter recType =
-    getSqlInserterTemplated
+    fun template table (conn: DbConnection) (os: obj seq) ->
+        // Automatically batch items by 100, otherwise this won't ever finish
+        // for large collections
+        os
+        |> Seq.chunkBySize 100
+        |> Seq.iter (insertBatch template table conn)
+
+let getSqlInserterTemplated<'a> tpl tbl =
+    let inserter = getSqlInserterTemplatedDyn typeof<'a> tpl tbl
+    fun conn (rows: 'a seq) -> inserter conn (rows |> Seq.map box)
+
+let getSqlInserterDyn recType =
+    getSqlInserterTemplatedDyn
         recType
         (sprintf """INSERT INTO "%s" (%s) VALUES %s""")
 
+let getSqlInserter<'a> tbl =
+    let inserter = getSqlInserterDyn typeof<'a> tbl
+    fun conn rows -> inserter conn (rows |> Seq.map box)
+
 let sqlInsert<'a> conn table (os: 'a seq) =
-    let inserter = getSqlInserter typeof<'a>
-    inserter table conn (Seq.map box os)
+    getSqlInserterDyn typeof<'a> table conn (Seq.map box os)
 
 let recordSqlColsNullable recType =
     FSharpType.GetRecordFields(recType)

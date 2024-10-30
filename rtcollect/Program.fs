@@ -1,15 +1,16 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2021 David Koňařík
+// (c) 2024 David Koňařík
 
+open System
 open System.Threading
-open FSharp.Data
+open System.Threading.Tasks
+open System.Net.Http
 open NodaTime
 open Serilog
 
 open JrUtil
 open JrUtil.Utils
 open JrUtil.SqlRecordStore
-open JrUtil.RealTimeModel
 open JrUtil.RealTimeSql
 
 let docstring = (fun (s: string) -> s.Trim()) """
@@ -23,61 +24,114 @@ Options:
     --logfile=FILE           Path to logfile
     --create-tables          Create tables in the DB and exit
     --skip-stops             Skip inserting stops into DB
-    --grapp-stops-csv=FILE   CSV file with GRAPP stops
+    --grapp-stops-csv=FILE   CSV file with GRAPP stops (also for szmapa)
     --golemio-api-key=KEY    Golemio API key (https://api.golemio.cz/api-keys)
+    --grapp                  Enable GRAPP scraper
+    --szmapa                 Enable mapy.spravazeleznic.cz scraper
+    --golemio                Enable Golemio scraper
 
 GRAPP stops CSV columns (GPS coords as floating point numbers):
     SR70,NÁZEV20,GPS X,GPS Y
 """
 
-let collect connGetter skipStops grappStopsCsv golemioApiKey =
+let collect connGetter args =
+    let skipStops = argFlagSet args "--skip-stops"
+
     // We need to keep references to the timers so they don't get GC'd
-    let grappTimer = grappStopsCsv |> Option.map (fun grappStopsCsv ->
-        let conn = connGetter()
-        let mutable grappStopsDate = LocalDate(0, 1, 1)
-        let mutable grappStopMap = Map []
+    let mutable grappStopMap = Map []
+    let grappStopsSignal = new ManualResetEvent(false);
+    let _grappStopsTimer = (optArgValue args "--grapp-stops-csv")
+                           |> Option.map (fun grappStopsCsv ->
         new Timer(
             (fun _ ->
-                if not skipStops && grappStopsDate <> dateToday () then
+                if not skipStops then
                     measureTime "Reading and inserting Grapp stops" (fun () ->
-                        grappStopsDate <- dateToday ()
+                        use conn = connGetter()
                         let grappStops =
-                            Grapp.readStopsCsv grappStopsDate grappStopsCsv
+                            Grapp.readStopsCsv (dateToday ()) grappStopsCsv
                         grappStopMap <- Grapp.getNameIdMap grappStops
                         RealTimeSql.insertStops conn grappStops
                     )
-                let indexData = Grapp.fetchIndexData ()
-                let positions =
-                    measureTime "Getting train positions from Grapp" (fun () ->
-                        Grapp.fetchAllTrains indexData grappStopMap ()
-                        |> Seq.toArray)
-                // TODO: Maybe "invert" the data first and the make 2 big
-                // INSERT/COPY calls?
-                measureTime "Inserting train positions from Grapp into DB" (fun () ->
-                    positions |> Array.iter (insertTripPosition conn))
-            // Every 10 minutes, fire immediately
-            ), null, 0, 10*60*1000))
+                    grappStopsSignal.Set() |> ignore
+            // Every 24 hours, fire immediately
+            ), null, 0, 24*60*60*1000))
 
-    let golemioTimer = golemioApiKey |> Option.map (fun apiKey ->
+    let _grappTimer =
+        if not <| argFlagSet args "--grapp" then None else
+            let conn = connGetter()
+            Some <| new Timer(
+                (fun _ ->
+                    let indexData = Grapp.fetchIndexData ()
+                    let positions =
+                        measureTime "Getting train positions from Grapp" (fun () ->
+                            Grapp.fetchAllTrains indexData grappStopMap ()
+                            |> Seq.toArray)
+                    // TODO: Maybe "invert" the data first and the make 2 big
+                    // INSERT/COPY calls?
+                    measureTime "Inserting train positions from Grapp into DB" (fun () ->
+                        positions |> Array.iter (insertTripPosition conn))
+                // Every 10 minutes, fire immediately
+                ), null, 0, 10*60*1000)
+
+    if argFlagSet args "--szmapa" then
+        measureTime "Waiting for stops list to load" (fun () ->
+            grappStopsSignal.WaitOne() |> ignore)
+
         let conn = connGetter()
-        let mutable stopsDate = LocalDate(0, 1, 1)
-        new Timer(
-            (fun _ ->
-                if not skipStops && stopsDate <> dateToday () then
-                    measureTime "Getting and inserting Golemio PID stops" (fun () ->
-                        stopsDate <- dateToday ()
-                        Golemio.getStops apiKey ()
-                        |> RealTimeSql.insertStops conn
+        let httpClient = new HttpClient()
+        httpClient.Timeout <- TimeSpan.FromSeconds(15)
+        let scraper = SzMapa.TrainPositionScraper(grappStopMap)
+
+        let timer = new PeriodicTimer(TimeSpan.FromSeconds(10)) // Every 10 seconds
+        ignore <| backgroundTask {
+            while! timer.WaitForNextTickAsync() do
+                try
+                    scraper.setStopNameIdMap grappStopMap
+                    let! resp =
+                        measureTimeAsync "Fetching train positions from IM SŽ" (
+                            SzMapa.fetchTrains httpClient)
+                    let stopHistory, tripDetails =
+                        measureTime "Processing response from IM SŽ" (fun () ->
+                            scraper.processResponse(resp))
+                    Log.Information("Have {EntryCount} new stop history entries",
+                                    stopHistory.Count)
+                    tripDetails
+                    |> Seq.groupBy (fun td -> td.tripId, td.tripStartDate)
+                    |> Seq.iter (fun (key, xs) ->
+                        if Seq.length xs > 1 then
+                            Log.Error("Multiple entries for {Key}: {Entries}", key, xs))
+                    measureTime "Inserting results from IM SŽ into DB" (fun () ->
+                        insertStopHistory conn stopHistory
+                        insertTripDetails conn tripDetails
                     )
-                measureTime "Getting and inserting positions from GolemIO into DB" (fun () ->
-                    Golemio.getPositions apiKey true ()
-                    |> Seq.iter (fun (tripDetails, coordHistory, stopHistory) ->
-                        insertTripDetails conn [tripDetails]
-                        insertCoordHistory conn coordHistory
-                        insertStopHistory conn tripDetails.tripId tripDetails.tripStartDate stopHistory
-                    ))
-            // Every 10 minutes, fire immediately
-            ), null, 0, 10*60*1000))
+                with e ->
+                    Log.Error(e, "Failed scraping IM SŽ")
+        }
+
+    let _golemioTimer =
+        if not <| argFlagSet args "--golemio" then None else
+            let apiKey = argValue args "--golemio-api-key"
+            let conn = connGetter()
+            let mutable stopsDate = LocalDate(0, 1, 1)
+            Some <| new Timer(
+                (fun _ ->
+                    if not skipStops && stopsDate <> dateToday () then
+                        measureTime "Getting and inserting Golemio PID stops" (fun () ->
+                            stopsDate <- dateToday ()
+                            Golemio.getStops apiKey ()
+                            |> RealTimeSql.insertStops conn
+                        )
+                    measureTime "Getting and inserting positions from GolemIO into DB" (fun () ->
+                        Golemio.getPositions apiKey true ()
+                        |> Seq.iter (fun (tripDetails, coordHistory, stopHistory) ->
+                            insertTripDetails conn [tripDetails]
+                            insertCoordHistory conn coordHistory
+                            insertFullStopHistory conn tripDetails.tripId
+                                                  tripDetails.tripStartDate
+                                                  stopHistory
+                        ))
+                // Every 10 minutes, fire immediately
+                ), null, 0, 10*60*1000)
 
     Thread.Sleep(Timeout.Infinite)
 
@@ -98,9 +152,6 @@ let main argv =
             Log.Information("RtCollect tables created!")
             0
         else
-            collect connGetter
-                    (argFlagSet args "--skip-stops")
-                    (optArgValue args "--grapp-stops-csv")
-                    (optArgValue args "--golemio-api-key")
+            collect connGetter args
             0
     )

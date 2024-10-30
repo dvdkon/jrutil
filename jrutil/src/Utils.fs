@@ -265,6 +265,15 @@ let measureTime msg func =
     Log.Information("{Section} took {Time}", msg, sw.Elapsed)
     res
 
+let measureTimeAsync msg func =
+    task {
+        let sw = Stopwatch.StartNew()
+        let! res = func()
+        sw.Stop()
+        Log.Information("{Section} took {Time}", msg, sw.Elapsed)
+        return res
+    }
+
 let findPathCaseInsensitive dirPath (filename: string) =
     let files =
         Directory.GetFiles(dirPath)
