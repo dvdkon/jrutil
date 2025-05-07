@@ -51,17 +51,24 @@ let gtfsRouteType (loc: CzPttXml.CzpttLocation) =
 let hasPublicLocations (czptt: CzPttXml.CzpttcisMessage) =
     czptt.CzpttInformation.CzpttLocation
     |> Seq.exists isPublicLocation
+    
+let findValidLocationInArray (locations: CzPttXml.CzpttLocation[]) =
+    match locations |> Seq.tryFind isPublicLocation with
+    | Some fl -> fl
+    | None ->
+        raise (CzPttInvalidException "Invalid CZPTT - no valid stops")
 
 // Information about the train is stored in each CZPTTLocation element.
 // This is not explicitly stated in the specification, but each file only
 // contains data about one trip (TODO: Verify). This means we can simply
 // take the first *valid* element and get the data from there.
 let firstValidLocation (czptt: CzPttXml.CzpttcisMessage) =
-    match czptt.CzpttInformation.CzpttLocation
-          |> Seq.tryFind isPublicLocation with
-    | Some fl -> fl
-    | None ->
-        raise (CzPttInvalidException "Invalid CZPTT - no valid stops")
+    czptt.CzpttInformation.CzpttLocation
+    |> findValidLocationInArray
+        
+let lastValidLocation (czptt: CzPttXml.CzpttcisMessage) =
+    Array.rev czptt.CzpttInformation.CzpttLocation
+    |> findValidLocationInArray
 
 let negativeDayOffset (czptt: CzPttXml.CzpttcisMessage) =
     let findOffset name (loc: CzPttXml.CzpttLocation) =
@@ -237,11 +244,12 @@ let gtfsStops (czptts: CzPttXml.CzpttcisMessage seq) =
 let gtfsTrip (czptt: CzPttXml.CzpttcisMessage) =
     let id = gtfsTripId czptt
     let firstLocation = firstValidLocation czptt
+    let lastLocation = lastValidLocation czptt
     let trip: Trip = {
         routeId = gtfsRouteId czptt firstLocation
         serviceId = id
         id = id
-        headsign = None
+        headsign = Some lastLocation.Location.PrimaryLocationName
         shortName = None
         directionId = None
         blockId = None
