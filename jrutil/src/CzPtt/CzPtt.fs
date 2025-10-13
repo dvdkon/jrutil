@@ -147,3 +147,23 @@ let isPublicLocation (loc: CzPttXml.CzpttLocation) =
     && not (locationActivities loc |> Seq.contains InternalStop)
     && not (locationActivities loc |> Seq.contains UnpublishedStop)
     && locationTrainType loc = Some PassengerPublic
+
+/// Get a train name consistent with other public information (so type
+/// abbreviation + number)
+let shortTrainName (loc: CzPttXml.CzpttLocation) =
+    let ttAbbr =
+        loc.TrafficType
+        |> nullOpt
+        |> Option.map (fun tt -> (KadrEnumWs.trafficTypes ()).[tt])
+    let cttAbbr =
+        loc.CommercialTrafficType
+        |> nullOpt
+        |> Option.map (fun ctt -> (KadrEnumWs.commercialTrafficTypes ()).[ctt])
+    // In real data we should always have at least one of the abbreviations,
+    // but spec says both are optional
+    let abbr = ttAbbr |> Option.orElse cttAbbr |> Option.defaultValue "Vlak"
+    let num =
+        loc.OperationalTrainNumber
+        |> nullOpt
+        |> Option.defaultValue "without number"
+    abbr + " " + num

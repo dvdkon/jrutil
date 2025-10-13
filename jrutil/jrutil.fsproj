@@ -22,6 +22,9 @@
     <Compile Include="src/GeoData/CzRegions.fs" />
     <Compile Include="src/GeoData/EurTowns.fs" />
     <Compile Include="src/GeoData/StopMatcher.fs" />
+    <Compile Include="src/Netex/NetexModelMeta.fs" />
+    <Compile Include="src/Netex/NetexSerializer.fs" />
+    <Compile Include="src/Netex/NetexModel.fs" />
     <Compile Include="src/Gtfs/GtfsModelMeta.fs" />
     <Compile Include="src/Gtfs/GtfsCsvSerializer.fs" />
     <Compile Include="src/Gtfs/GtfsParser.fs" />
@@ -44,6 +47,7 @@
     <Compile Include="src/CzPtt/CzPtt.fs" />
     <Compile Include="src/CzPtt/CzPttMerger.fs" />
     <Compile Include="src/CzPtt/CzPttToGtfs.fs" />
+    <Compile Include="src/CzPtt/CzPttToNetex.fs" />
     <Compile Include="src/RealTime/RealTimeModel.fs" />
     <Compile Include="src/RealTime/RealTimeSql.fs" />
     <Compile Include="src/UndatedTimes.fs" />
@@ -75,7 +79,7 @@
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
     <PackageReference Include="System.Data.SqlClient" Version="4.8.6" />
     <PackageReference Include="NodaTime" Version="3.1.11" />
-    <PackageReference Include=" NodaTime.Serialization.SystemTextJson" Version="1.3.0" />
+    <PackageReference Include="NodaTime.Serialization.SystemTextJson" Version="1.3.0" />
     <PackageReference Include="docopt.net" Version="0.8.1" />
   </ItemGroup>
 
