@@ -8,7 +8,6 @@ open System.IO
 open System.Net
 open System.Net.Http
 open System.Net.Http.Json
-open System.Text.Json
 open System.Text.RegularExpressions
 open System.Threading.RateLimiting
 open System.Threading.Tasks
@@ -70,7 +69,10 @@ type GetTrainsWithFilterOutput =
 // provided on an unstable URL as a .xls file, so the user is expected to
 // transform this file into a CSV. Use the script `sr70_process.py` from
 // `jrunify-ext-geodata` with param `--name=NÁZEV20`
-type StopsCsv = ``CsvProvider,Schema="sr70(string), name(string), lat(float), lon(float)",HasHeaders="False"``
+type StopsCsv = CsvProvider<
+    Schema="sr70(string), name(string), lat(float), lon(float)",
+    HasHeaders=false
+>
 
 let readStopsCsv date filename =
     let csv = StopsCsv.Load(Path.GetFullPath(filename))
@@ -318,7 +320,7 @@ let fetchAllTrains (httpClient: HttpClient) indexData nameIdMap () = task {
              PermitLimit = 3,
              QueueLimit = 10000)) :> RateLimiter
          new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions(
-             Window = TimeSpan.FromSeconds(1),
+             Window = TimeSpan.FromSeconds(1L),
              PermitLimit = 5,
              QueueLimit = 10000))
      |]

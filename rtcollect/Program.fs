@@ -39,7 +39,7 @@ let newHttpClient () =
     httpClient.DefaultRequestHeaders.UserAgent.Add(
         Headers.ProductInfoHeaderValue( "JrUtil-RtCollect",
             Assembly.GetExecutingAssembly().GetName().Version.ToString()))
-    httpClient.Timeout <- TimeSpan.FromSeconds(5)
+    httpClient.Timeout <- TimeSpan.FromSeconds(5L)
     httpClient
 
 let scrapeGrapp grappStopMap conn = task {
@@ -91,10 +91,10 @@ let collect connGetter args =
 
         let conn = connGetter()
         let httpClient = new HttpClient()
-        httpClient.Timeout <- TimeSpan.FromSeconds(15)
+        httpClient.Timeout <- TimeSpan.FromSeconds(15L)
         let scraper = SzMapa.TrainPositionScraper(grappStopMap)
 
-        let timer = new PeriodicTimer(TimeSpan.FromSeconds(10)) // Every 10 seconds
+        let timer = new PeriodicTimer(TimeSpan.FromSeconds(10L)) // Every 10 seconds
         ignore <| backgroundTask {
             while! timer.WaitForNextTickAsync() do
                 try

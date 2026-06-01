@@ -11,7 +11,7 @@ namespace KadrWsCiselniky
 {
     
     
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ServiceModel.ServiceContractAttribute(Namespace="http://provoz.szdc.cz/kadr", ConfigurationName="KadrWsCiselniky.CiselnikySoap")]
     public interface CiselnikySoap
     {
@@ -135,10 +135,10 @@ namespace KadrWsCiselniky
         
         [System.ServiceModel.OperationContractAttribute(Action="http://provoz.szdc.cz/kadr/SeznamVlakoveZabezpecovaciZarizeni", ReplyAction="*")]
         [System.ServiceModel.XmlSerializerFormatAttribute(SupportFaults=true)]
-        KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult SeznamVlakoveZabezpecovaciZarizeni();
+        KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult SeznamVlakoveZabezpecovaciZarizeni(bool jenAktualnePlatne);
         
         [System.ServiceModel.OperationContractAttribute(Action="http://provoz.szdc.cz/kadr/SeznamVlakoveZabezpecovaciZarizeni", ReplyAction="*")]
-        System.Threading.Tasks.Task<KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult> SeznamVlakoveZabezpecovaciZarizeniAsync();
+        System.Threading.Tasks.Task<KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult> SeznamVlakoveZabezpecovaciZarizeniAsync(bool jenAktualnePlatne);
         
         [System.ServiceModel.OperationContractAttribute(Action="http://provoz.szdc.cz/kadr/SeznamKomercniDruhVlaku", ReplyAction="*")]
         [System.ServiceModel.XmlSerializerFormatAttribute(SupportFaults=true)]
@@ -179,7 +179,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamSpolecnostiResponseSeznamSpolecnostiResult
@@ -267,7 +267,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class Spolecnost
@@ -707,7 +707,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class Licence
@@ -875,7 +875,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     public partial class Objednatel
     {
@@ -930,7 +930,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class PoznamkyKJR
@@ -1130,7 +1130,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadrNamespace")]
     public partial class Linky
@@ -1234,7 +1234,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class IDS
@@ -1338,7 +1338,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     public partial class KomercniDruhVlaku
     {
@@ -1377,31 +1377,19 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class VlakZabZar
     {
         
-        private string kodField;
-        
         private string nazevField;
         
         private string kodTAFField;
         
-        /// <remarks/>
-        [System.Xml.Serialization.XmlAttributeAttribute()]
-        public string Kod
-        {
-            get
-            {
-                return this.kodField;
-            }
-            set
-            {
-                this.kodField = value;
-            }
-        }
+        private System.DateTime platnostOdField;
+        
+        private System.DateTime platnostDoField;
         
         /// <remarks/>
         [System.Xml.Serialization.XmlAttributeAttribute()]
@@ -1430,10 +1418,38 @@ namespace KadrWsCiselniky
                 this.kodTAFField = value;
             }
         }
+        
+        /// <remarks/>
+        [System.Xml.Serialization.XmlAttributeAttribute()]
+        public System.DateTime PlatnostOd
+        {
+            get
+            {
+                return this.platnostOdField;
+            }
+            set
+            {
+                this.platnostOdField = value;
+            }
+        }
+        
+        /// <remarks/>
+        [System.Xml.Serialization.XmlAttributeAttribute()]
+        public System.DateTime PlatnostDo
+        {
+            get
+            {
+                return this.platnostDoField;
+            }
+            set
+            {
+                this.platnostDoField = value;
+            }
+        }
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class TratovaTrida
@@ -1457,7 +1473,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class TypeOfInformation
@@ -1497,7 +1513,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class KategorieVlaku
@@ -1569,7 +1585,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class Duvod
@@ -1657,7 +1673,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class JizdniOdpor
@@ -1729,7 +1745,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     public partial class NezkonzumovanaKapacita
     {
@@ -1800,7 +1816,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     public partial class Sluzba
     {
@@ -1903,7 +1919,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class DopravniBod
@@ -2039,7 +2055,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class DruhVlaku
@@ -2159,7 +2175,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class TypSpolecnosti
@@ -2247,7 +2263,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class Ukon
@@ -2399,7 +2415,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class Stat
@@ -2551,7 +2567,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(Namespace="http://provoz.szdc.cz/kadr")]
     public partial class Pobocka
@@ -2719,7 +2735,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamSpolecnostiUrcitehoTypuResponseSeznamSpolecnostiUrcitehoTypuResult
@@ -2807,7 +2823,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamSpolecnostiUrcitehoTypu", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamSpolecnostiUrcitehoTypu
@@ -2831,7 +2847,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamSpolecnostiUrcitehoTypuResponse", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamSpolecnostiUrcitehoTypu1
@@ -2851,7 +2867,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamSpolecnostiPodleAktualizaceResponseSeznamSpolecnostiPodleAktualizaceResult
@@ -2939,7 +2955,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamSpolecnostiPodleAktualizace", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamSpolecnostiPodleAktualizace
@@ -2959,7 +2975,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamSpolecnostiPodleAktualizaceResponse", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamSpolecnostiPodleAktualizace1
@@ -2979,7 +2995,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamStatuResponseSeznamStatuResult
@@ -3067,7 +3083,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamUkonuResponseSeznamUkonuResult
@@ -3155,7 +3171,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamUkonuUrcitehoTypuResponseSeznamUkonuUrcitehoTypuResult
@@ -3243,7 +3259,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamUkonuUrcitehoTypu", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamUkonuUrcitehoTypu
@@ -3267,7 +3283,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamUkonuUrcitehoTypuResponse", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamUkonuUrcitehoTypu1
@@ -3287,7 +3303,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamTypuSpolecnostiResponseSeznamTypuSpolecnostiResult
@@ -3375,7 +3391,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamDruhuVlakuResponseSeznamDruhuVlakuResult
@@ -3463,7 +3479,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamDopravnichBoduResponseSeznamDopravnichBoduResult
@@ -3551,7 +3567,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true)]
     public partial class SeznamSluzebResult
@@ -3639,7 +3655,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamSluzeb", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamSluzebRequest
@@ -3659,7 +3675,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamSluzebResponse", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamSluzebResponse
@@ -3680,7 +3696,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true)]
     public partial class SeznamNezkonzumovaneKapacityResult
@@ -3768,7 +3784,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamNezkonzumovaneKapacity", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamNezkonzumovaneKapacityRequest
@@ -3780,7 +3796,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamNezkonzumovaneKapacityResponse", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamNezkonzumovaneKapacityResponse
@@ -3801,7 +3817,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamJizdniOdporResponseSeznamJizdniOdporResult
@@ -3889,7 +3905,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamDuvoduResponseSeznamDuvoduResult
@@ -3977,7 +3993,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamKategorieVlakuResponseSeznamKategorieVlakuResult
@@ -4065,7 +4081,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamTypeOfInformationResponseSeznamTypeOfInformationResult
@@ -4153,7 +4169,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamTratovaTridaResponseSeznamTratovaTridaResult
@@ -4241,7 +4257,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult
@@ -4329,7 +4345,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamKomercniDruhVlakuResponseSeznamKomercniDruhVlakuResult
@@ -4417,7 +4433,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamIDSResponseSeznamIDSResult
@@ -4505,7 +4521,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadrNamespace")]
     public partial class SeznamLinkyResult
@@ -4593,7 +4609,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamLinky", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamLinkyRequest
@@ -4605,7 +4621,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamLinkyResponse", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamLinkyResponse
@@ -4626,7 +4642,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true, Namespace="http://provoz.szdc.cz/kadr")]
     public partial class SeznamPoznamkyKJRResponseSeznamPoznamkyKJRResult
@@ -4714,7 +4730,7 @@ namespace KadrWsCiselniky
     }
     
     /// <remarks/>
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.Diagnostics.DebuggerStepThroughAttribute()]
     [System.Xml.Serialization.XmlTypeAttribute(AnonymousType=true)]
     public partial class SeznamObjednateluResult
@@ -4802,7 +4818,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamObjednatelu", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamObjednateluRequest
@@ -4814,7 +4830,7 @@ namespace KadrWsCiselniky
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     [System.ComponentModel.EditorBrowsableAttribute(System.ComponentModel.EditorBrowsableState.Advanced)]
     [System.ServiceModel.MessageContractAttribute(WrapperName="SeznamObjednateluResponse", WrapperNamespace="http://provoz.szdc.cz/kadr", IsWrapped=true)]
     public partial class SeznamObjednateluResponse
@@ -4834,13 +4850,13 @@ namespace KadrWsCiselniky
         }
     }
     
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     public interface CiselnikySoapChannel : KadrWsCiselniky.CiselnikySoap, System.ServiceModel.IClientChannel
     {
     }
     
     [System.Diagnostics.DebuggerStepThroughAttribute()]
-    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "2.1.0")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.Tools.ServiceModel.Svcutil", "8.0.0")]
     public partial class CiselnikySoapClient : System.ServiceModel.ClientBase<KadrWsCiselniky.CiselnikySoap>, KadrWsCiselniky.CiselnikySoap
     {
         
@@ -5124,14 +5140,14 @@ namespace KadrWsCiselniky
             return base.Channel.SeznamTratovaTridaAsync(jenAktualnePlatne);
         }
         
-        public KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult SeznamVlakoveZabezpecovaciZarizeni()
+        public KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult SeznamVlakoveZabezpecovaciZarizeni(bool jenAktualnePlatne)
         {
-            return base.Channel.SeznamVlakoveZabezpecovaciZarizeni();
+            return base.Channel.SeznamVlakoveZabezpecovaciZarizeni(jenAktualnePlatne);
         }
         
-        public System.Threading.Tasks.Task<KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult> SeznamVlakoveZabezpecovaciZarizeniAsync()
+        public System.Threading.Tasks.Task<KadrWsCiselniky.SeznamVlakoveZabezpecovaciZarizeniResponseSeznamVlakoveZabezpecovaciZarizeniResult> SeznamVlakoveZabezpecovaciZarizeniAsync(bool jenAktualnePlatne)
         {
-            return base.Channel.SeznamVlakoveZabezpecovaciZarizeniAsync();
+            return base.Channel.SeznamVlakoveZabezpecovaciZarizeniAsync(jenAktualnePlatne);
         }
         
         public KadrWsCiselniky.SeznamKomercniDruhVlakuResponseSeznamKomercniDruhVlakuResult SeznamKomercniDruhVlaku()
@@ -5218,6 +5234,13 @@ namespace KadrWsCiselniky
         {
             return System.Threading.Tasks.Task.Factory.FromAsync(((System.ServiceModel.ICommunicationObject)(this)).BeginOpen(null, null), new System.Action<System.IAsyncResult>(((System.ServiceModel.ICommunicationObject)(this)).EndOpen));
         }
+        
+        #if !NET6_0_OR_GREATER
+        public virtual System.Threading.Tasks.Task CloseAsync()
+        {
+            return System.Threading.Tasks.Task.Factory.FromAsync(((System.ServiceModel.ICommunicationObject)(this)).BeginClose(null, null), new System.Action<System.IAsyncResult>(((System.ServiceModel.ICommunicationObject)(this)).EndClose));
+        }
+        #endif
         
         private static System.ServiceModel.Channels.Binding GetBindingForEndpoint(EndpointConfiguration endpointConfiguration)
         {
