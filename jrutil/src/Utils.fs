@@ -170,6 +170,11 @@ let pariter<'a> threadCount func (inputs: 'a seq) =
         |> Async.StartAsTask
     processingTask.Wait()
 
+let taskMap f t = task {
+    let! x = t
+    return f x
+}
+
 // Used DateTime to parse and the converts the result to LocalDate
 let tryParseDate (format: string) (str: string) =
     let success, dt = DateTime.TryParseExact(

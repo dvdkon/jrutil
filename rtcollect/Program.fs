@@ -2,9 +2,9 @@
 // (c) 2024 David Koňařík
 
 open System
-open System.Threading
-open System.Threading.Tasks
 open System.Net.Http
+open System.Reflection
+open System.Threading
 open NodaTime
 open Serilog
 
@@ -34,6 +34,27 @@ GRAPP stops CSV columns (GPS coords as floating point numbers):
     SR70,NÁZEV20,GPS X,GPS Y
 """
 
+let newHttpClient () =
+    let httpClient = new HttpClient()
+    httpClient.DefaultRequestHeaders.UserAgent.Add(
+        Headers.ProductInfoHeaderValue( "JrUtil-RtCollect",
+            Assembly.GetExecutingAssembly().GetName().Version.ToString()))
+    httpClient.Timeout <- TimeSpan.FromSeconds(5)
+    httpClient
+
+let scrapeGrapp grappStopMap conn = task {
+    use httpClient = newHttpClient ()
+    let! indexData = Grapp.fetchIndexData httpClient ()
+    let! positions =
+        measureTimeAsync "Getting train positions from Grapp" (fun () ->
+            Grapp.fetchAllTrains httpClient indexData grappStopMap ())
+    Log.Information("Got {TrainCount} trains from GRAPP", positions.Length)
+    // TODO: Maybe "invert" the data first and the make 2 big
+    // INSERT/COPY calls?
+    measureTime "Inserting train positions from Grapp into DB" (fun () ->
+        positions |> Array.iter (insertTripPosition conn))
+}
+
 let collect connGetter args =
     let skipStops = argFlagSet args "--skip-stops"
 
@@ -60,18 +81,9 @@ let collect connGetter args =
         if not <| argFlagSet args "--grapp" then None else
             let conn = connGetter()
             Some <| new Timer(
-                (fun _ ->
-                    let indexData = Grapp.fetchIndexData ()
-                    let positions =
-                        measureTime "Getting train positions from Grapp" (fun () ->
-                            Grapp.fetchAllTrains indexData grappStopMap ()
-                            |> Seq.toArray)
-                    // TODO: Maybe "invert" the data first and the make 2 big
-                    // INSERT/COPY calls?
-                    measureTime "Inserting train positions from Grapp into DB" (fun () ->
-                        positions |> Array.iter (insertTripPosition conn))
+                (fun _ -> (scrapeGrapp grappStopMap conn).Wait()),
                 // Every 10 minutes, fire immediately
-                ), null, 0, 10*60*1000)
+                null, 0, 10*60*1000)
 
     if argFlagSet args "--szmapa" then
         measureTime "Waiting for stops list to load" (fun () ->
