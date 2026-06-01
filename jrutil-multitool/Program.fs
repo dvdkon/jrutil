@@ -98,6 +98,7 @@ let main (args: string array) =
                     Log.Information("Converting to GTFS")
                     let gtfs =
                         JdfToGtfs.getGtfsFeed false jdf
+                        |> Gtfs.deduplicateCalendar
                         |> gtfsWithCoords stopCoordsByIdPath
 
                     Log.Information("Writing GTFS")
@@ -113,6 +114,7 @@ let main (args: string array) =
             try
                 CzPtt.parseAll (argValue args "<CzPtt-in-file>")
                 |> CzPttToGtfs.gtfsFeedMerged
+                |> Gtfs.deduplicateCalendar
                 |> gtfsWithCoords stopCoordsByIdPath
                 |> Gtfs.fillStandardRequiredFields
                 |> gtfsSer (argValue args "<GTFS-out-dir>")

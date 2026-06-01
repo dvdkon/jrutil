@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,27 +17,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FSharp.SystemTextJson" Version="1.2.42" />
-    <PackageReference Include="giraffe" Version="6.3.0" />
+    <PackageReference Include="FSharp.SystemTextJson" Version="1.4.36" />
+    <PackageReference Include="giraffe" Version="8.2.0" />
   </ItemGroup>
 
   <Target Name="DownloadJsLibraries" BeforeTargets="Build">
-    <DownloadFile
-        SourceUrl="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
-        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/vue.global.prod.js')"/>
-    <DownloadFile
-        SourceUrl="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.js"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
-        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/vue.global.js')"/>
-    <DownloadFile
-        SourceUrl="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
-        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/leaflet.css')"/>
-    <DownloadFile
-        SourceUrl="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
-        DestinationFolder="$(MSBuildProjectDirectory)/thirdparty"
-        Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/leaflet.js')"/>
+    <DownloadFile SourceUrl="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js" DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/vue.global.prod.js')" />
+    <DownloadFile SourceUrl="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.js" DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/vue.global.js')" />
+    <DownloadFile SourceUrl="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/leaflet.css')" />
+    <DownloadFile SourceUrl="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" DestinationFolder="$(MSBuildProjectDirectory)/thirdparty" Condition="!Exists('$(MSBuildProjectDirectory)/thirdparty/leaflet.js')" />
   </Target>
 
 </Project>

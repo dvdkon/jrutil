@@ -170,6 +170,11 @@ let pariter<'a> threadCount func (inputs: 'a seq) =
         |> Async.StartAsTask
     processingTask.Wait()
 
+let taskMap f t = task {
+    let! x = t
+    return f x
+}
+
 // Used DateTime to parse and the converts the result to LocalDate
 let tryParseDate (format: string) (str: string) =
     let success, dt = DateTime.TryParseExact(
@@ -264,6 +269,15 @@ let measureTime msg func =
     sw.Stop()
     Log.Information("{Section} took {Time}", msg, sw.Elapsed)
     res
+
+let measureTimeAsync msg func =
+    task {
+        let sw = Stopwatch.StartNew()
+        let! res = func()
+        sw.Stop()
+        Log.Information("{Section} took {Time}", msg, sw.Elapsed)
+        return res
+    }
 
 let findPathCaseInsensitive dirPath (filename: string) =
     let files =

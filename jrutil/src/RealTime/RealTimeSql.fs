@@ -86,9 +86,8 @@ let sqlCreateRealTimeTables conn =
         CREATE INDEX ON stops (name);
     """ []
 
-let stopHistoryInserter =
-    getSqlInserterTemplated
-        typeof<DbStopHistoryItem>
+let insertStopHistory =
+    getSqlInserterTemplated<DbStopHistoryItem>
         (sprintf """INSERT INTO "%s" (%s) VALUES %s
                     ON CONFLICT (tripId,
                                  tripStartDate,
@@ -103,8 +102,8 @@ let stopHistoryInserter =
                             """)
         "stopHistory"
 
-let insertStopHistory conn tripId tripStartDate (rows: DbStopHistoryItem seq) =
-    stopHistoryInserter conn (Seq.map box rows)
+let insertFullStopHistory conn tripId tripStartDate (rows: DbStopHistoryItem seq) =
+    insertStopHistory conn rows
     // When the count of reported stops decreases, we need to delete
     // the remaining higher-numbered stops
     // But not for empty histories, those are probably a bug
@@ -121,26 +120,20 @@ let insertStopHistory conn tripId tripStartDate (rows: DbStopHistoryItem seq) =
                           |> Seq.map (fun i -> i.tripStopIndex)
                           |> Seq.max)]
 
-let insertCoordHistory conn items =
-    getSqlInserterTemplated
-        typeof<DbCoordHistoryItem>
+let insertCoordHistory: _ -> _ seq -> unit =
+    getSqlInserterTemplated<DbCoordHistoryItem>
         (sprintf """INSERT INTO "%s" (%s) VALUES %s
                     ON CONFLICT (tripId, tripStartDate, observationTime) DO UPDATE
                     SET lat = excluded.lat, lon = excluded.lon""")
         "coordHistory"
-        conn
-        (Seq.map box items)
 
-let insertTripDetails conn details =
-    getSqlInserterTemplated
-        typeof<DbTripDetail>
+let insertTripDetails: _ -> _ seq -> unit =
+    getSqlInserterTemplated<DbTripDetail>
         (sprintf """INSERT INTO "%s" (%s) VALUES %s
                     ON CONFLICT (tripId, tripStartDate) DO UPDATE
                     SET routeId = excluded.routeId,
                         shortName = excluded.shortName""")
         "tripDetails"
-        conn
-        (Seq.map box details)
 
 let insertTripPosition =
     fun (conn: NpgsqlConnection) (tripPos: TripPosition) ->
@@ -169,7 +162,7 @@ let insertTripPosition =
                     stopped = item.stopped
                 })
             try
-                insertStopHistory conn tripPos.tripId tripPos.tripStartDate rows
+                insertFullStopHistory conn tripPos.tripId tripPos.tripStartDate rows
             with
             | e -> Log.Error(e, "Failed inserting {StopHistoryRows}", (sprintf "%A" rows))
         )

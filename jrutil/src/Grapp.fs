@@ -1,13 +1,16 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2021 David Koňařík
+// (c) 2026 David Koňařík
 
 module JrUtil.Grapp
 
 open System
 open System.IO
 open System.Net
-open System.Text.Json
+open System.Net.Http
+open System.Net.Http.Json
 open System.Text.RegularExpressions
+open System.Threading.RateLimiting
+open System.Threading.Tasks
 open FSharp.Data
 open NodaTime
 open Serilog
@@ -66,7 +69,10 @@ type GetTrainsWithFilterOutput =
 // provided on an unstable URL as a .xls file, so the user is expected to
 // transform this file into a CSV. Use the script `sr70_process.py` from
 // `jrunify-ext-geodata` with param `--name=NÁZEV20`
-type StopsCsv = ``CsvProvider,Schema="sr70(string), name(string), lat(float), lon(float)",HasHeaders="False"``
+type StopsCsv = CsvProvider<
+    Schema="sr70(string), name(string), lat(float), lon(float)",
+    HasHeaders=false
+>
 
 let readStopsCsv date filename =
     let csv = StopsCsv.Load(Path.GetFullPath(filename))
@@ -88,24 +94,26 @@ let stopIdForName (nameIdMap: Map<string, string>) name =
         Log.Warning("No ID found for stop {Name}, using non-stable ID", name)
         "GRAPPST-" + name.Replace(" ", "_")
 
-let fetchIndexData () =
+let fetchIndexData (httpClient: HttpClient) () = task {
     let cookies = CookieContainer()
-    let resp = Http.RequestString(baseUrl, cookieContainer = cookies)
-    let doc = HtmlDocument.Parse(resp)
+    let! resp = httpClient.GetAsync(baseUrl)
+    let! text = resp.Content.ReadAsStringAsync()
+    let doc = HtmlDocument.Parse(text)
     let cbValues selector =
         doc.CssSelect(selector)
         |> Seq.map (fun cb -> cb.AttributeValue("value"))
         |> Seq.toArray
-    {
+    return {
         token = doc.CssSelect("input#token").Head.AttributeValue("value")
         cookies = cookies
         carrierCodes = cbValues ".carrierCB"
         trainTypes = cbValues ".publicKindOfTrainCB"
         delayGroups = cbValues ".delayCB"
     }
+}
 
-let fetchAllTrainsSummary indexData () =
-    let body = JsonSerializer.Serialize({
+let fetchAllTrainsSummary (httpClient: HttpClient) indexData () = task {
+    let body = {
         CarrierCode = Array.concat [
             indexData.carrierCodes
             [| "f_o_r_e_i_g_n" |]
@@ -131,19 +139,18 @@ let fetchAllTrainsSummary indexData () =
         OrderedBy = ""
         UnRestriction = true
         PlRestriction = true
-    })
-    let respStr =
-        Http.RequestString(
+    }
+    let! resp =
+        httpClient.PostAsync(
             sprintf "%s/post/trains/GetTrainsWithFilter/%s"
                     baseUrl indexData.token,
-            httpMethod = "POST",
-            headers = ["Content-Type", "application/json; charset=utf-8"],
-            cookieContainer = indexData.cookies,
-            body = TextRequest body)
-    let resp = GetTrainsWithFilterOutput.Parse(respStr)
-    if resp.Status <> "OK" then
-        failwithf "Error status returned: %s" resp.Status
-    resp.Trains
+            JsonContent.Create(body))
+    let! respStr = resp.Content.ReadAsStringAsync()
+    let respObj = GetTrainsWithFilterOutput.Parse(respStr)
+    if respObj.Status <> "OK" then
+        failwithf "Error status returned: %s" respObj.Status
+    return respObj.Trains
+}
 
 /// XXX: Workaround for FSharp.Data HTML Parser bug:
 /// https://github.com/fsharp/FSharp.Data/issues/1330
@@ -151,15 +158,19 @@ let fsharpDataHtmlWorkaround html =
     Regex("(&[^;]+;) +(&[^;]+;)").Replace(html, "$1&#32;$2")
 
 // Returns Option to handle the case when the ID is invalid/no longer available
-let fetchTrainDetail indexData nameIdMap trainId () =
-    let resp =
-        Http.RequestString(sprintf "%s/OneTrain/MainInfo/%s?trainId=%d"
-                                   baseUrl indexData.token trainId,
-                           cookieContainer = indexData.cookies)
+let fetchTrainDetail
+        (httpClient: HttpClient) indexData nameIdMap trainId () = task {
+    let! resp =
+        httpClient.GetAsync(sprintf "%s/OneTrain/MainInfo/%s?trainId=%d"
+                                    baseUrl indexData.token trainId)
+    let! respStr = resp.Content.ReadAsStringAsync()
     // XXX: Remove the <html> tag when the FSharp.Data fix makes it into a
     // release
-    let doc = HtmlDocument.Parse("<html>" + (fsharpDataHtmlWorkaround resp) + "<html>")
-    if doc.CssSelect(".content") |> Seq.isEmpty then None else
+    let doc = HtmlDocument.Parse(
+        "<html>"
+      + (fsharpDataHtmlWorkaround respStr)
+      + "<html>")
+    if doc.CssSelect(".content") |> Seq.isEmpty then return None else
         let tableMap =
             doc.CssSelect(".content .row")
             |> Seq.choose (fun row ->
@@ -179,18 +190,20 @@ let fetchTrainDetail indexData nameIdMap trainId () =
             |> Option.map (fun ds ->
                 if ds = "-" then 0.0
                 else float <| ds.Replace("min", ""))
-        Some {
+        return Some {
             lastStopId = lastStop
             delay = delay
             routePageAvailable = doc.CssSelect(".action") |> Seq.isEmpty |> not
         }
+}
 
-let fetchTrainRoute indexData nameIdMap trainId () =
-    let resp =
-        Http.RequestString(sprintf "%s/OneTrain/RouteInfo/%s?trainId=%d"
-                                   baseUrl indexData.token trainId,
-                           cookieContainer = indexData.cookies)
-    let doc = HtmlDocument.Parse(fsharpDataHtmlWorkaround resp)
+let fetchTrainRoute
+        (httpClient: HttpClient) indexData nameIdMap trainId () = task {
+    let! resp =
+        httpClient.GetAsync(sprintf "%s/OneTrain/RouteInfo/%s?trainId=%d"
+                                   baseUrl indexData.token trainId)
+    let! respStr = resp.Content.ReadAsStringAsync()
+    let doc = HtmlDocument.Parse(fsharpDataHtmlWorkaround respStr)
 
     let currentStationIdx =
         match doc.CssSelect(".route .row")
@@ -253,48 +266,78 @@ let fetchTrainRoute indexData nameIdMap trainId () =
     // XXX: Sometimes there are stops that later disappear. No important ones,
     // but it's curious nonetheless
 
-    dateUndatedStopHistory timezone currentStationIdx now undated
-    |> Seq.toArray
+    return
+        dateUndatedStopHistory timezone currentStationIdx now undated
+        |> Seq.toArray
+}
 
-let fetchAllTrains indexData nameIdMap () =
-    let trains = fetchAllTrainsSummary indexData ()
-    trains |> Seq.choose (fun train ->
-        let trainName = train.Title.Trim()
-        try
-            fetchTrainDetail indexData nameIdMap train.Id ()
-            |> Option.bind (fun detail ->
-                // We can't get the start day for a train without the full
-                // route, so just exclude them not to pollute the resultant data
-                if not detail.routePageAvailable then
-                    Log.Debug("Route page not available for {Train}", trainName)
-                    None
-                else
-                    let route =
-                        fetchTrainRoute indexData nameIdMap train.Id ()
-                    let startTime =
-                        route.[0].shouldDepartAt
-                        |> Option.orElse route.[0].departedAt
-                        |> Option.get
-                    let trainId = String.Join("-", trainName.Split().[..1])
-                    Some {
-                        tripId = sprintf "-CZTRAINT-%s" trainId
-                        tripStartDate = startTime.Date
-                        observationTime =
-                            SystemClock.Instance.GetCurrentInstant()
-                        coords = Some {
-                            lat = float train.Gps.[0]
-                            lon = float train.Gps.[1]
-                        }
-                        lastStopId = detail.lastStopId
-                        delay = detail.delay
-                        stopHistory = Some route
-                        routeId = sprintf "-CZTRAINR-%s" trainId
-                        shortName = Some trainName
-                        routeShortName = Some trainName
-                    })
-        with e ->
-            Log.Error(
-                e, "Exception while getting Grapp position for {TrainID}/{TrainName}",
-                train.Id, train.Title)
-            None
-    )
+let fetchTrain
+        (httpClient: HttpClient)
+        indexData nameIdMap
+        (train: GetTrainsWithFilterOutput.Train) () = task {
+    let trainName = train.Title.Trim()
+    let! detail =
+        fetchTrainDetail httpClient indexData nameIdMap train.Id ()
+    match detail with
+    | None -> return None
+    | Some detail ->
+        // We can't get the start day for a train without the full
+        // route, so just exclude them not to pollute the resultant data
+        if not detail.routePageAvailable then
+            Log.Debug("Route page not available for {Train}", trainName)
+            return None
+        else
+            let! route =
+                fetchTrainRoute httpClient indexData nameIdMap train.Id ()
+            let startTime =
+                route.[0].shouldDepartAt
+                |> Option.orElse route.[0].departedAt
+                |> Option.get
+            let trainId = String.Join("-", trainName.Split().[..1])
+            return Some {
+                tripId = sprintf "-CZTRAINT-%s" trainId
+                tripStartDate = startTime.Date
+                observationTime =
+                    SystemClock.Instance.GetCurrentInstant()
+                coords = Some {
+                    lat = float train.Gps.[0]
+                    lon = float train.Gps.[1]
+                }
+                lastStopId = detail.lastStopId
+                delay = detail.delay
+                stopHistory = Some route
+                routeId = sprintf "-CZTRAINR-%s" trainId
+                shortName = Some trainName
+                routeShortName = Some trainName
+            }
+}
+
+let fetchAllTrains (httpClient: HttpClient) indexData nameIdMap () = task {
+    // Avoid sending too many requests to GRAPP at once (both to be nice and
+    // not to get blocked).
+    use rateLimiter = RateLimiter.CreateChained [|
+         new ConcurrencyLimiter(new ConcurrencyLimiterOptions(
+             PermitLimit = 3,
+             QueueLimit = 10000)) :> RateLimiter
+         new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions(
+             Window = TimeSpan.FromSeconds(1L),
+             PermitLimit = 5,
+             QueueLimit = 10000))
+     |]
+
+    let! trains = fetchAllTrainsSummary httpClient indexData ()
+    return!
+        trains
+        |> Seq.map (fun train -> task {
+            use! _token = rateLimiter.AcquireAsync(1)
+            try
+                return! fetchTrain httpClient indexData nameIdMap train ()
+            with e ->
+                Log.Error(
+                    e, "Exception while getting Grapp position for {TrainID}/{TrainName}",
+                    train.Id, train.Title)
+                return None
+        })
+    |> Task.WhenAll
+    |> taskMap (Array.choose id)
+}

@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2023 David Koňařík
+// (c) 2025 David Koňařík
 
 module JrUtil.Gtfs
 
@@ -99,4 +99,60 @@ let fillStandardRequiredFields (feed: GtfsFeed) =
                     lat = s.lat |> Option.defaultValue 0m |> Some
                     lon = s.lon |> Option.defaultValue 0m |> Some
                 })
+    }
+
+let deduplicateCalendar (feed: GtfsFeed) =
+    let allCalEntries = feed.calendar |> Option.defaultValue [||]
+    let allCalExcs = feed.calendarExceptions |> Option.defaultValue [||]
+    let serviceIds =
+        Set.union
+            (allCalEntries |> Array.map (fun ce -> ce.id) |> Set)
+            (allCalExcs |> Array.map (fun c -> c.id) |> Set)
+    let calById = allCalEntries |> Array.map (fun ce -> ce.id, ce) |> Map
+    let excsById = allCalExcs |> Array.groupBy (fun ce -> ce.id) |> Map
+    let deduplicated =
+        serviceIds
+        |> Seq.map (fun si ->
+            let calEntry = calById |> Map.tryFind si
+            let calExcs = excsById |> Map.tryFind si |> Option.defaultValue [||]
+            let dataWithoutId =
+                calEntry |> Option.map (fun ce -> { ce with id = "" }),
+                calExcs |> Array.map (fun ce -> { ce with id = "" })
+                        |> Array.sort
+            dataWithoutId, si
+        )
+        |> Seq.groupBy fst
+        |> Seq.mapi (fun i (_, items) ->
+            let items = items |> Seq.toArray
+            let oldIds = items |> Array.map (fun (_, si) -> si)
+            let (reprCalEntry, reprCalExcs), _ = items |> Array.head
+            // Put the bitmap string in the ID to make manual debugging easier
+            let bitmapStr =
+                reprCalEntry
+                |> Option.map (fun ce ->
+                    ce.weekdayService
+                    |> Array.map (fun b -> if b then '1' else '0')
+                    |> System.String)
+                |> Option.defaultValue "exc"
+            let newId = $"CAL-{bitmapStr}-{i}"
+
+            oldIds,
+            newId,
+            reprCalEntry |> Option.map (fun ce -> { ce with id = newId }),
+            reprCalExcs |> Array.map (fun ce -> { ce with id = newId })
+        )
+        |> Seq.toArray
+    let idMap =
+        deduplicated
+        |> Array.collect (fun (os, n, _, _) ->
+            os |> Array.map (fun o -> o, n))
+        |> Map
+    { feed with
+        trips =
+            feed.trips
+            |> Array.map (fun t -> { t with serviceId = idMap[t.serviceId] })
+        calendar =
+            Some <| (deduplicated |> Array.choose (fun (_, _, ce, _) -> ce))
+        calendarExceptions =
+            Some <| (deduplicated |> Array.collect (fun (_, _, _, ces) -> ces))
     }
