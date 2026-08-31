@@ -251,9 +251,10 @@ WITH stopHist AS (
         EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt) AS arrivalDelay,
         EXTRACT(EPOCH FROM departedAt - shouldDepartAt) AS departureDelay
     FROM stopHistory AS sh
-    RIGHT JOIN startDates(@tripId, @fromDate::date, @toDate::date, @tripStartDate::date) AS sd
-        ON sd = sh.tripStartDate
     WHERE sh.tripId = @tripId
+      AND sh.tripStartDate = ANY((
+          SELECT array_agg(sd)
+          FROM startDates(@tripId, @fromDate::date, @toDate::date, @tripStartDate::date) AS sd)::date[])
 ), startTimes AS (
     SELECT tripStartDate, MIN(shouldDepartAt) AS start
     FROM stopHist
