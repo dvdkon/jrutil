@@ -221,11 +221,11 @@ async function setupHeatmap(elem) {
     });
 }
 
-function showChart(type) {
+async function showChart(type) {
     if(type === "lineAndBounds") {
         for(const c of document.querySelectorAll(".delay-chart")) {
             c.style.display = null;
-            setupCharts();
+            await setupCharts();
         }
         for(const c of document.querySelectorAll(".delay-heatmap")) {
             c.style.display = "none";
@@ -237,7 +237,7 @@ function showChart(type) {
         }
         for(const c of document.querySelectorAll(".delay-heatmap")) {
             c.style.display = null;
-            setupHeatmap(c);
+            await setupHeatmap(c);
         }
     }
 }
@@ -248,31 +248,30 @@ function setupChartType(select) {
     });
 }
 
-function setupSingleTripChart(chartElem) {
+async function setupSingleTripChart(chartElem) {
     if(chartElem.style.display === "none" || chartElem.dataset.setup) return;
     chartElem.dataset.setup = true;
     const canvas = chartElem.querySelector("canvas");
 
-    fetch(location + "/chartData")
-    .then(resp => resp.json())
-    .then(data => {
+    try {
+        const resp = await fetch(location + "/chartData");
+        const data = await resp.json();
         new Chart(canvas, delayLineChartOpts(data, []));
-    })
-    .catch(err => {
+    } catch(err) {
         chartElem.innerText = `Failed to get data for chart: ${err}`;
-    });
+    }
 }
 
-function setupAggTripChart(chartElem) {
+async function setupAggTripChart(chartElem) {
     if(chartElem.style.display === "none" || chartElem.dataset.setup) return;
     chartElem.dataset.setup = true;
     const canvas = chartElem.querySelector("canvas");
 
     const ssgDate = chartElem.dataset.ssgDate;
     const pageQs = location.search.substring(1);
-    fetch(`${location.pathname}/chartData?${pageQs}&ssgDate=${ssgDate}`)
-    .then(resp => resp.json())
-    .then(data => {
+    try {
+        const resp = await fetch(`${location.pathname}/chartData?${pageQs}&ssgDate=${ssgDate}`);
+        const data = await resp.json();
         new Chart(canvas, delayLineChartOpts(data, [
             {
                 data: data.data,
@@ -298,19 +297,18 @@ function setupAggTripChart(chartElem) {
                 pointHoverRadius: 0,
             },
         ]));
-    })
-    .catch(err => {
+    } catch(err) {
         chartElem.innerText = `Failed to get data for chart: ${err}`;
-    });
+    }
 }
 
-function setupCharts() {
+async function setupCharts() {
     if(location.pathname.startsWith("/Trip/")) {
-        setupSingleTripChart(document.querySelector(".delay-chart"));
+        await setupSingleTripChart(document.querySelector(".delay-chart"));
     }
     if(location.pathname.startsWith("/Trips/")) {
         for(const chartElem of document.querySelectorAll(".delay-chart")) {
-            setupAggTripChart(chartElem);
+            await setupAggTripChart(chartElem);
         }
     }
 }
@@ -323,8 +321,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // Ran after all assets loaded, including Chart.js library and after inputs are
 // populated with final values
-window.addEventListener("load", () => {
-    setupCharts();
+window.addEventListener("load", async () => {
+    await setupCharts();
     for(const c of document.querySelectorAll(".show-table input")) {
         showTable(c.checked);
         setupShowTable(c);
