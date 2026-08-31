@@ -40,18 +40,25 @@ module ServerGlobals =
             CREATE MATERIALIZED VIEW routeSummaries AS
                 WITH routes AS (
                     SELECT
-                        routeId,
-                        -- Get the most current trip
-                        -- Might become a problem when looking at really old data
-                        (array_agg(tripId ORDER BY tripStartDate DESC))[1] AS tripId,
-                        MIN(tripStartDate) AS firstDate,
-                        MAX(tripStartDate) AS lastDate,
-                        COALESCE(
-                            (array_agg(routeShortName ORDER BY tripStartDate DESC))[1],
-                            (array_agg(routeId ORDER BY tripStartDate DESC))[1]
-                        ) AS name
-                    FROM tripDetails AS td
-                    GROUP BY routeId)
+                        i1.routeId, i1.firstDate, i1.lastDate,
+                        i2.tripId, i2.name
+                    FROM (
+                        SELECT
+                            td.routeId,
+                            MIN(td.tripStartDate) AS firstDate,
+                            MAX(td.tripStartDate) AS lastDate
+                        FROM tripdetails AS td
+                        GROUP BY routeid
+                    ) AS i1
+                    LEFT JOIN (
+                        SELECT DISTINCT ON (td2.routeId)
+                            td2.routeId,
+                            td2.tripId,
+                            COALESCE(td2.routeShortName, td2.routeId) AS name
+                        FROM tripdetails AS td2
+                        ORDER BY routeId, tripStartDate DESC
+                    ) AS i2 ON i2.routeId = i1.routeId
+                )
                 SELECT
                     routeId,
                     name,
