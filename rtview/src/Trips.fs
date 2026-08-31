@@ -116,8 +116,11 @@ SELECT
     percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p85DepartureDelay
 FROM stopHistoryWithNames AS sh
 WHERE tripId = @tripId
-  AND EXISTS (SELECT FROM startDates(@tripId, @fromDate::date, @toDate::date, @tripStartDate::date) AS sd
-              WHERE sd = sh.tripStartDate)
+-- This array_agg-dance is needed to force Postgres to materialise the date
+-- list and to use a simple IN check instead of an expensive join.
+  AND sh.tripStartDate = ANY((
+      SELECT array_agg(sd)
+      FROM startDates(@tripId, @fromDate::date, @toDate::date, @tripStartDate::date) AS sd)::date[])
 -- I know that there is exactly one stopId/stopName for tripStopIndex, but PostgreSQL doesn't
 GROUP BY tripStopIndex, stopId, stopName
         """ ["tripId", box tripId
@@ -146,8 +149,9 @@ WITH stopHist AS (
         percentile_cont(0.85) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM departedAt - shouldDepartAt))/60 AS p85DepartureDelay
     FROM stopHistoryWithNames AS sh
     WHERE tripId = @tripId
-      AND EXISTS (SELECT FROM startDates(@tripId, @fromDate::date, @toDate::date, @tripStartDate::date) AS sd
-                  WHERE sd = sh.tripStartDate)
+      AND sh.tripStartDate = ANY((
+          SELECT array_agg(sd)
+          FROM startDates(@tripId, @fromDate::date, @toDate::date, @tripStartDate::date) AS sd)::date[])
     GROUP BY tripStopIndex, stopId, stopName
 ), data AS (
     SELECT * FROM (
