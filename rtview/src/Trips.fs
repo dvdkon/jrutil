@@ -25,6 +25,7 @@ type StopSeqGroup = {
 type WebTimetableStop = {
     stopId: string
     stopName: string
+    stopped: bool
     shouldArriveAt: string option
     shouldDepartAt: string option
 }
@@ -38,6 +39,7 @@ type WebTimetableStopChange =
 type WebTripStopAgg = {
     stopId: string
     stopName: string
+    stopped: bool
     shouldArriveAt: string option
     medArrivalDelay: float option
     p15ArrivalDelay: float option
@@ -51,6 +53,7 @@ with
     member this.TimetableStop: WebTimetableStop = {
         stopId = this.stopId
         stopName = this.stopName
+        stopped = this.stopped
         shouldArriveAt = this.shouldArriveAt
         shouldDepartAt = this.shouldDepartAt
     }
@@ -124,7 +127,7 @@ ORDER BY c DESC
         use c = getDbConn ()
         sqlQueryRec<WebTripStopAgg> c """
 SELECT
-    stopId, stopName,
+    stopId, stopName, bool_or(stopped) AS stopped,
     -- MIN() is here just for SQL semantics, all trips in an SSG should have identical planned times
     to_char(MIN(shouldArriveAt), 'HH24:MI') AS shouldArriveAt,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
@@ -376,7 +379,9 @@ SELECT
                     |> Option.defaultValue ""
                     |> str
                 tr [] [
-                    td [] [str stop.stopName]
+                    td [
+                        if stop.stopped then yield _class "stopped"
+                    ] [str stop.stopName]
                     td [] [
                         str <| Option.defaultValue "" stop.shouldArriveAt]
                     td [] [delay stop.p15ArrivalDelay ]
@@ -593,7 +598,9 @@ SELECT
                     | Changed _ -> yield _class "diff-changed"
                 ] [
                     td [] []
-                    td [] [str stop.stopName]
+                    td [
+                        if stop.stopped then yield _class "stopped"
+                    ] [str stop.stopName]
                     td [] [
                         match change with
                         | Changed from ->

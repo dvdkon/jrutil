@@ -1,9 +1,8 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2023 David Koňařík
+// (c) 2026 David Koňařík
 
 namespace RtView
 
-open System.Text.Json
 open Microsoft.AspNetCore.Mvc
 open Giraffe.ViewEngine
 open NodaTime
@@ -16,6 +15,7 @@ open RtView.ServerGlobals
 type WebTripStop = {
     stopId: string
     stopName: string
+    stopped: bool
     arrivedAt: string option
     shouldArriveAt: string option
     arrivalDelay: decimal option
@@ -47,7 +47,7 @@ type TripController() =
     let getTripStops (tripId: string) (startDate: LocalDate) () =
         use c = getDbConn ()
         sqlQueryRec<WebTripStop> c """
-            SELECT stopId, stopName,
+            SELECT stopId, stopName, stopped,
                    to_char(arrivedAt, 'HH24:MI') AS arrivedAt,
                    to_char(shouldArriveAt, 'HH24:MI') AS shouldArriveAt,
                    EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt)/60 AS arrivalDelay,
@@ -148,7 +148,9 @@ SELECT
 
     let stopRow (s: WebTripStop) =
         tr [] [
-            td [] [str s.stopName]
+            td [
+                if s.stopped then yield _class "stopped"
+            ] [str s.stopName]
             td [] [str (s.shouldArriveAt |> Option.defaultValue "")]
             td [] [str (s.arrivedAt |> Option.defaultValue "")]
             td [] [str (s.arrivalDelay
