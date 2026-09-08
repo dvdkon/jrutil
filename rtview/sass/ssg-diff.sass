@@ -1,0 +1,30 @@
+.ssg-diff-page
+    .controls
+        padding-bottom: 10px
+
+        input, button
+            margin-left: 10px
+            margin-right: 10px
+
+    .diff-deleted
+        background-color: #fdd
+        td:nth-child(1)::before
+            content: "-"
+    .diff-added
+        background-color: #dfd
+        td:nth-child(1)::before
+            content: "+"
+    .diff-changed
+        background-color: #ffb
+        td:nth-child(1)::before
+            content: "~"
+
+    .stopped
+        font-weight: bold
+
+    del
+        background-color: #fdd
+    ins
+        background-color: #dfd
+    del + ins
+        margin-left: 10px

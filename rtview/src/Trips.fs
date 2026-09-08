@@ -1,5 +1,5 @@
 // This file is part of JrUtil and is licenced under the GNU AGPLv3 or later
-// (c) 2023 David Koňařík
+// (c) 2026 David Koňařík
 
 namespace RtView
 
@@ -22,9 +22,24 @@ type StopSeqGroup = {
     dates: LocalDate array
 }
 
+type WebTimetableStop = {
+    stopId: string
+    stopName: string
+    stopped: bool
+    shouldArriveAt: string option
+    shouldDepartAt: string option
+}
+
+type WebTimetableStopChange =
+    | Kept
+    | Added
+    | Deleted
+    | Changed of from: WebTimetableStop
+
 type WebTripStopAgg = {
     stopId: string
     stopName: string
+    stopped: bool
     shouldArriveAt: string option
     medArrivalDelay: float option
     p15ArrivalDelay: float option
@@ -34,6 +49,14 @@ type WebTripStopAgg = {
     p15DepartureDelay: float option
     p85DepartureDelay: float option
 }
+with
+    member this.TimetableStop: WebTimetableStop = {
+        stopId = this.stopId
+        stopName = this.stopName
+        stopped = this.stopped
+        shouldArriveAt = this.shouldArriveAt
+        shouldDepartAt = this.shouldDepartAt
+    }
 
 type DelayChartAvgItem = {
     x: float
@@ -104,7 +127,7 @@ ORDER BY c DESC
         use c = getDbConn ()
         sqlQueryRec<WebTripStopAgg> c """
 SELECT
-    stopId, stopName,
+    stopId, stopName, bool_or(stopped) AS stopped,
     -- MIN() is here just for SQL semantics, all trips in an SSG should have identical planned times
     to_char(MIN(shouldArriveAt), 'HH24:MI') AS shouldArriveAt,
     percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM arrivedAt - shouldArriveAt))/60 AS medArrivalDelay,
@@ -356,7 +379,9 @@ SELECT
                     |> Option.defaultValue ""
                     |> str
                 tr [] [
-                    td [] [str stop.stopName]
+                    td [
+                        if stop.stopped then yield _class "stopped"
+                    ] [str stop.stopName]
                     td [] [
                         str <| Option.defaultValue "" stop.shouldArriveAt]
                     td [] [delay stop.p15ArrivalDelay ]
@@ -499,6 +524,101 @@ SELECT
             stops = stopsForTicks
         |}
 
+    let diffStopSequences (stops1: WebTimetableStop array) (stops2: WebTimetableStop array) =
+        // Diff two stop sequences using edit distance algorithm (from Průvodce
+        // labyrintem algoritmů).
+        // First compute the edit distances
+        let editDistance = Array2D.create (stops1.Length + 1) (stops2.Length + 1)
+                                          (None, Int32.MaxValue)
+        let entry change cost fromI fromJ =
+            let _, fromCost = editDistance[fromI, fromJ]
+            Some change, cost + fromCost
+        // Base cases: one sequence has ended, append the rest of the second
+        // TODO: Speed it up by not filling up the whole table but calculating
+        // on-demand.
+        for i in 0..stops1.Length do
+            editDistance[i, stops2.Length] <- (Some Deleted, stops1.Length - i)
+        for j in 0..stops2.Length do
+            editDistance[stops1.Length, j] <- (Some Added, stops2.Length - j)
+        // Fill out distance table
+        for i in stops1.Length-1 .. -1 .. 0 do
+            for j in stops2.Length-1 .. -1 .. 0 do
+                editDistance[i, j] <-
+                    if stops1[i] = stops2[j]
+                    then entry Kept 0 (i + 1) (j + 1) // Keep in both
+                    elif stops1[i].stopId = stops2[j].stopId
+                    // Just change times
+                    then entry (Changed stops1[i]) 1 (i + 1) (j + 1)
+                    else List.minBy (fun (_, c) -> c) [
+                        // Mark insertions/deletions as more expensive than
+                        // time changes.
+                        entry Deleted 2 (i + 1) j // Delete stops1[i]
+                        entry Added 2 i (j + 1) // Append stops2[j]
+                    ]
+
+        // Now backtrack to create diff-format list of stops
+        let editedStops = System.Collections.Generic.List()
+        let mutable i = 0
+        let mutable j = 0
+        while i < stops1.Length || j < stops2.Length do
+            let changeOpt, _ = editDistance[i, j]
+            let change = changeOpt |> Option.get
+            match change with
+            | Kept ->
+                editedStops.Add((change, stops1[i]))
+                i <- i + 1; j <- j + 1
+            | Added -> 
+                editedStops.Add((change, stops2[j]))
+                j <- j + 1
+            | Deleted -> 
+                editedStops.Add((change, stops1[i]))
+                i <- i + 1
+            | Changed _ -> 
+                editedStops.Add((change, stops2[i]))
+                i <- i + 1; j <- j + 1
+
+        editedStops |> Seq.toArray
+
+    let stopSequenceDiffTable (stops: (WebTimetableStopChange * WebTimetableStop) array) =
+        table [] [
+            thead [] [
+                th [] [] // Difference type
+                th [] [str "Stop"]
+                th [] [str "Exp. arr."]
+                th [] [str "Exp. dep."]
+            ]
+            tbody [] [
+                for change, stop in stops do
+                let timeOpt t = t |> Option.defaultValue "" |> str
+                tr [
+                    match change with
+                    | Kept -> ()
+                    | Added -> yield _class "diff-added"
+                    | Deleted -> yield _class "diff-deleted"
+                    | Changed _ -> yield _class "diff-changed"
+                ] [
+                    td [] []
+                    td [
+                        if stop.stopped then yield _class "stopped"
+                    ] [str stop.stopName]
+                    td [] [
+                        match change with
+                        | Changed from ->
+                            del [] [timeOpt from.shouldArriveAt]
+                            ins [] [timeOpt stop.shouldArriveAt]
+                        | _ -> timeOpt stop.shouldArriveAt
+                    ]
+                    td [] [
+                        match change with
+                        | Changed from ->
+                            del [] [timeOpt from.shouldDepartAt]
+                            ins [] [timeOpt stop.shouldDepartAt]
+                        | _ -> timeOpt stop.shouldDepartAt
+                    ]
+                ]
+            ]
+        ]
+
     member this.get(
             tripId: string,
             fromDate: LocalDate,
@@ -527,6 +647,9 @@ SELECT
                 label [_class "show-table"] [
                     input [_type "checkbox"; _checked]
                     span [] [str " Show table"]
+                ]
+                a [_href $"/Trips/{tripId}/ssgdiff"] [
+                    str "Compare stop sequences"
                 ]
             ]
 
@@ -592,3 +715,52 @@ SELECT
         let pngStream, extra = generateHeatmap stops delays selected
         this.Response.Headers.Add("X-Heatmap-Extra", JsonSerializer.Serialize(extra))
         this.File(pngStream, "image/png")
+
+
+    [<HttpGet("ssgdiff")>]
+    member this.ssgDiff(
+            tripId: string,
+            ssg1: LocalDate Nullable,
+            ssg2: LocalDate Nullable) =
+        let ssg1 = nullableOpt ssg1
+        let ssg2 = nullableOpt ssg2
+        let tripName =
+            ssg1
+            |> Option.map (fun ssg -> getTripName tripId ssg ())
+            |> Option.defaultValue (dateToIso LocalDate.MinIsoValue)
+        let stops1 =
+            ssg1 |> Option.map (fun ssg ->
+                getTripStops tripId ssg ssg ssg ()
+                |> Array.map (fun s -> s.TimetableStop))
+        let stops2 =
+            ssg2
+            |> Option.map (fun ssg -> getTripStops tripId ssg ssg ssg ())
+            |> Option.defaultValue [||]
+            |> Array.map (fun s -> s.TimetableStop)
+
+        let stopDiff = stops1 |> Option.map (fun ss1 -> diffStopSequences ss1 stops2)
+
+        div [_class "ssg-diff-page"] [
+            yield form [_class "controls"; _method "GET"] [
+                label [] [
+                    str "Base SSG:"
+                    input [_type "date"
+                           _name "ssg1"
+                           _value (ssg1 |> Option.map dateToIso
+                                        |> Option.defaultValue "")]
+                ]
+                label [] [
+                    str "Target SSG:"
+                    input [_type "date"
+                           _name "ssg2"
+                           _value (ssg1 |> Option.map dateToIso
+                                        |> Option.defaultValue "")]
+                ]
+                button [] [str "Set"]
+            ]
+
+            match stopDiff with
+            | None -> ()
+            | Some sd -> yield stopSequenceDiffTable sd
+        ]
+        |> htmlResult $"Trip {tripName}"
