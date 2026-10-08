@@ -97,6 +97,7 @@ let stopIdForName (nameIdMap: Map<string, string>) name =
 let fetchIndexData (httpClient: HttpClient) () = task {
     let cookies = CookieContainer()
     let! resp = httpClient.GetAsync(baseUrl)
+    resp.EnsureSuccessStatusCode() |> ignore
     let! text = resp.Content.ReadAsStringAsync()
     let doc = HtmlDocument.Parse(text)
     let cbValues selector =
@@ -145,6 +146,7 @@ let fetchAllTrainsSummary (httpClient: HttpClient) indexData () = task {
             sprintf "%s/post/trains/GetTrainsWithFilter/%s"
                     baseUrl indexData.token,
             JsonContent.Create(body))
+    resp.EnsureSuccessStatusCode() |> ignore
     let! respStr = resp.Content.ReadAsStringAsync()
     let respObj = GetTrainsWithFilterOutput.Parse(respStr)
     if respObj.Status <> "OK" then
@@ -202,6 +204,7 @@ let fetchTrainRoute
     let! resp =
         httpClient.GetAsync(sprintf "%s/OneTrain/RouteInfo/%s?trainId=%d"
                                    baseUrl indexData.token trainId)
+    resp.EnsureSuccessStatusCode() |> ignore
     let! respStr = resp.Content.ReadAsStringAsync()
     let doc = HtmlDocument.Parse(fsharpDataHtmlWorkaround respStr)
 
@@ -332,7 +335,12 @@ let fetchAllTrains (httpClient: HttpClient) indexData nameIdMap () = task {
             use! _token = rateLimiter.AcquireAsync(1)
             try
                 return! fetchTrain httpClient indexData nameIdMap train ()
-            with e ->
+            with
+            | :? HttpRequestException as e
+              when e.StatusCode.GetValueOrDefault() = HttpStatusCode.Forbidden ->
+                failwith "GRAPP request returned 403 Forbidden!"
+                return None
+            | e ->
                 Log.Error(
                     e, "Exception while getting Grapp position for {TrainID}/{TrainName}",
                     train.Id, train.Title)
