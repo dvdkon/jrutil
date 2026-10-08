@@ -29,21 +29,26 @@ Options:
     --grapp                  Enable GRAPP scraper
     --szmapa                 Enable mapy.spravazeleznic.cz scraper
     --golemio                Enable Golemio scraper
+    --ua-comment=COMMENT     Comment to append to user agent
 
 GRAPP stops CSV columns (GPS coords as floating point numbers):
     SR70,NÁZEV20,GPS X,GPS Y
 """
 
-let newHttpClient () =
+let newHttpClient args () =
     let httpClient = new HttpClient()
     httpClient.DefaultRequestHeaders.UserAgent.Add(
-        Headers.ProductInfoHeaderValue( "JrUtil-RtCollect",
+        Headers.ProductInfoHeaderValue(
+            "JrUtil-RtCollect",
             Assembly.GetExecutingAssembly().GetName().Version.ToString()))
+    optArgValue args "--ua-comment" |> Option.iter (fun c ->
+        httpClient.DefaultRequestHeaders.UserAgent.Add(
+            Headers.ProductInfoHeaderValue(c)))
     httpClient.Timeout <- TimeSpan.FromSeconds(5L)
     httpClient
 
-let scrapeGrapp grappStopMap conn = task {
-    use httpClient = newHttpClient ()
+let scrapeGrapp args grappStopMap conn = task {
+    use httpClient = newHttpClient args ()
     let! indexData = Grapp.fetchIndexData httpClient ()
     let! positions =
         measureTimeAsync "Getting train positions from Grapp" (fun () ->
@@ -81,7 +86,7 @@ let collect connGetter args =
         if not <| argFlagSet args "--grapp" then None else
             let conn = connGetter()
             Some <| new Timer(
-                (fun _ -> (scrapeGrapp grappStopMap conn).Wait()),
+                (fun _ -> (scrapeGrapp args grappStopMap conn).Wait()),
                 // Every 10 minutes, fire immediately
                 null, 0, 10*60*1000)
 
