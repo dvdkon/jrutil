@@ -30,6 +30,7 @@ Options:
     --szmapa                 Enable mapy.spravazeleznic.cz scraper
     --golemio                Enable Golemio scraper
     --ua-comment=COMMENT     Comment to append to user agent
+    --ua=VALUE               Replacement User-Agent header value
 
 GRAPP stops CSV columns (GPS coords as floating point numbers):
     SR70,NÁZEV20,GPS X,GPS Y
@@ -37,13 +38,19 @@ GRAPP stops CSV columns (GPS coords as floating point numbers):
 
 let newHttpClient args () =
     let httpClient = new HttpClient()
-    httpClient.DefaultRequestHeaders.UserAgent.Add(
-        Headers.ProductInfoHeaderValue(
-            "JrUtil-RtCollect",
-            Assembly.GetExecutingAssembly().GetName().Version.ToString()))
-    optArgValue args "--ua-comment" |> Option.iter (fun c ->
+
+    match optArgValue args "--ua" with
+    | Some ua ->
+        httpClient.DefaultRequestHeaders.Add("User-Agent", ua)
+    | None ->
         httpClient.DefaultRequestHeaders.UserAgent.Add(
-            Headers.ProductInfoHeaderValue(c)))
+            Headers.ProductInfoHeaderValue(
+                "JrUtil-RtCollect",
+                Assembly.GetExecutingAssembly().GetName().Version.ToString()))
+        optArgValue args "--ua-comment" |> Option.iter (fun c ->
+            httpClient.DefaultRequestHeaders.UserAgent.Add(
+                Headers.ProductInfoHeaderValue(c)))
+
     httpClient.Timeout <- TimeSpan.FromSeconds(5L)
     httpClient
 
