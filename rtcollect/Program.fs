@@ -93,7 +93,12 @@ let collect connGetter args =
         if not <| argFlagSet args "--grapp" then None else
             let conn = connGetter()
             Some <| new Timer(
-                (fun _ -> (scrapeGrapp args grappStopMap conn).Wait()),
+                (fun _ ->
+                    measureTime "Waiting for stops list to load" (fun () ->
+                        grappStopsSignal.WaitOne() |> ignore)
+
+                    (scrapeGrapp args grappStopMap conn).Wait()
+                ),
                 // Every 10 minutes, fire immediately
                 null, 0, 10*60*1000)
 
