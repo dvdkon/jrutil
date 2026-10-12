@@ -5,13 +5,14 @@ module JrUtil.Utils
 
 open System
 open System.IO
-open System.Diagnostics
-open System.Globalization
 open System.Collections
 open System.Collections.Concurrent
+open System.Collections.Generic
+open System.Diagnostics
+open System.Globalization
 open System.Runtime.InteropServices
 open System.Runtime.Serialization.Formatters.Binary
-open System.Collections.Generic
+open System.Text
 open DocoptNet
 open Serilog
 open Serilog.Events
@@ -409,3 +410,14 @@ let concatTo3 xs =
         x2s.AddRange(x2)
         x3s.AddRange(x3)
     x1s, x2s, x3s
+
+let unaccent (s: string) =
+    // Inspired by https://stackoverflow.com/a/67569854
+    let nfd = s.Normalize(NormalizationForm.FormD)
+    let builder = StringBuilder()
+
+    for c in nfd.EnumerateRunes() do
+        if Rune.GetUnicodeCategory(c) <> UnicodeCategory.NonSpacingMark then
+            builder.Append(c) |> ignore
+
+    builder.ToString().Normalize(NormalizationForm.FormC);

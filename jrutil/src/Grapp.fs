@@ -33,6 +33,7 @@ type TrainDetail = {
     lastStopId: string option
     delay: float option
     routePageAvailable: bool
+    extraType: string option
 }
 
 type GetTrainsWithFilterInput = {
@@ -159,6 +160,9 @@ let fetchAllTrainsSummary (httpClient: HttpClient) indexData () = task {
 let fsharpDataHtmlWorkaround html =
     Regex("(&[^;]+;) +(&[^;]+;)").Replace(html, "$1&#32;$2")
 
+let normaliseExtraType (text: string) =
+    (text.Replace("|", "").Trim() |> unaccent).ToLower()
+
 // Returns Option to handle the case when the ID is invalid/no longer available
 let fetchTrainDetail
         (httpClient: HttpClient) indexData nameIdMap trainId () = task {
@@ -192,10 +196,17 @@ let fetchTrainDetail
             |> Option.map (fun ds ->
                 if ds = "-" then 0.0
                 else float <| ds.Replace("min", ""))
+        let extraType =
+            Seq.concat [ doc.CssSelect(".standbyTitle")
+                         doc.CssSelect(".originalTitle") ]
+            |> Seq.tryHead
+            |> Option.map (fun e ->
+                e.InnerText().Replace("|", "").Trim().ToLower())
         return Some {
             lastStopId = lastStop
             delay = delay
             routePageAvailable = doc.CssSelect(".action") |> Seq.isEmpty |> not
+            extraType = extraType
         }
 }
 
@@ -296,7 +307,11 @@ let fetchTrain
                 route.[0].shouldDepartAt
                 |> Option.orElse route.[0].departedAt
                 |> Option.get
-            let trainId = String.Join("-", trainName.Split().[..1])
+            let trainIdBase = String.Join("-", trainName.Split().[..1])
+            let trainId =
+                match detail.extraType |> Option.map normaliseExtraType with
+                | None | Some "puvodni vlak" -> trainIdBase
+                | Some et -> trainIdBase + "-" + String.Join("-", et.Split())
             return Some {
                 tripId = sprintf "-CZTRAINT-%s" trainId
                 tripStartDate = startTime.Date
@@ -309,8 +324,10 @@ let fetchTrain
                 lastStopId = detail.lastStopId
                 delay = detail.delay
                 stopHistory = Some route
-                routeId = sprintf "-CZTRAINR-%s" trainId
-                shortName = Some trainName
+                routeId = sprintf "-CZTRAINR-%s" trainIdBase
+                shortName = Some <| match detail.extraType with
+                                    | Some et -> $"{trainName} ({et})"
+                                    | None -> trainName
                 routeShortName = Some trainName
             }
 }
