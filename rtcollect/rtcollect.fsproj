@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="NodaTime" Version="3.3.2" />
+    <PackageReference Include="UserAgents.Net" Version="1.0.0.320" />
   </ItemGroup>
 
   <ItemGroup>

@@ -7,6 +7,7 @@ open System.Reflection
 open System.Threading
 open NodaTime
 open Serilog
+open UserAgents
 
 open JrUtil
 open JrUtil.Utils
@@ -31,18 +32,24 @@ Options:
     --golemio                Enable Golemio scraper
     --ua-comment=COMMENT     Comment to append to user agent
     --ua=VALUE               Replacement User-Agent header value
+    --ua-random              Choose random user agent
 
 GRAPP stops CSV columns (GPS coords as floating point numbers):
     SR70,NÁZEV20,GPS X,GPS Y
 """
 
+let uaSelector = new UserAgentSelector()
 let newHttpClient args () =
     let httpClient = new HttpClient()
 
-    match optArgValue args "--ua" with
-    | Some ua ->
+    match (argFlagSet args "--ua-random", optArgValue args "--ua") with
+    | true, _ ->
+        let ua = uaSelector.GetRandom()
+        Log.Information("Using User-Agent: {UserAgent}", ua.UserAgentString)
+        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(ua.UserAgentString)
+    | _, Some ua ->
         httpClient.DefaultRequestHeaders.Add("User-Agent", ua)
-    | None ->
+    | _, None ->
         httpClient.DefaultRequestHeaders.UserAgent.Add(
             Headers.ProductInfoHeaderValue(
                 "JrUtil-RtCollect",
