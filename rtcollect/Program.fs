@@ -7,11 +7,13 @@ open System.Reflection
 open System.Threading
 open NodaTime
 open Serilog
+open UserAgents
 
 open JrUtil
 open JrUtil.Utils
 open JrUtil.SqlRecordStore
 open JrUtil.RealTimeSql
+open System.Net
 
 let docstring = (fun (s: string) -> s.Trim()) """
 RtCollect, a long-running program for collecting real-time data from various
@@ -31,18 +33,54 @@ Options:
     --golemio                Enable Golemio scraper
     --ua-comment=COMMENT     Comment to append to user agent
     --ua=VALUE               Replacement User-Agent header value
+    --ua-random              Choose random user agent
+    --proxy=PROXYLIST        Comma-separated list of proxies to use
 
 GRAPP stops CSV columns (GPS coords as floating point numbers):
     SR70,NÁZEV20,GPS X,GPS Y
 """
 
-let newHttpClient args () =
-    let httpClient = new HttpClient()
+type RandomProxy(proxies: Uri array) =
+    let rand = Random()
+    let credsCache = CredentialCache()
+    do
+        for proxy in proxies do
+            let uis = proxy.UserInfo.Split(':', 2)
+            if uis.Length = 2 then
+                let creds = NetworkCredential(uis[0], uis[1])
+                let ub = UriBuilder(proxy)
+                ub.UserName <- ""
+                ub.Password <- ""
+                credsCache.Add(ub.Uri, "Basic", creds)
 
-    match optArgValue args "--ua" with
-    | Some ua ->
+    interface IWebProxy with
+        member this.Credentials
+            with get () = credsCache
+            and set (_) = failwith "RandomProxy does not allow changing credentials"
+        member this.IsBypassed(host) = false
+        member this.GetProxy(dest) =
+            let idx = rand.Next(proxies.Length)
+            proxies[idx]
+
+let uaSelector = new UserAgentSelector()
+let newHttpClient args () =
+    let httpClient =
+
+        match optArgValue args "--proxy" with
+        | None -> new HttpClient()
+        | Some proxyStr ->
+            let proxies = proxyStr.Split(',') |> Seq.map Uri |> Seq.toArray
+            let handler = new HttpClientHandler(Proxy = RandomProxy(proxies))
+            new HttpClient(handler)
+
+    match (argFlagSet args "--ua-random", optArgValue args "--ua") with
+    | true, _ ->
+        let ua = uaSelector.GetRandom()
+        Log.Information("Using User-Agent: {UserAgent}", ua.UserAgentString)
+        httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(ua.UserAgentString)
+    | _, Some ua ->
         httpClient.DefaultRequestHeaders.Add("User-Agent", ua)
-    | None ->
+    | _, None ->
         httpClient.DefaultRequestHeaders.UserAgent.Add(
             Headers.ProductInfoHeaderValue(
                 "JrUtil-RtCollect",
@@ -51,7 +89,7 @@ let newHttpClient args () =
             httpClient.DefaultRequestHeaders.UserAgent.Add(
                 Headers.ProductInfoHeaderValue(c)))
 
-    httpClient.Timeout <- TimeSpan.FromSeconds(5L)
+    httpClient.Timeout <- TimeSpan.FromSeconds(10L)
     httpClient
 
 let scrapeGrapp args grappStopMap conn = task {

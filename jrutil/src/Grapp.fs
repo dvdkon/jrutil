@@ -341,7 +341,7 @@ let fetchAllTrains (httpClient: HttpClient) indexData nameIdMap () = task {
              QueueLimit = 10000)) :> RateLimiter
          new FixedWindowRateLimiter(new FixedWindowRateLimiterOptions(
              Window = TimeSpan.FromSeconds(1L),
-             PermitLimit = 5,
+             PermitLimit = 2,
              QueueLimit = 10000))
      |]
 
